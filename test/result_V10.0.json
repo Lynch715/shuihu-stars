@@ -1,0 +1,116 @@
+{
+ "file": "水浒群星录_V10.0.html",
+ "at": "2026-09-19T11:55:40.744Z",
+ "results": [
+  {
+   "name": "页面加载无 JS 错误",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "name": "角色 ID 规范",
+   "pass": true,
+   "detail": "266 个角色 ID 全部合法"
+  },
+  {
+   "name": "技能 ID 规范且无断链",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "name": "角色 bio 完整",
+   "pass": true,
+   "detail": null
+  },
+  {
+   "name": "开局状态正常",
+   "pass": true,
+   "detail": "起手 史进、朱武　银两 500"
+  },
+  {
+   "name": "开局角色固定（非随机）",
+   "pass": true,
+   "detail": "shi_jin,zhu_wu"
+  },
+  {
+   "name": "第 1 关敌方配置合理",
+   "pass": true,
+   "detail": "4 名敌人，最高品质 2，总血 2862"
+  },
+  {
+   "name": "战力对比与实战一致",
+   "pass": true,
+   "detail": "我方 1123　显示敌方 1250　实测 1250"
+  },
+  {
+   "name": "第 1 关可通关",
+   "pass": true,
+   "detail": "20 场胜 20"
+  },
+  {
+   "name": "战斗日志非空",
+   "pass": true,
+   "detail": "2 回合产出 20 条"
+  },
+  {
+   "name": "技能会轮换（非恒取第一个）",
+   "pass": true,
+   "detail": "用到 4 种技能"
+  },
+  {
+   "name": "buff 技能有实际效果",
+   "pass": true,
+   "detail": "buff_atk +5000 后三回合总伤 5296→245804（46.4×）"
+  },
+  {
+   "name": "护盾能抵挡伤害",
+   "pass": true,
+   "detail": "千万护盾全额吸收，未掉血"
+  },
+  {
+   "name": "升级生效且扣银两",
+   "pass": true,
+   "detail": "Lv1→2　武 135→144　耗银 20"
+  },
+  {
+   "name": "升星消耗碎片并解锁技能",
+   "pass": true,
+   "detail": "★1→2　技能 1→2 个　耗碎片 2"
+  },
+  {
+   "name": "装备穿戴影响战斗属性",
+   "pass": true,
+   "detail": "w1(+5) 武 135→177"
+  },
+  {
+   "name": "羁绊在真实阵容下可触发",
+   "pass": true,
+   "detail": "最优 9 人阵容激活 17/118 条，属性 165→206"
+  },
+  {
+   "name": "招募概率与公示一致",
+   "pass": true,
+   "detail": "绝世 1.0%/1%　天罡 2.8%/3%　名 8.6%/8%　猛 15.1%/15%　良 29.0%/28%　凡 43.5%/45%"
+  },
+  {
+   "name": "存档读档往返一致",
+   "pass": true,
+   "detail": "银两 / 碎片 / 通关进度均已持久化"
+  },
+  {
+   "name": "刷新后银两不被重置",
+   "pass": true,
+   "detail": "8888 保持"
+  },
+  {
+   "name": "结算奖励真实入账",
+   "pass": true,
+   "detail": "面板银两合计 +271，账上实增 271，共 6 条奖励"
+  },
+  {
+   "name": "无定时器强制重绘",
+   "pass": true,
+   "detail": null
+  }
+ ]
+}

@@ -1,0 +1,170 @@
+{
+ "bandit_1": {
+  "portrait": "bandit_1.webp",
+  "bytes": 29510
+ },
+ "bandit_2": {
+  "portrait": "bandit_2.webp",
+  "bytes": 27826
+ },
+ "bandit_3": {
+  "portrait": "bandit_3.webp",
+  "bytes": 38482
+ },
+ "bandit_4": {
+  "portrait": "bandit_4.webp",
+  "bytes": 31818
+ },
+ "bandit_5": {
+  "portrait": "bandit_5.webp",
+  "bytes": 24380
+ },
+ "bandit_6": {
+  "portrait": "bandit_6.webp",
+  "bytes": 29702
+ },
+ "chai_jin": {
+  "portrait": "chai_jin.webp",
+  "bytes": 26760
+ },
+ "dai_zong": {
+  "portrait": "dai_zong.webp",
+  "bytes": 23426
+ },
+ "dong_ping": {
+  "portrait": "dong_ping.webp",
+  "bytes": 31544
+ },
+ "gongsun_sheng": {
+  "portrait": "gongsun_sheng.webp",
+  "bytes": 28270
+ },
+ "guan_sheng": {
+  "portrait": "guan_sheng.webp",
+  "bytes": 30824
+ },
+ "hu_yanzhuo": {
+  "portrait": "hu_yanzhuo.webp",
+  "bytes": 31048
+ },
+ "hua_rong": {
+  "portrait": "hua_rong.webp",
+  "bytes": 29636
+ },
+ "lei_heng": {
+  "portrait": "lei_heng.webp",
+  "bytes": 23742
+ },
+ "li_jun": {
+  "portrait": "li_jun.webp",
+  "bytes": 26600
+ },
+ "li_kui": {
+  "portrait": "li_kui.webp",
+  "bytes": 27772
+ },
+ "li_ying": {
+  "portrait": "li_ying.webp",
+  "bytes": 34716
+ },
+ "lin_chong": {
+  "portrait": "lin_chong.webp",
+  "bytes": 32218
+ },
+ "liu_tang": {
+  "portrait": "liu_tang.webp",
+  "bytes": 30334
+ },
+ "lu_junyi": {
+  "portrait": "lu_junyi.webp",
+  "bytes": 26912
+ },
+ "lu_zhishen": {
+  "portrait": "lu_zhishen.webp",
+  "bytes": 32936
+ },
+ "mu_hong": {
+  "portrait": "mu_hong.webp",
+  "bytes": 27856
+ },
+ "qin_ming": {
+  "portrait": "qin_ming.webp",
+  "bytes": 38990
+ },
+ "ruan_xiaoer": {
+  "portrait": "ruan_xiaoer.webp",
+  "bytes": 28562
+ },
+ "ruan_xiaoqi": {
+  "portrait": "ruan_xiaoqi.webp",
+  "bytes": 30558
+ },
+ "ruan_xiaowu": {
+  "portrait": "ruan_xiaowu.webp",
+  "bytes": 39800
+ },
+ "shi_jin": {
+  "portrait": "shi_jin.webp",
+  "bytes": 33088
+ },
+ "shi_xiu": {
+  "portrait": "shi_xiu.webp",
+  "bytes": 27826
+ },
+ "song_jiang": {
+  "portrait": "song_jiang.webp",
+  "bytes": 22726
+ },
+ "suo_chao": {
+  "portrait": "suo_chao.webp",
+  "bytes": 35034
+ },
+ "wu_song": {
+  "portrait": "wu_song.webp",
+  "bytes": 27162
+ },
+ "wu_yong": {
+  "portrait": "wu_yong.webp",
+  "bytes": 30258
+ },
+ "xie_bao": {
+  "portrait": "xie_bao.webp",
+  "bytes": 36216
+ },
+ "xie_zhen": {
+  "portrait": "xie_zhen.webp",
+  "bytes": 30090
+ },
+ "xu_ning": {
+  "portrait": "xu_ning.webp",
+  "bytes": 38772
+ },
+ "yan_qing": {
+  "portrait": "yan_qing.webp",
+  "bytes": 26464
+ },
+ "yang_xiong": {
+  "portrait": "yang_xiong.webp",
+  "bytes": 24710
+ },
+ "yang_zhi": {
+  "portrait": "yang_zhi.webp",
+  "bytes": 29540
+ },
+ "zhang_heng": {
+  "portrait": "zhang_heng.webp",
+  "bytes": 30326
+ },
+ "zhang_qing": {
+  "portrait": "zhang_qing.webp",
+  "bytes": 30478
+ },
+ "zhang_shun": {
+  "portrait": "zhang_shun.webp",
+  "bytes": 20324
+ },
+ "zhu_tong": {
+  "portrait": "zhu_tong.webp",
+  "bytes": 24434
+ }
+}

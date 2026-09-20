@@ -1,0 +1,116 @@
+{
+ "file": "game.html",
+ "at": "2026-09-19T10:32:23.362Z",
+ "results": [
+  {
+   "name": "页面加载无 JS 错误",
+   "pass": false,
+   "detail": "1 个错误：\n(intermediate value)(intermediate value)(intermediate value)(intermediate value)(intermediate value)(intermediate value)(intermediate value)(intermediate value)"
+  },
+  {
+   "name": "角色 ID 无乱码",
+   "pass": false,
+   "detail": "286 个角色中 81 个 ID 乱码，如 __ / ___2 / ___ / ___3 / ___4 / ___5"
+  },
+  {
+   "name": "技能 ID 无乱码 / 无断链",
+   "pass": false,
+   "detail": "乱码技能 ID 376 个；断链 1 处 fang_jie:_atk_fang_jie"
+  },
+  {
+   "name": "角色 bio 完整",
+   "pass": false,
+   "detail": "286 中 45 个缺 bio，如 ruan_xiaoer / ruan_xiaowu / liu_huiniang / zhang_xian / wang_gui"
+  },
+  {
+   "name": "开局状态正常",
+   "pass": true,
+   "detail": "起手 万俟卨、楚明玉　银两 500"
+  },
+  {
+   "name": "开局角色固定（非随机）",
+   "pass": false,
+   "detail": "两次开局不同：[____27,li_jun] vs [han_tao,tian_hu]"
+  },
+  {
+   "name": "第 1 关敌方配置合理",
+   "pass": false,
+   "detail": "9 名敌人里混入 4 名强者：林冲(武228/血1461)、鲁智深(武227/血1734)、武松(武198/血1559)、李逵(武174/血1679)　总血 10304"
+  },
+  {
+   "name": "战力对比与实战一致",
+   "pass": false,
+   "detail": "显示敌方战力 587，实际战斗强度 6407（差 10.9 倍，9 名敌人）"
+  },
+  {
+   "name": "第 1 关可通关",
+   "pass": false,
+   "detail": "20 场只胜 0（应 ≥18）"
+  },
+  {
+   "name": "战斗日志非空",
+   "pass": true,
+   "detail": "2 回合产出 39 条"
+  },
+  {
+   "name": "技能会轮换（非恒取第一个）",
+   "pass": true,
+   "detail": "用到 11 种技能"
+  },
+  {
+   "name": "buff 技能有实际效果",
+   "pass": false,
+   "detail": "buff_atk +5000 后三回合总伤 930→906（0.97×，无变化）\nstatus.buff_* 写入后无任何读取点，约 280 条 buff 与 42 条 steal 技能机械效果为零"
+  },
+  {
+   "name": "护盾能抵挡伤害",
+   "pass": true,
+   "detail": "10 万护盾全额吸收，剩余 100000"
+  },
+  {
+   "name": "升级生效且扣银两",
+   "pass": true,
+   "detail": "Lv1→2　武 67→71　耗银 20"
+  },
+  {
+   "name": "升星消耗碎片并解锁技能",
+   "pass": true,
+   "detail": "★1→2　技能 1→2 个　耗碎片 2"
+  },
+  {
+   "name": "装备穿戴影响战斗属性",
+   "pass": true,
+   "detail": "w1(+5) 武 67→91"
+  },
+  {
+   "name": "羁绊在真实阵容下可触发",
+   "pass": true,
+   "detail": "最优 9 人阵容激活 8/118 条"
+  },
+  {
+   "name": "招募概率与公示一致",
+   "pass": "warn",
+   "detail": "抽卡函数未暴露（无法自动校验，需人工核对）"
+  },
+  {
+   "name": "存档读档往返一致",
+   "pass": false,
+   "detail": "未写入存档：frags"
+  },
+  {
+   "name": "刷新后银两不被重置",
+   "pass": false,
+   "detail": "存 8888，刷新后变成 500"
+  },
+  {
+   "name": "奖励面板数字真实",
+   "pass": "warn",
+   "detail": "面板未出现经验字样：💀 战斗失败 调整阵容后再来！ 返回关卡"
+  },
+  {
+   "name": "无定时器强制重绘",
+   "pass": false,
+   "detail": "7 个 setInterval 在跑：30000ms / 100ms / 200ms / 2000ms / 1500ms / 5000ms / 5000ms"
+  }
+ ]
+}

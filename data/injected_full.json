@@ -1,0 +1,1535 @@
+{
+ "onlyH": {
+  "fang_mao": {
+   "hid": "fang_mao",
+   "name": "方貌",
+   "q": 5,
+   "atk": 88,
+   "def": 80,
+   "int": 55,
+   "agi": 70,
+   "cha": 60,
+   "hp": 820,
+   "sk": [
+    "fl1",
+    "fl2",
+    "fl3",
+    "fl4"
+   ],
+   "gr": {
+    "atk": 0.044,
+    "def": 0.042,
+    "int": 0.025,
+    "agi": 0.035,
+    "cha": 0.028,
+    "hp": 0.5
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "天罡"
+  },
+  "fang_jie": {
+   "hid": "fang_jie",
+   "name": "方杰",
+   "q": 5,
+   "atk": 94,
+   "def": 80,
+   "int": 52,
+   "agi": 74,
+   "cha": 56,
+   "hp": 850,
+   "sk": [
+    "fl1",
+    "fl2",
+    "fl3",
+    "fl4",
+    "_atk_fang_jie"
+   ],
+   "gr": {
+    "atk": 0.045,
+    "def": 0.04,
+    "int": 0.022,
+    "agi": 0.036,
+    "cha": 0.026,
+    "hp": 0.48
+   },
+   "src": "v892",
+   "title": "",
+   "spd": 74,
+   "rarity": "天罡"
+  },
+  "lv_shi_nang": {
+   "hid": "lv_shi_nang",
+   "name": "吕师囊",
+   "q": 4,
+   "atk": 70,
+   "def": 65,
+   "int": 60,
+   "agi": 55,
+   "cha": 58,
+   "hp": 660,
+   "sk": [
+    "fl1",
+    "fl2",
+    "fl3",
+    "fl4"
+   ],
+   "gr": {
+    "atk": 0.035,
+    "def": 0.032,
+    "int": 0.03,
+    "agi": 0.028,
+    "cha": 0.028,
+    "hp": 0.4
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "li_tianrun": {
+   "hid": "li_tianrun",
+   "name": "厉天闰",
+   "q": 5,
+   "atk": 86,
+   "def": 82,
+   "int": 48,
+   "agi": 68,
+   "cha": 52,
+   "hp": 800,
+   "sk": [
+    "fl1",
+    "fl2",
+    "fl3",
+    "fl4"
+   ],
+   "gr": {
+    "atk": 0.043,
+    "def": 0.041,
+    "int": 0.022,
+    "agi": 0.034,
+    "cha": 0.024,
+    "hp": 0.48
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "天罡"
+  },
+  "li_tianyou": {
+   "hid": "li_tianyou",
+   "name": "厉天祐",
+   "q": 4,
+   "atk": 72,
+   "def": 65,
+   "int": 40,
+   "agi": 62,
+   "cha": 38,
+   "hp": 620,
+   "sk": [
+    "fl1",
+    "fl2",
+    "fl3",
+    "fl4"
+   ],
+   "gr": {
+    "atk": 0.036,
+    "def": 0.032,
+    "int": 0.018,
+    "agi": 0.031,
+    "cha": 0.018,
+    "hp": 0.38
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "zheng_biao": {
+   "hid": "zheng_biao",
+   "name": "郑彪",
+   "q": 4,
+   "atk": 68,
+   "def": 60,
+   "int": 55,
+   "agi": 58,
+   "cha": 50,
+   "hp": 600,
+   "sk": [
+    "fl1",
+    "fl2",
+    "fl3",
+    "fl4"
+   ],
+   "gr": {
+    "atk": 0.034,
+    "def": 0.03,
+    "int": 0.028,
+    "agi": 0.029,
+    "cha": 0.024,
+    "hp": 0.36
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "bao_daoyi": {
+   "hid": "bao_daoyi",
+   "name": "包道乙",
+   "q": 4,
+   "atk": 50,
+   "def": 45,
+   "int": 75,
+   "agi": 40,
+   "cha": 55,
+   "hp": 480,
+   "sk": [
+    "fl1",
+    "fl2",
+    "fl3",
+    "fl4"
+   ],
+   "gr": {
+    "atk": 0.022,
+    "def": 0.02,
+    "int": 0.04,
+    "agi": 0.018,
+    "cha": 0.026,
+    "hp": 0.28
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "tian_biao": {
+   "hid": "tian_biao",
+   "name": "田彪",
+   "q": 4,
+   "atk": 72,
+   "def": 66,
+   "int": 42,
+   "agi": 60,
+   "cha": 44,
+   "hp": 640,
+   "sk": [
+    "tth1",
+    "tth2",
+    "tth3",
+    "tth4"
+   ],
+   "gr": {
+    "atk": 0.036,
+    "def": 0.033,
+    "int": 0.02,
+    "agi": 0.03,
+    "cha": 0.022,
+    "hp": 0.4
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "tian_shi": {
+   "hid": "tian_shi",
+   "name": "田实",
+   "q": 4,
+   "atk": 68,
+   "def": 64,
+   "int": 40,
+   "agi": 58,
+   "cha": 42,
+   "hp": 620,
+   "sk": [
+    "tth1",
+    "tth2",
+    "tth3",
+    "tth4"
+   ],
+   "gr": {
+    "atk": 0.034,
+    "def": 0.032,
+    "int": 0.019,
+    "agi": 0.029,
+    "cha": 0.021,
+    "hp": 0.38
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "sun_an": {
+   "hid": "sun_an",
+   "name": "孙安",
+   "q": 5,
+   "atk": 84,
+   "def": 76,
+   "int": 50,
+   "agi": 66,
+   "cha": 54,
+   "hp": 780,
+   "sk": [
+    "tth1",
+    "tth2",
+    "tth3",
+    "tth4"
+   ],
+   "gr": {
+    "atk": 0.042,
+    "def": 0.038,
+    "int": 0.022,
+    "agi": 0.033,
+    "cha": 0.026,
+    "hp": 0.46
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "天罡"
+  },
+  "yuan_lang": {
+   "hid": "yuan_lang",
+   "name": "袁朗",
+   "q": 5,
+   "atk": 86,
+   "def": 80,
+   "int": 45,
+   "agi": 64,
+   "cha": 50,
+   "hp": 760,
+   "sk": [
+    "wq1",
+    "wq2",
+    "wq3",
+    "wq4"
+   ],
+   "gr": {
+    "atk": 0.043,
+    "def": 0.04,
+    "int": 0.02,
+    "agi": 0.032,
+    "cha": 0.024,
+    "hp": 0.44
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "天罡"
+  },
+  "du_jue": {
+   "hid": "du_jue",
+   "name": "杜壆",
+   "q": 5,
+   "atk": 82,
+   "def": 74,
+   "int": 48,
+   "agi": 66,
+   "cha": 52,
+   "hp": 740,
+   "sk": [
+    "wq1",
+    "wq2",
+    "wq3",
+    "wq4"
+   ],
+   "gr": {
+    "atk": 0.041,
+    "def": 0.037,
+    "int": 0.022,
+    "agi": 0.033,
+    "cha": 0.024,
+    "hp": 0.44
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "天罡"
+  },
+  "feng_tai": {
+   "hid": "feng_tai",
+   "name": "酆泰",
+   "q": 4,
+   "atk": 74,
+   "def": 68,
+   "int": 40,
+   "agi": 60,
+   "cha": 44,
+   "hp": 660,
+   "sk": [
+    "wq1",
+    "wq2",
+    "wq3",
+    "wq4"
+   ],
+   "gr": {
+    "atk": 0.037,
+    "def": 0.034,
+    "int": 0.018,
+    "agi": 0.03,
+    "cha": 0.022,
+    "hp": 0.4
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "mi_sheng": {
+   "hid": "mi_sheng",
+   "name": "縻貹",
+   "q": 4,
+   "atk": 70,
+   "def": 66,
+   "int": 42,
+   "agi": 62,
+   "cha": 46,
+   "hp": 640,
+   "sk": [
+    "wq1",
+    "wq2",
+    "wq3",
+    "wq4"
+   ],
+   "gr": {
+    "atk": 0.035,
+    "def": 0.033,
+    "int": 0.02,
+    "agi": 0.031,
+    "cha": 0.023,
+    "hp": 0.4
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "wu_yanguang_l": {
+   "hid": "wu_yanguang_l",
+   "name": "兀颜光",
+   "q": 5,
+   "atk": 88,
+   "def": 82,
+   "int": 50,
+   "agi": 66,
+   "cha": 56,
+   "hp": 840,
+   "sk": [
+    "wy1_n",
+    "wy2_n",
+    "wy3_n",
+    "wy4_n"
+   ],
+   "gr": {
+    "atk": 0.044,
+    "def": 0.041,
+    "int": 0.022,
+    "agi": 0.033,
+    "cha": 0.026,
+    "hp": 0.52
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "天罡"
+  },
+  "he_tongjun": {
+   "hid": "he_tongjun",
+   "name": "贺统军",
+   "q": 4,
+   "atk": 76,
+   "def": 72,
+   "int": 48,
+   "agi": 60,
+   "cha": 50,
+   "hp": 700,
+   "sk": [
+    "wy1_n",
+    "wy2_n",
+    "wy3_n",
+    "wy4_n"
+   ],
+   "gr": {
+    "atk": 0.038,
+    "def": 0.036,
+    "int": 0.022,
+    "agi": 0.03,
+    "cha": 0.024,
+    "hp": 0.44
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "han_yanshou": {
+   "hid": "han_yanshou",
+   "name": "韩延寿",
+   "q": 4,
+   "atk": 72,
+   "def": 68,
+   "int": 45,
+   "agi": 62,
+   "cha": 48,
+   "hp": 660,
+   "sk": [
+    "wy1_n",
+    "wy2_n",
+    "wy3_n",
+    "wy4_n"
+   ],
+   "gr": {
+    "atk": 0.036,
+    "def": 0.034,
+    "int": 0.02,
+    "agi": 0.031,
+    "cha": 0.023,
+    "hp": 0.4
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "yeli_dezhong": {
+   "hid": "yeli_dezhong",
+   "name": "耶律得重",
+   "q": 4,
+   "atk": 78,
+   "def": 70,
+   "int": 42,
+   "agi": 60,
+   "cha": 46,
+   "hp": 680,
+   "sk": [
+    "wy1_n",
+    "wy2_n",
+    "wy3_n",
+    "wy4_n"
+   ],
+   "gr": {
+    "atk": 0.039,
+    "def": 0.035,
+    "int": 0.018,
+    "agi": 0.03,
+    "cha": 0.022,
+    "hp": 0.42
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "yeli_zongyun": {
+   "hid": "yeli_zongyun",
+   "name": "耶律宗云",
+   "q": 4,
+   "atk": 74,
+   "def": 66,
+   "int": 40,
+   "agi": 64,
+   "cha": 44,
+   "hp": 640,
+   "sk": [
+    "wy1_n",
+    "wy2_n",
+    "wy3_n",
+    "wy4_n"
+   ],
+   "gr": {
+    "atk": 0.037,
+    "def": 0.033,
+    "int": 0.018,
+    "agi": 0.032,
+    "cha": 0.022,
+    "hp": 0.4
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "yeli_zongdian": {
+   "hid": "yeli_zongdian",
+   "name": "耶律宗电",
+   "q": 4,
+   "atk": 70,
+   "def": 64,
+   "int": 42,
+   "agi": 66,
+   "cha": 44,
+   "hp": 620,
+   "sk": [
+    "wy1_n",
+    "wy2_n",
+    "wy3_n",
+    "wy4_n"
+   ],
+   "gr": {
+    "atk": 0.035,
+    "def": 0.032,
+    "int": 0.02,
+    "agi": 0.033,
+    "cha": 0.022,
+    "hp": 0.38
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "shi_quan": {
+   "hid": "shi_quan",
+   "name": "施全",
+   "q": 4,
+   "atk": 66,
+   "def": 58,
+   "int": 40,
+   "agi": 64,
+   "cha": 42,
+   "hp": 580,
+   "sk": [
+    "yf1",
+    "yf2",
+    "yf3",
+    "yf4"
+   ],
+   "gr": {
+    "atk": 0.033,
+    "def": 0.029,
+    "int": 0.018,
+    "agi": 0.032,
+    "cha": 0.02,
+    "hp": 0.34
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "ji_qing": {
+   "hid": "ji_qing",
+   "name": "吉青",
+   "q": 3,
+   "atk": 62,
+   "def": 56,
+   "int": 35,
+   "agi": 60,
+   "cha": 38,
+   "hp": 560,
+   "sk": [
+    "yf1",
+    "yf2",
+    "yf3",
+    "yf4"
+   ],
+   "gr": {
+    "atk": 0.031,
+    "def": 0.028,
+    "int": 0.014,
+    "agi": 0.03,
+    "cha": 0.018,
+    "hp": 0.34
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "猛"
+  },
+  "yun_long2": {
+   "hid": "yun_long2",
+   "name": "云龙",
+   "q": 4,
+   "atk": 72,
+   "def": 60,
+   "int": 48,
+   "agi": 66,
+   "cha": 46,
+   "hp": 620,
+   "sk": [
+    "cxt1",
+    "cxt2",
+    "cxt3",
+    "cxt4"
+   ],
+   "gr": {
+    "atk": 0.036,
+    "def": 0.03,
+    "int": 0.022,
+    "agi": 0.033,
+    "cha": 0.022,
+    "hp": 0.38
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "zhen_xianglin": {
+   "hid": "zhen_xianglin",
+   "name": "真祥麟",
+   "q": 5,
+   "atk": 80,
+   "def": 72,
+   "int": 45,
+   "agi": 66,
+   "cha": 50,
+   "hp": 740,
+   "sk": [
+    "cxt1",
+    "cxt2",
+    "cxt3",
+    "cxt4"
+   ],
+   "gr": {
+    "atk": 0.04,
+    "def": 0.036,
+    "int": 0.02,
+    "agi": 0.033,
+    "cha": 0.024,
+    "hp": 0.44
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "天罡"
+  },
+  "si_xingfang": {
+   "hid": "si_xingfang",
+   "name": "司行方",
+   "q": 5,
+   "atk": 88,
+   "def": 80,
+   "int": 50,
+   "agi": 65,
+   "cha": 54,
+   "hp": 790,
+   "sk": [
+    "fl1",
+    "fl2",
+    "fl3",
+    "fl4"
+   ],
+   "gr": {
+    "atk": 0.044,
+    "def": 0.04,
+    "int": 0.022,
+    "agi": 0.033,
+    "cha": 0.025,
+    "hp": 0.48
+   },
+   "src": "v912",
+   "title": "方腊四帅之首",
+   "rarity": "天罡"
+  },
+  "ha_lansheng": {
+   "hid": "ha_lansheng",
+   "name": "哈兰生",
+   "q": 4,
+   "atk": 76,
+   "def": 70,
+   "int": 42,
+   "agi": 62,
+   "cha": 48,
+   "hp": 700,
+   "sk": [
+    "cxt1",
+    "cxt2",
+    "cxt3",
+    "cxt4"
+   ],
+   "gr": {
+    "atk": 0.038,
+    "def": 0.035,
+    "int": 0.018,
+    "agi": 0.031,
+    "cha": 0.022,
+    "hp": 0.42
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "sha_zhiren": {
+   "hid": "sha_zhiren",
+   "name": "沙志仁",
+   "q": 4,
+   "atk": 68,
+   "def": 64,
+   "int": 40,
+   "agi": 60,
+   "cha": 44,
+   "hp": 620,
+   "sk": [
+    "cxt1",
+    "cxt2",
+    "cxt3",
+    "cxt4"
+   ],
+   "gr": {
+    "atk": 0.034,
+    "def": 0.032,
+    "int": 0.018,
+    "agi": 0.03,
+    "cha": 0.022,
+    "hp": 0.38
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  },
+  "zhou_tong2": {
+   "hid": "zhou_tong2",
+   "name": "周通",
+   "q": 4,
+   "atk": 66,
+   "def": 58,
+   "int": 30,
+   "agi": 62,
+   "cha": 36,
+   "hp": 620,
+   "sk": [
+    "bs1",
+    "bs2",
+    "bs3",
+    "bs4"
+   ],
+   "gr": {
+    "atk": 0.033,
+    "def": 0.029,
+    "int": 0.01,
+    "agi": 0.031,
+    "cha": 0.016,
+    "hp": 0.38
+   },
+   "src": "v892",
+   "title": "",
+   "rarity": "名"
+  }
+ },
+ "onlyS": {},
+ "onlyE": {
+  "exc_9000": {
+   "eid": "exc_9000",
+   "n": "祖传宝刀",
+   "q": "名",
+   "slot": "weapon",
+   "exclusive": "yang_zhi",
+   "owner_bonus": {
+    "atk": 0.35,
+    "crit": 0.12
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9001": {
+   "eid": "exc_9001",
+   "n": "浑铁禅杖",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "lu_zhishen",
+   "owner_bonus": {
+    "atk": 0.3,
+    "hp": 0.2
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9002": {
+   "eid": "exc_9002",
+   "n": "乌骓马",
+   "q": "天罡",
+   "slot": "mount",
+   "exclusive": "hu_yanzhuo",
+   "owner_bonus": {
+    "spd": 0.25,
+    "hp": 0.18
+   },
+   "other_bonus": {
+    "spd": 0.1
+   }
+  },
+  "exc_9003": {
+   "eid": "exc_9003",
+   "n": "天王宝塔",
+   "q": "天罡",
+   "slot": "special",
+   "exclusive": "chao_gai",
+   "owner_bonus": {
+    "hp": 0.3,
+    "def": 0.15
+   },
+   "other_bonus": {
+    "hp": 0.1
+   }
+  },
+  "exc_9004": {
+   "eid": "exc_9004",
+   "n": "丈八蛇矛",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "lin_chong",
+   "owner_bonus": {
+    "atk": 0.28,
+    "crit": 0.1
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9005": {
+   "eid": "exc_9005",
+   "n": "青龙偃月刀",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "guan_sheng",
+   "owner_bonus": {
+    "atk": 0.32,
+    "def": 0.1
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9006": {
+   "eid": "exc_9006",
+   "n": "沥泉神枪",
+   "q": "绝世",
+   "slot": "weapon",
+   "exclusive": "yue_fei",
+   "owner_bonus": {
+    "atk": 0.3,
+    "spd": 0.12
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9007": {
+   "eid": "exc_9007",
+   "n": "雪花镔铁戒刀",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "wu_song",
+   "owner_bonus": {
+    "atk": 0.3,
+    "crit": 0.12
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9008": {
+   "eid": "exc_9008",
+   "n": "九纹龙棍",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "shi_jin",
+   "owner_bonus": {
+    "atk": 0.26,
+    "def": 0.1
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9009": {
+   "eid": "exc_9009",
+   "n": "双板巨斧",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "li_kui",
+   "owner_bonus": {
+    "atk": 0.34,
+    "hp": 0.15
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9010": {
+   "eid": "exc_9010",
+   "n": "入云龙法杖",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "gongsun_sheng",
+   "owner_bonus": {
+    "int": 0.3,
+    "hp": 0.15
+   },
+   "other_bonus": {
+    "int": 0.1
+   }
+  },
+  "exc_9011": {
+   "eid": "exc_9011",
+   "n": "及时雨令旗",
+   "q": "天罡",
+   "slot": "special",
+   "exclusive": "song_jiang",
+   "owner_bonus": {
+    "hp": 0.25,
+    "def": 0.12
+   },
+   "other_bonus": {
+    "hp": 0.1
+   }
+  },
+  "exc_9012": {
+   "eid": "exc_9012",
+   "n": "智多星羽扇",
+   "q": "天罡",
+   "slot": "special",
+   "exclusive": "wu_yong",
+   "owner_bonus": {
+    "int": 0.28,
+    "spd": 0.12
+   },
+   "other_bonus": {
+    "int": 0.1
+   }
+  },
+  "exc_9013": {
+   "eid": "exc_9013",
+   "n": "玉麒麟金枪",
+   "q": "绝世",
+   "slot": "weapon",
+   "exclusive": "lu_junyi",
+   "owner_bonus": {
+    "atk": 0.32,
+    "crit": 0.1
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9014": {
+   "eid": "exc_9014",
+   "n": "岳家沥泉枪",
+   "q": "绝世",
+   "slot": "weapon",
+   "exclusive": "yue_fei",
+   "owner_bonus": {
+    "atk": 0.3,
+    "spd": 0.12
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9015": {
+   "eid": "exc_9015",
+   "n": "托塔天王宝塔",
+   "q": "天罡",
+   "slot": "special",
+   "exclusive": "chao_gai",
+   "owner_bonus": {
+    "hp": 0.3,
+    "def": 0.15
+   },
+   "other_bonus": {
+    "hp": 0.1
+   }
+  },
+  "exc_9016": {
+   "eid": "exc_9016",
+   "n": "云天彪麒麟铠",
+   "q": "天罡",
+   "slot": "armor",
+   "exclusive": "yun_tianbiao",
+   "owner_bonus": {
+    "def": 0.28,
+    "hp": 0.18
+   },
+   "other_bonus": {
+    "def": 0.1
+   }
+  },
+  "exc_9017": {
+   "eid": "exc_9017",
+   "n": "猿臂剑",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "chen_xizhen",
+   "owner_bonus": {
+    "atk": 0.28,
+    "crit": 0.1
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9018": {
+   "eid": "exc_9018",
+   "n": "杨再兴银枪",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "yang_zaixing",
+   "owner_bonus": {
+    "atk": 0.3,
+    "spd": 0.12
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9019": {
+   "eid": "exc_9019",
+   "n": "秦明狼牙棒",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "qin_ming",
+   "owner_bonus": {
+    "atk": 0.32,
+    "hp": 0.15
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9020": {
+   "eid": "exc_9020",
+   "n": "呼延灼铁鞭",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "hu_yanzhuo",
+   "owner_bonus": {
+    "atk": 0.28,
+    "def": 0.1
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9021": {
+   "eid": "exc_9021",
+   "n": "石秀腰刀",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "shi_xiu",
+   "owner_bonus": {
+    "atk": 0.26,
+    "crit": 0.1
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9022": {
+   "eid": "exc_9022",
+   "n": "张叔夜官印",
+   "q": "天罡",
+   "slot": "special",
+   "exclusive": "zhang_shuye",
+   "owner_bonus": {
+    "def": 0.25,
+    "hp": 0.15
+   },
+   "other_bonus": {
+    "def": 0.1
+   }
+  },
+  "exc_9023": {
+   "eid": "exc_9023",
+   "n": "陆文龙双枪",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "lu_wenlong",
+   "owner_bonus": {
+    "atk": 0.3,
+    "spd": 0.12
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9024": {
+   "eid": "exc_9024",
+   "n": "金兀术铁浮屠",
+   "q": "绝世",
+   "slot": "mount",
+   "exclusive": "jin_wushu",
+   "owner_bonus": {
+    "hp": 0.25,
+    "def": 0.18
+   },
+   "other_bonus": {
+    "hp": 0.1
+   }
+  },
+  "exc_9025": {
+   "eid": "exc_9025",
+   "n": "周侗武学手稿",
+   "q": "天罡",
+   "slot": "special",
+   "exclusive": "zhou_tong",
+   "owner_bonus": {
+    "atk": 0.22,
+    "int": 0.18
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9026": {
+   "eid": "exc_9026",
+   "n": "方腊龙袍",
+   "q": "绝世",
+   "slot": "armor",
+   "exclusive": "fang_la",
+   "owner_bonus": {
+    "hp": 0.28,
+    "def": 0.16
+   },
+   "other_bonus": {
+    "hp": 0.1
+   }
+  },
+  "exc_9027": {
+   "eid": "exc_9027",
+   "n": "石宝流星锤",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "shi_bao",
+   "owner_bonus": {
+    "atk": 0.3,
+    "crit": 0.12
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9028": {
+   "eid": "exc_9028",
+   "n": "邓元觉禅杖",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "deng_yuanjue",
+   "owner_bonus": {
+    "atk": 0.26,
+    "hp": 0.18
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9029": {
+   "eid": "exc_9029",
+   "n": "田虎铜锤",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "tian_hu",
+   "owner_bonus": {
+    "atk": 0.28,
+    "hp": 0.15
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9030": {
+   "eid": "exc_9030",
+   "n": "王庆铁鞭",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "wang_qing",
+   "owner_bonus": {
+    "atk": 0.26,
+    "def": 0.12
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9031": {
+   "eid": "exc_9031",
+   "n": "兀颜光狼牙棒",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "wu_yanguang_l",
+   "owner_bonus": {
+    "atk": 0.3,
+    "hp": 0.15
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9032": {
+   "eid": "exc_9032",
+   "n": "董平双枪",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "dong_ping",
+   "owner_bonus": {
+    "atk": 0.3,
+    "spd": 0.1
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9033": {
+   "eid": "exc_9033",
+   "n": "徐宁金枪",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "xu_ning",
+   "owner_bonus": {
+    "atk": 0.28,
+    "crit": 0.1
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9034": {
+   "eid": "exc_9034",
+   "n": "乔道清法剑",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "qiao_daoqing",
+   "owner_bonus": {
+    "int": 0.3,
+    "hp": 0.15
+   },
+   "other_bonus": {
+    "int": 0.1
+   }
+  },
+  "exc_9035": {
+   "eid": "exc_9035",
+   "n": "张天师法杖",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "zhang_tianshi",
+   "owner_bonus": {
+    "int": 0.28,
+    "hp": 0.18
+   },
+   "other_bonus": {
+    "int": 0.1
+   }
+  },
+  "exc_9036": {
+   "eid": "exc_9036",
+   "n": "史文恭方天戟",
+   "q": "绝世",
+   "slot": "weapon",
+   "exclusive": "shi_wengong",
+   "owner_bonus": {
+    "atk": 0.34,
+    "crit": 0.12
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9037": {
+   "eid": "exc_9037",
+   "n": "阮小二渔叉",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "ruan_xiaoer",
+   "owner_bonus": {
+    "atk": 0.24,
+    "hp": 0.18
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9038": {
+   "eid": "exc_9038",
+   "n": "阮小五渔叉",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "ruan_xiaowu",
+   "owner_bonus": {
+    "atk": 0.24,
+    "hp": 0.16
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9039": {
+   "eid": "exc_9039",
+   "n": "穆春腰刀",
+   "q": "名",
+   "slot": "weapon",
+   "exclusive": "mu_chun",
+   "owner_bonus": {
+    "atk": 0.22,
+    "crit": 0.08
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9040": {
+   "eid": "exc_9040",
+   "n": "周通腰刀",
+   "q": "名",
+   "slot": "weapon",
+   "exclusive": "zhou_tong2",
+   "owner_bonus": {
+    "atk": 0.22,
+    "crit": 0.08
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9041": {
+   "eid": "exc_9041",
+   "n": "王贵大刀",
+   "q": "名",
+   "slot": "weapon",
+   "exclusive": "wang_gui",
+   "owner_bonus": {
+    "atk": 0.24,
+    "hp": 0.12
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9042": {
+   "eid": "exc_9042",
+   "n": "张显长枪",
+   "q": "名",
+   "slot": "weapon",
+   "exclusive": "zhang_xian",
+   "owner_bonus": {
+    "atk": 0.24,
+    "spd": 0.1
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9043": {
+   "eid": "exc_9043",
+   "n": "施全短剑",
+   "q": "名",
+   "slot": "weapon",
+   "exclusive": "shi_quan",
+   "owner_bonus": {
+    "atk": 0.22,
+    "crit": 0.1
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9044": {
+   "eid": "exc_9044",
+   "n": "吉青大斧",
+   "q": "猛",
+   "slot": "weapon",
+   "exclusive": "ji_qing",
+   "owner_bonus": {
+    "atk": 0.26,
+    "hp": 0.12
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9045": {
+   "eid": "exc_9045",
+   "n": "云龙长枪",
+   "q": "名",
+   "slot": "weapon",
+   "exclusive": "yun_long2",
+   "owner_bonus": {
+    "atk": 0.24,
+    "spd": 0.1
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9046": {
+   "eid": "exc_9046",
+   "n": "刘慧娘机关图",
+   "q": "名",
+   "slot": "special",
+   "exclusive": "liu_huiniang",
+   "owner_bonus": {
+    "int": 0.28,
+    "def": 0.12
+   },
+   "other_bonus": {
+    "int": 0.1
+   }
+  },
+  "exc_9047": {
+   "eid": "exc_9047",
+   "n": "真祥麟铠",
+   "q": "天罡",
+   "slot": "armor",
+   "exclusive": "zhen_xianglin",
+   "owner_bonus": {
+    "def": 0.26,
+    "hp": 0.16
+   },
+   "other_bonus": {
+    "def": 0.1
+   }
+  },
+  "exc_9048": {
+   "eid": "exc_9048",
+   "n": "哈兰生巨斧",
+   "q": "名",
+   "slot": "weapon",
+   "exclusive": "ha_lansheng",
+   "owner_bonus": {
+    "atk": 0.26,
+    "hp": 0.14
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9049": {
+   "eid": "exc_9049",
+   "n": "沙志仁腰刀",
+   "q": "名",
+   "slot": "weapon",
+   "exclusive": "sha_zhiren",
+   "owner_bonus": {
+    "atk": 0.22,
+    "crit": 0.08
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9050": {
+   "eid": "exc_9050",
+   "n": "庞万春神臂弓",
+   "q": "名",
+   "slot": "weapon",
+   "exclusive": "pang_wanchun",
+   "owner_bonus": {
+    "atk": 0.26,
+    "crit": 0.12
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9051": {
+   "eid": "exc_9051",
+   "n": "厉天闰方天戟",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "li_tianrun",
+   "owner_bonus": {
+    "atk": 0.28,
+    "crit": 0.1
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  },
+  "exc_9052": {
+   "eid": "exc_9052",
+   "n": "孙安大刀",
+   "q": "天罡",
+   "slot": "weapon",
+   "exclusive": "sun_an",
+   "owner_bonus": {
+    "atk": 0.28,
+    "hp": 0.15
+   },
+   "other_bonus": {
+    "atk": 0.1
+   }
+  }
+ }
+}

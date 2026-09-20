@@ -1,0 +1,1092 @@
+/* ==========================================================================
+   水浒群星录 V10 · 渲染层
+   渲染函数只读状态、只拼字符串。事件一律 data-action 委托。
+   ========================================================================== */
+
+/* ── 立绘 ─────────────────────────────────────────────────────────────── */
+/* 立绘三级回退：本人的 → 范式的（多人共用）→ 兵器剪影。
+   PORTRAITS / ARCHETYPES 由构建脚本注入，值是 base64 的 data URI。 */
+const ownPortrait = hid => (window.PORTRAITS && window.PORTRAITS[hid]) || '';
+/* 范式底图每张都出了全身、半身两个取景，按 hid 定死用哪个。 */
+const archPortrait = hid => {
+  const t = DB.hero(hid);
+  const a = t && t.arch;
+  if (!a || !window.ARCHETYPES) return '';
+  const A = window.ARCHETYPES;
+  if (hashId(hid) & 4) { const b = A[a + '~b']; if (b) return b; }
+  return A[a] || '';
+};
+const portraitOf = hid => ownPortrait(hid) || archPortrait(hid);
+const hasPortrait = hid => !!portraitOf(hid);
+
+/* 同一张范式图给几十个人用，全一个样子就穿帮了。
+   按 hid 做稳定哈希取八种变体：先分全身／半身两个取景（换的是底图，
+   见 archPortrait），再各配镜像与轻微冷暖（在样式表里）。
+   色调只敢动一点点 —— 转多了连绢底一起变色，立绘就跟界面脱开了。
+   哈希只认 hid，同一个人每次进来都长一样。 */
+function hashId(s) {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+const porAttr = hid => ownPortrait(hid) ? '' : ` data-v="${hashId(hid) % 8}"`;
+const porTag = (cls, hid) => `<img class="${cls}" src="${portraitOf(hid)}"${porAttr(hid)} alt="">`;
+
+/* 伤印：重伤朱砂、轻伤赭石，后面跟还要休养几场 */
+function hurtTag(hid) {
+  const u = Hurt.of(hid);
+  if (!u.lv) return '';
+  return `<span class="hurt ${u.lv === 2 ? 'hv' : 'lt'}">${u.lv === 2 ? '重伤' : '轻伤'} ${u.rest}</span>`;
+}
+
+/* 兵器剪影：无立绘时的人物牌主视觉 */
+const WEAPON_SVG = {
+  枪: '<path d="M20 158 L20 40 M20 40 L13 14 L20 2 L27 14 Z M12 44 q8 5 16 0"/>',
+  刀: '<path d="M20 158 L20 52 q-10 -18 -2 -34 q10 -14 4 -16 M11 56 h18"/>',
+  剑: '<path d="M20 158 L20 46 M20 46 L20 8 M10 50 h20 M20 8 l-4 8 M20 8 l4 8"/>',
+  斧: '<path d="M20 158 L20 46 M20 46 q-16 -6 -14 -26 q14 4 14 14 q0 -12 14 -16 q3 20 -14 28 Z"/>',
+  棍: '<path d="M20 158 L20 12 M13 16 h14 M13 154 h14"/>',
+  禅杖: '<path d="M20 158 L20 30 M20 30 m-11 -10 a11 11 0 1 0 22 0 a11 11 0 1 0 -22 0 M20 9 v22 M9 20 h22"/>',
+  锤: '<path d="M20 158 L20 44 M8 44 h24 v-20 h-24 Z"/>',
+  鞭: '<path d="M20 158 L20 30 M14 30 h12 M14 50 h12 M14 70 h12 M14 90 h12"/>',
+  戟: '<path d="M20 158 L20 34 M20 34 L14 10 L20 2 L26 10 Z M20 44 q14 -4 16 -16 M20 52 q-14 -4 -16 -16"/>',
+  弓: '<path d="M14 150 q-16 -60 0 -120 M14 30 L14 150 M8 90 h14"/>',
+  叉: '<path d="M20 158 L20 40 M8 40 v-22 M20 40 v-30 M32 40 v-22 M8 40 h24"/>',
+  索: '<path d="M20 158 q-10 -20 0 -40 q10 -20 0 -40 q-10 -20 0 -40 M14 12 h12"/>',
+  石: '<path d="M20 100 m-18 0 a18 18 0 1 0 36 0 a18 18 0 1 0 -36 0 M10 92 q10 -6 20 0"/>',
+  默认: '<path d="M20 158 L20 30 M12 34 h16 M20 30 L14 12 L20 4 L26 12 Z"/>',
+};
+function weaponSvg(hid) {
+  const t = DB.hero(hid) || {};
+  const p = WEAPON_SVG[t.fav_weapon] || WEAPON_SVG['默认'];
+  return `<svg viewBox="0 0 40 160" fill="none" stroke="currentColor" stroke-width="5"
+     stroke-linecap="round" stroke-linejoin="round">${p}</svg>`;
+}
+
+/* ── 小部件 ───────────────────────────────────────────────────────────── */
+
+const seal = q => `<span class="seal ${QCLS[q]}">${QSEAL[q]}</span>`;
+const stars = n => '★'.repeat(n) + '☆'.repeat(CFG.maxStar - n);
+
+function plate(hid, extra) {
+  const t = DB.hero(hid), h = G.heroes[hid];
+  if (!t) return '';
+  const s = h ? Stats.calc(hid) : null;
+  const has = hasPortrait(hid);
+  const inTeam = G.team.includes(hid);
+  return `<div class="plate${has ? ' has' : ''}${t.q === 6 ? ' jue' : ''}" data-action="hero" data-id="${hid}">
+    ${has ? porTag('por', hid) : `<div class="weap">${weaponSvg(hid)}</div>`}
+    ${seal(t.q)}
+    ${hurtTag(hid)}
+    ${inTeam ? '<span class="onfield">阵</span>' : ''}
+    <div class="pinfo">
+      <div class="nm">${esc(t.name)}</div>
+      <div class="ti">${esc(t.title || '')}${h ? ` · Lv.${h.lv}` : ''}</div>
+      ${s ? `<div class="st"><span><i>武</i>${s.atk}</span><span><i>防</i>${s.def}</span><span><i>血</i>${s.maxHp}</span></div>` : ''}
+      <div class="stars">${h ? stars(h.star) : (extra || '')}</div>
+    </div>
+  </div>`;
+}
+
+/** 小节抬头。给了 key 就可以点着收起来，收起状态存进存档。 */
+/* 钱够不够，按钮上直接看出来：够→主按钮，不够→灰掉 */
+const afford = (have, cost) => have >= cost ? 'main' : 'off';
+
+function sectionTitle(t, right, key) {
+  const f = key ? !!G.fold[key] : false;
+  return `<div class="sec${key ? ' foldable' : ''}${f ? ' folded' : ''}"
+    ${key ? `data-action="fold" data-id="${esc(key)}"` : ''}>
+    <span class="fish"></span><h2>${esc(t)}</h2><span class="line"></span>${right || ''}</div>`;
+}
+
+/** 抬头 + 内容，收起时内容不渲染 —— 图鉴那种两百多格的列表，
+ *  与其 display:none 藏着，不如干脆不生成，翻页快得多。 */
+function section(key, title, body, right) {
+  return sectionTitle(title, right, key) + (G.fold[key] ? '' : body);
+}
+
+function toast(msg) {
+  const el = $('toast');
+  el.textContent = msg; el.classList.add('on');
+  clearTimeout(toast._t);
+  toast._t = setTimeout(() => el.classList.remove('on'), 1800);
+}
+
+/* ── 顶栏与导航 ───────────────────────────────────────────────────────── */
+
+const NAV = [
+  ['heroes', '群将'], ['stages', '关隘'], ['team', '布阵'],
+  ['items', '行囊'], ['bonds', '羁绊'], ['tavern', '酒肆'], ['codex', '图鉴'],
+];
+
+function renderTop() {
+  $('res').innerHTML = `
+    <span><i>银</i><b>${G.res.silver.toLocaleString()}</b></span><span class="sep"></span>
+    <span><i>金</i><b>${G.res.gold}</b></span><span class="sep"></span>
+    <span><i>符</i><b>${G.res.token || 0}</b></span><span class="sep"></span>
+    <span><i>将</i><b>${Object.keys(G.heroes).length}</b></span>`;
+  $('nav').innerHTML = NAV.map(([v, t]) =>
+    `<div class="tab${UI.view === v ? ' on' : ''}" data-action="go" data-id="${v}">${t}</div>`).join('');
+}
+
+/* ── 各视图 ───────────────────────────────────────────────────────────── */
+
+const VIEWS = {};
+
+/** 字幕从屏幕下缘往上推。时长按内容实际高度算，
+ *  短屏幕和长屏幕的观感才一样。 */
+function startCrawl() {
+  const box = $('crawlIn');
+  if (!box) return;
+  const view = box.parentElement.clientHeight || 600;
+  const title = box.querySelector('.cr-title');
+  const start = view * 0.55;
+  // 收尾停在片名上，而不是把字全推出画外 —— 推空了就是十几秒的空屏
+  const end = title
+    ? view / 2 - title.offsetHeight / 2 - title.offsetTop
+    : -box.scrollHeight;
+  const dist = start - end;
+  // 整段控制在一分钟上下：再慢没人看得完，再快读不清
+  const sec = clamp(Math.round(dist / 52), 40, 75);
+  box.style.transform = `translateY(${start}px)`;
+  void box.offsetWidth;
+  box.style.transition = `transform ${sec}s linear`;
+  box.style.transform = `translateY(${end}px)`;
+  // 片名停住后自己进主界面，不用非点一下
+  clearTimeout(Play.introTimer);
+  Play.introTimer = setTimeout(() => {
+    if (UI.view === 'intro') { G.seenIntro = true; Save.write(); UI.view = 'main'; render(); }
+  }, (sec + 3) * 1000);
+}
+
+/* ── 开场字幕 ─────────────────────────────────────────────────────────
+   一段一段往上走，走完停在最后一句。随时点一下跳过。
+   只在头一回开局放；之后从主界面的「重看开篇」进。 */
+VIEWS.intro = () => {
+  const rows = DB.story.intro || [];
+  return `<div class="crawl" data-action="intro-skip">
+    <div class="crawl-in" id="crawlIn">
+      ${rows.map(r => r.b ? '<div class="cr-b"></div>'
+        : r.h ? `<div class="cr-h">${esc(r.h)}</div>`
+        : r.h2 ? `<div class="cr-h2">${esc(r.h2)}</div>`
+        : r.e ? `<div class="cr-e">${esc(r.e)}</div>`
+        : `<div class="cr-p">${esc(r.s)}</div>`).join('')}
+      <div class="cr-title">文字水浒 · 群星录</div>
+    </div>
+    <div class="crawl-skip">轻触跳过</div>
+  </div>`;
+};
+
+/* 章首题词：进一章的头一关时出一张，看过就不再出 */
+VIEWS.chapcard = () => {
+  const c = UI.card;
+  if (!c) return '<div class="empty"></div>';
+  return `<div class="chapcard" data-action="card-done">
+    <div class="cc-ch">第 ${c.ch} 章</div>
+    <div class="cc-t">${esc(c.title)}</div>
+    <div class="cc-rule"></div>
+    ${c.lines.map(l => `<div class="cc-l">${esc(l)}</div>`).join('')}
+    <div class="cc-go">轻触继续</div>
+  </div>`;
+};
+
+VIEWS.main = () => {
+  const cleared = Object.keys(G.cleared).length;
+  const next = DB.stageIds().find(s => !G.cleared[s] && Stages.unlocked(s));
+  const st = next ? DB.stage(next) : null;
+  return `
+  <div class="hero-banner">
+    <div class="bt">水浒群星录</div>
+    <div class="bs">九人对阵 · 星宿聚义</div>
+  </div>
+  <div class="stat3">
+    <div><b>${Object.keys(G.heroes).length}</b><i>已收将</i></div>
+    <div><b>${G.team.length}/${CFG.teamSize}</b><i>出战</i></div>
+    <div><b>${cleared}</b><i>已通关</i></div>
+  </div>
+  ${(() => { const g = Guide.next(); return g ? `<div class="nextup" data-action="${g.act}" data-id="${g.id || ''}">
+      <div class="k">下一步</div>
+      <div class="v">${esc(g.txt)}</div>
+      <div class="m">${esc(g.sub)}</div>
+    </div>` : ''; })()}
+  <div class="btns">
+    <div class="btn main" data-action="go" data-id="stages">出　征</div>
+    <div class="btn" data-action="go" data-id="team">布　阵</div>
+  </div>
+  ${G.log.length ? section('log', '最　近',
+     '<div class="logbox">' + G.log.slice(0, 8).map(l => `<div>${esc(l)}</div>`).join('') + '</div>') : ''}
+  <div class="btns" style="margin-top:22px">
+    <div class="btn" data-action="replay-intro">重看开篇</div>
+    <div class="btn warn" data-action="reset">重开一局</div>
+  </div>`;
+};
+
+/* 群将谱的排法与筛法。收满是两百多人，一路往下翻找不到人。 */
+const SORTS = {
+  power: ['战力', (a, b) => Stats.heroPower(b) - Stats.heroPower(a)],
+  q:     ['品阶', (a, b) => (DB.hero(b).q - DB.hero(a).q) || (G.heroes[b].lv - G.heroes[a].lv)],
+  lv:    ['等级', (a, b) => (G.heroes[b].lv - G.heroes[a].lv) || (DB.hero(b).q - DB.hero(a).q)],
+  star:  ['星数', (a, b) => (G.heroes[b].star - G.heroes[a].star) || (DB.hero(b).q - DB.hero(a).q)],
+};
+const FILTS = {
+  all:   ['全部',  () => true],
+  team:  ['在阵',  h => G.team.includes(h)],
+  idle:  ['未上阵', h => !G.team.includes(h)],
+  hurt:  ['带伤',  h => !!Hurt.of(h).lv],
+  up:    ['可升星', h => {
+    const g = G.heroes[h];
+    const c = g.star < CFG.maxStar ? CFG.starCost[g.star] : null;
+    return !!c && (G.frags[h] || 0) + (G.res.token || 0) >= c;
+  }],
+};
+
+VIEWS.heroes = () => {
+  const sk = SORTS[UI.hsort] ? UI.hsort : 'q';
+  const fk = FILTS[UI.hfilt] ? UI.hfilt : 'all';
+  const ids = Object.keys(G.heroes).filter(FILTS[fk][1]).sort(SORTS[sk][1]);
+  const all = Object.keys(G.heroes).length;
+
+  const bar = `<div class="picker">
+    <div class="pline"><i>排序</i>${Object.entries(SORTS).map(([k, v]) =>
+      `<span class="pk${k === sk ? ' on' : ''}" data-action="hsort" data-id="${k}">${v[0]}</span>`).join('')}</div>
+    <div class="pline"><i>筛选</i>${Object.entries(FILTS).map(([k, v]) =>
+      `<span class="pk${k === fk ? ' on' : ''}" data-action="hfilt" data-id="${k}">${v[0]}</span>`).join('')}</div>
+  </div>`;
+
+  return section('heroes', `群将谱（${ids.length}${ids.length < all ? ` / ${all}` : ''}）`,
+    bar + (ids.length
+      ? `<div class="plates">${ids.map(h => plate(h)).join('')}</div>`
+      : '<div class="empty">这一档下没人</div>'));
+};
+
+VIEWS.hero = () => {
+  const hid = UI.sel, t = DB.hero(hid), h = G.heroes[hid];
+  if (!t || !h) return '<div class="empty">查无此人</div>';
+  const s = Stats.calc(hid);
+  const nextLv = h.lv < CFG.maxLv ? Grow.drillCost(hid) : null;
+  const reach = Grow.drillReach(hid);   // 手上的银子够练到几级
+  const dcap = Grow.drillCap();         // 打到哪儿才练得到哪儿
+  const starC = h.star < CFG.maxStar ? CFG.starCost[h.star] : null;
+  const frag = G.frags[hid] || 0;
+  const bd = s.meta.bond;
+  const bondOn = Object.entries(bd).filter(([, v]) => v > 0);
+
+  const skRows = (t.sk || []).map((id, i) => {
+    const sk = DB.skill(id); if (!sk) return '';
+    const own = h.owned.includes(id);
+    return `<div class="sk${own ? '' : ' lock'}">
+      <b>${esc(sk.name)}</b><span>${own ? esc(sk.desc) : `★${i + 1} 解锁`}</span></div>`;
+  }).join('');
+
+  const eqRows = SLOTS.map(slot => {
+    const e = DB.equip(h.equipment[slot]);
+    return `<div class="eqrow">
+      <i>${SLOT_NAME[slot]}</i>
+      ${e ? `<b class="${QCLS[e.q]}">${esc(e.name)}</b>
+             <span class="act" data-action="unequip" data-id="${hid}" data-slot="${slot}">卸</span>`
+          : `<b class="dim">空</b>
+             <span class="act" data-action="equip-pick" data-id="${hid}" data-slot="${slot}">配</span>`}
+    </div>`;
+  }).join('');
+
+  return `<div class="detail">
+    <div class="dtop">
+      ${hasPortrait(hid) ? porTag('dpor', hid)
+        : `<div class="dpor ph">${weaponSvg(hid)}</div>`}
+      <div class="dside">
+        ${seal(t.q)}
+        <div class="dnm">${esc(t.name)}</div>
+        <div class="dti">${esc(t.title || '')}</div>
+        <div class="dlv">Lv.${h.lv} · ${stars(h.star)}</div>
+        ${Hurt.of(hid).lv ? `<div class="dhurt ${Hurt.heavy(hid) ? 'hv' : 'lt'}">
+          ${esc(Hurt.txt(hid))}${Hurt.heavy(hid) ? '' : `　属性 ×${CFG.hurtLightMul}`}</div>` : ''}
+        <div class="drow"><i>武</i><b>${s.atk}</b>${s.meta.apt ? '<s>擅长</s>' : ''}</div>
+        <div class="drow"><i>防</i><b>${s.def}</b></div>
+        <div class="drow"><i>智</i><b>${s.int}</b></div>
+        <div class="drow"><i>捷</i><b>${s.agi}</b></div>
+        <div class="drow"><i>血</i><b>${s.maxHp}</b></div>
+        ${h.lv < CFG.maxLv ? `<div class="dexp"><i>经验</i>
+          <em><u style="width:${clamp(h.exp / CFG.expNeed(h.lv) * 100, 0, 100)}%"></u></em>
+          <b>${Math.round(h.exp)} / ${CFG.expNeed(h.lv)}</b></div>` : ''}
+        ${bondOn.length ? `<div class="dbond">羁绊 ${bondOn.map(([k, v]) =>
+            `${STAT_NAME[k]}+${Math.round(v * 100)}%`).join('　')}</div>` : ''}
+      </div>
+    </div>
+    <div class="dbar">
+      <div class="btn sm${nextLv ? afford(G.res.silver, nextLv) : ' dim'}"
+           data-action="levelup" data-id="${hid}">${nextLv ? `操练 · ${nextLv} 银`
+             : (h.lv >= CFG.maxLv ? '已满级' : `督练到顶 ${dcap} 级`)}</div>
+      ${nextLv && reach > h.lv
+        ? `<div class="btn sm main" data-action="drillmax" data-id="${hid}">连练到 ${reach} 级</div>` : ''}
+      ${Hurt.of(hid).lv ? `<div class="btn sm${G.res.silver >= Hurt.cureCost(hid) ? ' main' : ''}"
+           data-action="cure" data-id="${hid}">郎中 · ${Hurt.cureCost(hid)} 银</div>` : ''}
+      <div class="btn sm${starC && frag + (G.res.token || 0) >= starC ? ' main' : ''}"
+           data-action="starup" data-id="${hid}">${starC
+             ? `升星 · ${Math.min(frag, starC)}/${starC}${frag < starC ? ` +符${starC - frag}` : ''}`
+             : '已满星'}</div>
+      <div class="btn sm${Hurt.heavy(hid) && !G.team.includes(hid) ? ' dim' : ''}"
+           data-action="${G.team.includes(hid) ? 'unteam' : 'team'}" data-id="${hid}">
+        ${G.team.includes(hid) ? '下阵' : (Hurt.heavy(hid) ? '伤重' : '上阵')}</div>
+    </div>
+    <div class="eqbox">${eqRows}</div>
+    <div class="dbio">${esc(t.bio || '')}</div>
+    <div class="dsk">${skRows}</div>
+    <div class="btns"><div class="btn" data-action="go" data-id="heroes">返　回</div></div>
+  </div>`;
+};
+
+VIEWS.stages = () => {
+  let html = '';
+  for (const ch of DB.chapters) {
+    const list = DB.byChapter[ch];
+    if (!list || !list.length) continue;
+    const anyOpen = list.some(s => Stages.unlocked(s));
+    if (!anyOpen && !list.some(s => G.cleared[s])) {
+      const prevDone = ch === DB.chapters[0] || list.some(s => Stages.unlocked(s));
+      if (!prevDone) continue;
+    }
+    const chName = DB.stage(list[0]).ch_name || '';
+    const fk = 'ch' + ch;
+    html += sectionTitle(`第${ch}章${chName ? ' · ' + chName : ''}`, null, fk);
+    if (G.fold[fk]) continue;
+    html += '<div class="frame tight">';
+    for (const sid of list) {
+      const st = DB.stage(sid);
+      const open = Stages.unlocked(sid), done = !!G.cleared[sid];
+      const n = (st.enemies || []).length;
+      html += `<div class="stage${done ? ' done' : ''}${open ? '' : ' lock'}"
+          ${open ? `data-action="stage" data-id="${sid}"` : ''}>
+        <div class="no">${st.is_boss ? '王' : st.hidden ? '秘' : /_f\d/.test(sid) ? '支' : ''}</div>
+        <div class="mid">
+          <div class="t">${esc(st.name)}</div>
+          <div class="m">${open ? `难易 <span class="hard">${'一二三四五六七'[Math.min((st.diff || 1) - 1, 6)]}</span> · 推荐 ${st.rec_lv ? st.rec_lv[1] : '?'} 级 · 敌 ${n} 人`
+                                : esc(Stages.lockReason(sid))}</div>
+        </div>
+        ${done ? '<div class="chk">已通</div>' : ''}
+      </div>`;
+    }
+    html += '</div>';
+  }
+  return html || '<div class="empty">暂无关卡</div>';
+};
+
+VIEWS.stage = () => {
+  const sid = UI.stage, st = DB.stage(sid);
+  if (!st) return '<div class="empty">查无此关</div>';
+  const my = Stats.teamPower(), foe = Stats.stagePower(sid);
+  const r = foe ? my / foe : 9;
+  const verdict = r >= 1.35 ? ['稳操胜券', 'ok'] : r >= 1.1 ? ['略占上风', 'ok']
+                : r >= 0.9 ? ['势均力敌', 'mid'] : r >= 0.7 ? ['颇为吃力', 'bad'] : ['恐难取胜', 'bad'];
+  const dlg = DB.dialog(sid);
+  const tier = Battle.enemyTier(sid);
+  const foes = (st.enemies || []).map(e => DB.hero(e)).filter(Boolean);
+
+  return `<div class="frame">
+    <div class="sname">${esc(st.name)}</div>
+    <div class="vsbar">
+      <div class="side"><b>${my}</b><i>我方</i></div>
+      <div class="mid ${verdict[1]}">${verdict[0]}</div>
+      <div class="side"><b>${foe}</b><i>敌方</i></div>
+    </div>
+    <div class="pbar"><em style="width:${clamp(my / (my + foe) * 100, 4, 96)}%"></em></div>
+    <div class="meta">推荐 ${st.rec_lv ? st.rec_lv.join('–') : '?'} 级 · 敌方 ${tier.lv} 级 ${tier.star} 星 · 共 ${foes.length} 人</div>
+    <div class="foelist">${foes.map(f => `<span class="${QCLS[f.q]}">${esc(f.name)}</span>`).join('')}</div>
+    ${dlg && dlg.before ? `<div class="brief">${dlg.before.map(p => `<p>${esc(p)}</p>`).join('')}</div>` : ''}
+    <div class="btns">
+      <div class="btn main" data-action="fight" data-id="${sid}">出　战</div>
+      ${G.cleared[sid] ? `<div class="btn" data-action="sweep" data-id="${sid}">速　战</div>` : ''}
+      <div class="btn" data-action="go" data-id="stages">返　回</div>
+    </div>
+  </div>`;
+};
+
+VIEWS.team = () => {
+  const p = Stats.teamPower();
+  const slots = [];
+  for (let i = 0; i < CFG.teamSize; i++) {
+    const hid = G.team[i];
+    if (hid) {
+      const t = DB.hero(hid), s = Stats.calc(hid);
+      slots.push(`<div class="tslot${Hurt.heavy(hid) ? ' hurt-out' : ''}" data-action="hero" data-id="${hid}"
+        data-slot="${i}" draggable="true">
+        ${hasPortrait(hid) ? porTag('por', hid)
+                           : `<div class="por ph">${weaponSvg(hid)}</div>`}
+        ${hurtTag(hid)}
+        <div class="n">${esc(t.name)}</div>
+        <div class="v">武${s.atk} 血${s.maxHp}</div>
+        <span class="x" data-action="unteam" data-id="${hid}">×</span></div>`);
+    } else {
+      slots.push(`<div class="tslot empty" data-action="go" data-id="heroes" data-slot="${i}">
+        <div class="plus">＋</div><div class="n">空位</div></div>`);
+    }
+  }
+  const bonds = DB.bonds.map((b, i) => {
+    const inTeam = new Set(G.team);
+    const have = (b.members || []).filter(m => inTeam.has(m)).length;
+    let tier = null;
+    for (const t of (b.tiers || [])) if (have >= t.need) tier = t;
+    return tier ? { b, have, tier } : null;
+  }).filter(Boolean);
+
+  const wounded = Object.keys(G.heroes).filter(h => Hurt.of(h).lv);
+  const heavy = wounded.filter(h => Hurt.heavy(h));
+  return sectionTitle('布阵', `<span class="tp">总战力 ${p}</span>`) +
+    (wounded.length ? `<div class="woundbar">养伤 ${wounded.length} 人` +
+      (heavy.length ? `，其中 ${heavy.length} 人重伤上不得阵` : '') +
+      `　<i>没上阵的人每打一场恢复一场</i></div>` : '') +
+    `<div class="tgrid" id="tgrid">${
+       [0, 1, 2].map(r => `<div class="rowtag${r === 0 ? ' front' : ''}">
+         <b>${['前排', '中排', '后排'][r]}</b>${r === 0 ? '<i>先挨打</i>' : ''}</div>` +
+         slots.slice(r * 3, r * 3 + 3).join('')).join('')
+     }</div>
+     <div class="btns tight2">
+       <div class="btn main" data-action="auto-team">一键上阵</div>
+       <div class="btn" data-action="go" data-id="heroes">去挑人</div>
+     </div>
+     <div class="tip">按住格子拖动可以换位。前三个站第一排，单挑先打前排。</div>` +
+    section('teambond', `已激活羁绊（${bonds.length}）`,
+    (bonds.length ? `<div class="frame tight">${bonds.map(({ b, have, tier }) =>
+      `<div class="bondrow"><b>${esc(b.name)}</b>
+        <span class="tier">${have}/${b.members.length} 人 · ${tier.rate === 1 ? '齐聚' : tier.need === 2 ? '初识' : '熟识'}</span>
+        <span class="val">${STAT_NAME[b.attr] || b.attr}+${Math.round(b.val * tier.rate)}%</span></div>`).join('')}</div>`
+      : '<div class="empty">凑齐同一羁绊的两人即可激活</div>'));
+};
+
+VIEWS.items = () => {
+  // 背包里的 + 已经穿在人身上的，合成一张总表，穿着的标明是谁
+  const worn = {};
+  for (const hid of Object.keys(G.heroes)) {
+    const eq = G.heroes[hid].equipment || {};
+    for (const slot of SLOTS) if (eq[slot]) (worn[eq[slot]] ||= []).push(hid);
+  }
+  const bagN = {};
+  for (const k of Object.keys(G.items)) if (k.startsWith('eq_') && G.items[k] > 0) bagN[k.slice(3)] = G.items[k];
+  const allIds = [...new Set([...Object.keys(bagN), ...Object.keys(worn)])];
+  const all = allIds.map(DB.equip).filter(Boolean)
+    .sort((a, c) => c.q - a.q || SLOTS.indexOf(a.slot) - SLOTS.indexOf(c.slot));
+  const eqs = Grow.bagEquips(null);
+  const cons = Object.keys(G.items).filter(k => !k.startsWith('eq_') && G.items[k] > 0);
+  const fr = Object.keys(G.frags).filter(k => G.frags[k] > 0);
+  const idle = all.filter(e => bagN[e.id]).length;
+  return section('bagEq', `兵器战甲（${all.length}）`,
+    (all.length ? `<div class="frame tight">${all.map(e => {
+      const users = worn[e.id] || [], n = bagN[e.id] || 0;
+      return `<div class="itrow${users.length ? ' on' : ''}"${users.length
+          ? ` data-action="hero" data-id="${users[0]}"` : ''}>
+        <b class="${QCLS[e.q]}">${esc(e.name)}</b>
+        <span class="s">${SLOT_NAME[e.slot] || e.slot}</span>
+        <span class="who">${users.length
+          ? users.map(h => esc(DB.hero(h).name)).join('、') + ' 在用'
+          : ''}</span>
+        <span class="n">${n ? `闲 ×${n}` : ''}</span></div>`;
+    }).join('')}</div>`
+      : '<div class="empty">空空如也</div>'),
+      `<span class="tp${idle + Object.keys(worn).length ? '' : ' zero'}">闲置 ${idle} · 在用 ${Object.keys(worn).length}</span>`) +
+    (fr.length ? section('bagFrag', `武将碎片（${fr.length}）`, `<div class="frame tight">${fr.map(h =>
+      `<div class="itrow"><b>${esc(DB.hero(h) ? DB.hero(h).name : h)}</b>
+        <span class="n">×${G.frags[h]}</span></div>`).join('')}</div>`) : '') +
+    (cons.length ? section('bagItem', '杂　物', `<div class="frame tight">${cons.map(k => {
+      const it = DB.item(k);
+      return `<div class="itrow"><b>${esc(it ? it.name : k)}</b>
+        <span class="s">${esc(it ? it.desc : '')}</span><span class="n">×${G.items[k]}</span></div>`;
+    }).join('')}</div>`) : '');
+};
+
+VIEWS.bonds = () => {
+  const inTeam = new Set(G.team);
+  const rows = DB.bonds.map(b => {
+    const have = (b.members || []).filter(m => inTeam.has(m)).length;
+    const owned = (b.members || []).filter(m => G.heroes[m]).length;
+    let tier = null;
+    for (const t of (b.tiers || [])) if (have >= t.need) tier = t;
+    const nextT = (b.tiers || []).find(t => have < t.need);
+    return { b, have, owned, tier, nextT };
+  }).sort((a, c) => (c.tier ? 1 : 0) - (a.tier ? 1 : 0) || c.have - a.have);
+
+  return section('bonds', `羁绊谱（${rows.filter(r => r.tier).length}/${rows.length} 激活）`,
+    `<div class="frame tight">${rows.map(({ b, have, owned, tier, nextT }) =>
+      `<div class="bondrow${tier ? ' on' : ''}">
+        <b>${esc(b.name)}</b>
+        <span class="tier">在阵 ${have}/${b.members.length}　已收 ${owned}</span>
+        <span class="val">${tier ? `${STAT_NAME[b.attr] || b.attr}+${Math.round(b.val * tier.rate)}%`
+                                 : nextT ? `还差 ${nextT.need - have} 人` : '—'}</span>
+        <div class="mem">${b.members.map(m => {
+          const t = DB.hero(m);
+          return `<span class="${inTeam.has(m) ? 'in' : G.heroes[m] ? 'own' : 'no'}">${esc(t ? t.name : m)}</span>`;
+        }).join('')}</div>
+      </div>`).join('')}</div>`);
+};
+
+VIEWS.tavern = () => {
+  const rate = Object.entries(CFG.recruitRate).sort((a, b) => b[0] - a[0])
+    .map(([q, r]) => `<span class="${QCLS[q]}">${QTXT[q]} ${(r * 100).toFixed(0)}%</span>`).join('');
+  return sectionTitle('酒肆招贤') + `<div class="frame">
+    <div class="rates">${rate}</div>
+    <div class="note">先按上列概率定品阶，再在该品阶内等概率取人。<b>显示的就是真实概率。</b><br>
+      十连保底至少一名「名」，累计 50 抽保底一名「天罡」。</div>
+    <div class="btns">
+      <div class="btn ${afford(G.res.silver, CFG.recruitCost1)}" data-action="recruit" data-id="1">
+        单抽 · ${CFG.recruitCost1} 银</div>
+      <div class="btn ${afford(G.res.silver, CFG.recruitCost10)}" data-action="recruit" data-id="10">
+        十连 · ${CFG.recruitCost10} 银</div>
+    </div>
+    <div class="btns"><div class="btn ${afford(G.res.gold, CFG.goldExchangeCost)}"
+      data-action="gold">黄金求贤 · ${CFG.goldExchangeCost} 金（保底天罡）</div></div>
+  </div>`;
+};
+
+VIEWS.recruitResult = () => {
+  const list = UI.recruit || [];
+  return sectionTitle('招贤所得') + `<div class="plates">${list.map(r => {
+    const t = DB.hero(r.hid);
+    return `<div class="plate${hasPortrait(r.hid) ? ' has' : ''}${t.q === 6 ? ' jue' : ''}"
+        data-action="hero" data-id="${r.hid}">
+      ${hasPortrait(r.hid) ? porTag('por', r.hid)
+                           : `<div class="weap">${weaponSvg(r.hid)}</div>`}
+      ${seal(t.q)}
+      <div class="pinfo"><div class="nm">${esc(t.name)}</div>
+        <div class="ti">${esc(t.title || '')}</div>
+        <div class="stars">${r.got ? '新入伙' : `碎片 +${r.frag}`}</div></div>
+    </div>`;
+  }).join('')}</div>
+  <div class="btns"><div class="btn main" data-action="go" data-id="tavern">再　来</div>
+    <div class="btn" data-action="go" data-id="heroes">看　人</div></div>`;
+};
+
+VIEWS.codex = () => {
+  const all = DB.heroIds().filter(k => DB.hero(k).src !== '杂兵');
+  const bySrc = {};
+  all.forEach(k => (bySrc[DB.hero(k).src || '其他'] ||= []).push(k));
+  const own = all.filter(k => G.heroes[k]).length;
+  // 开篇说「名字收齐那天，石碣会从地里起出来」—— 这一页就是那块碑
+  let html = `<div class="stele">
+    <div class="st-t">石　碣</div>
+    <div class="st-s">伏魔殿下掘出，字先刻好，人后来到</div>
+    <div class="st-n"><b>${own}</b> / ${all.length}</div>
+  </div>`;
+  for (const [src, ids] of Object.entries(bySrc)) {
+    const o = ids.filter(k => G.heroes[k]).length;
+    html += section('cx:' + src, `${src} ${o}/${ids.length}`,
+      '<div class="codex">' +
+      ids.sort((a, b) => DB.hero(b).q - DB.hero(a).q).map(k => {
+        const t = DB.hero(k), has = !!G.heroes[k];
+        const nm = has ? t.name : '？';
+        const fit = nm.length >= 5 ? ' n5' : nm.length === 4 ? ' n4' : '';
+        return `<span class="cx ${has ? QCLS[t.q] : 'no'}${fit}"
+          ${has ? `data-action="hero" data-id="${k}"` : ''}>${esc(nm)}</span>`;
+      }).join('') + '</div>');
+  }
+  return html;
+};
+
+/* ── 战斗视图与演出 ───────────────────────────────────────────────────── */
+
+/* 状态印记。格子上看不出谁被眩、谁被夺了武，玩家就不知道战况为什么翻。
+   控制类（眩乱）与持续伤害（血灼毒）永远显示；增减益在九人阵里让位给空间。*/
+const ST_MARK = {
+  stun:  ['眩', 'ctl'], chaos: ['乱', 'ctl'],
+  bleed: ['血', 'dot'], burn:  ['灼', 'dot'], poison: ['毒', 'dot'],
+};
+function stHtml(u) {
+  if (!u.alive) return '';
+  let h = '';
+  for (const k of Object.keys(ST_MARK))
+    if (u.status[k]) h += `<i class="sm ${ST_MARK[k][1]}">${ST_MARK[k][0]}</i>`;
+  for (const k of ['atk', 'def', 'int', 'agi', 'cha']) {
+    const v = u.status['buff_' + k];
+    if (!v || !v.val) continue;
+    h += `<i class="sm bf ${v.val > 0 ? 'up' : 'dn'}">${STAT_NAME[k]}${v.val > 0 ? '▲' : '▼'}</i>`;
+  }
+  return h;
+}
+
+const shPct = u => clamp(u.shield / u.maxHp * 100, 0, 100);
+/* 数字折算（num）在引擎里，战报和格子共用同一套写法 */
+
+function cellHtml(u, n) {
+  const dead = !u.alive;
+  const pct = clamp(u.hp / u.maxHp * 100, 0, 100);
+  const por = hasPortrait(u.hid);
+  return `<div class="cell${u.ally ? '' : ' foe'}${dead ? ' dead' : ''}" id="c${u.ally ? 'a' : 'f'}${u.idx}">
+    ${por ? porTag('por', u.hid) : `<div class="por ph">${weaponSvg(u.hid)}</div>`}
+    <div class="st">${stHtml(u)}</div>
+    <div class="cn">${esc(u.name)}</div>
+    <div class="hpbar"><em style="width:${pct}%"></em><b style="width:${shPct(u)}%"></b></div>
+    ${n <= 6 ? `<div class="num">${num(u.hp)} / ${num(u.maxHp)}</div>` : ''}
+    <div class="fx"></div>
+  </div>`;
+}
+
+VIEWS.battle = () => {
+  const b = UI.battle;
+  if (!b) return '<div class="empty">没有进行中的战斗</div>';
+  const n = Math.max(b.allies.length, b.foes.length);
+  return `<div class="board" data-n="${n}">
+    <div class="bhead"><span>第 <b id="rn">${b.round}</b> 回合</span>
+      <span class="spd" data-action="speed">${['slow', 'normal', 'fast'].map(k =>
+        `<i class="${G.speed === k ? 'on' : ''}" data-action="speed" data-id="${k}">${CFG.speedTxt[k]}</i>`
+      ).join('')}</span></div>
+    <div class="side-label">敌　方</div>
+    <div class="grid" id="gfoe">${b.foes.map(u => cellHtml(u, n)).join('')}</div>
+    <div class="vs">对　阵</div>
+    <div class="side-label">我　方</div>
+    <div class="grid" id="gally">${b.allies.map(u => cellHtml(u, n)).join('')}</div>
+    <div class="log" id="blog"></div>
+  </div>`;
+};
+
+VIEWS.result = () => {
+  const b = UI.battle, r = UI.rewards || [];
+  const dlg = DB.dialog(b.sid);
+  const win = b.win;
+  return `<div class="frame result">
+    <div class="rtitle ${win ? 'win' : 'lose'}">${win ? '得　胜' : '败　绩'}</div>
+    <div class="rsub">${esc(b.stage.name)} · 共 ${b.round} 回合${
+      b.result === 'timeout' ? '（三十回合没分出胜负，按伤亡算）' : ''}</div>
+    ${dlg ? `<div class="rdlg">${esc(win ? (dlg.after_win || '') : (dlg.after_lose || ''))}</div>` : ''}
+    ${win ? `<div class="rlist">${r.map(o =>
+      `<div class="ritem"><i>${o.icon}</i><span class="${o.c}">${esc(o.text)}</span></div>`).join('')}</div>`
+      : '<div class="rdlg">整顿人马，练几级、换身装备，再来一趟。</div>'}
+    <div class="btns">
+      <div class="btn main" data-action="go" data-id="stages">回关隘</div>
+      <div class="btn" data-action="fight" data-id="${b.sid}">再战一场</div>
+    </div>
+  </div>`;
+};
+
+const cellOf = (ally, idx) => $('c' + (ally ? 'a' : 'f') + idx);
+/* 重复触发同一个类要先摘掉再强制回流，否则动画只播第一次 */
+function flash(el, cls, ms) {
+  if (!el) return;
+  const list = cls.split(' ');
+  el.classList.remove(...list); void el.offsetWidth; el.classList.add(...list);
+  setTimeout(() => el.classList.remove(...list), ms);
+}
+
+/* 逐回合播放 */
+/* 把一回合的事件切成「拍」：一个人出一次手，连着他这一手造成的伤害，算一拍。
+   十七件事平铺是十七下心跳，切成拍就是九下，每下里面是一件完整的事。 */
+function toBeats(ev) {
+  const out = [];
+  for (const e of ev) {
+    if (e.k === 'round') continue;
+    const last = out[out.length - 1];
+    if (e.k === 'cast') { out.push({ from: { i: e.t, a: e.ally }, name: e.name, evs: [e] }); continue; }
+    const from = e.s != null ? { i: e.s, a: e.sa } : null;
+    const same = last && last.from && from && last.from.i === from.i && last.from.a === from.a;
+    if (last && (same || e.k === 'die' || (!from && !last.closed))) last.evs.push(e);
+    else out.push({ from, name: null, evs: [e] });
+  }
+  return out;
+}
+
+/* 一拍该停多久：出了人命、暴击、群攻的拍子值得多看两眼，
+   例行的一刀一枪扫过去就行。 */
+function beatWeight(bt) {
+  let w = 1;
+  const hits = bt.evs.filter(e => e.k === 'dmg' || e.k === 'heal').length;
+  const kills = bt.evs.filter(e => e.k === 'die').length;
+  if (bt.name) w += 0.55;                       // 有技能名，得给人读的时间
+  if (hits > 2) w += 0.45;                      // 群攻
+  if (bt.evs.some(e => e.tag === 'crit')) w += 0.6;
+  if (bt.evs.some(e => e.k === 'heal')) w += 0.3;
+  w += 1.1 * kills;
+  return w;
+}
+
+const Play = {
+  tok: 0,
+  start(sid) {
+    const b = Battle.create(sid);
+    if (!b || !b.allies.length) { toast('先去布阵'); return; }
+    UI.battle = b; UI.view = 'battle'; UI.playing = true; this.tok++;
+    this.shown = 0;
+    render();
+    this.step();
+  },
+
+  /** 打到后面回合数多，节奏自然该收一收 —— 开场看得清，鏖战不拖沓 */
+  rate(round) {
+    const s = CFG.speeds[G.speed] || 1;
+    const decay = round <= 6 ? 1 : round <= 12 ? 0.8 : round <= 20 ? 0.62 : 0.5;
+    return CFG.beatBase * s * decay;
+  },
+
+  /** 丢掉排队中的演出，画面直接对齐引擎里的当前状态，随即继续 */
+  resync() {
+    this.tok++;
+    const b = UI.battle;
+    if (!b) return;
+    for (const u of [...b.allies, ...b.foes]) this.sync(u, u.hp);
+    this.log(b);
+    if (b.over) { setTimeout(() => this.finish(), 240); return; }
+    setTimeout(() => this.step(), 120);
+  },
+
+  step() {
+    const b = UI.battle;
+    if (!b || b.over) return this.finish();
+    const ev = Battle.runRound(b);
+    const span = this.paint(b, ev);
+    if (b.over) { setTimeout(() => this.finish(), G.speed === 'fast' ? 300 : 900); return; }
+    setTimeout(() => this.step(), span);
+  },
+
+  paint(b, ev) {
+    // 每回合一个令牌：改了速度或进了下一回合，上一批排队的定时器一律作废，
+    // 否则旧血量会把已经推进的战况倒着写回去。
+    const tok = ++this.tok;
+    const rn = $('rn');
+    if (rn) { rn.textContent = b.round; rn.classList.remove('beat'); void rn.offsetWidth; rn.classList.add('beat'); }
+    const units = [...b.allies, ...b.foes];
+    const key = u => (u.ally ? 'a' : 'f') + u.idx;
+
+    // 倒着走一遍，算出每一件事发生后该显示多少血
+    const hp = {};
+    for (const u of units) hp[key(u)] = u.hp;
+    const shot = new Map();
+    for (let i = ev.length - 1; i >= 0; i--) {
+      const e = ev[i];
+      if (e.k !== 'dmg' && e.k !== 'heal') continue;
+      const k = (e.ally ? 'a' : 'f') + e.t;
+      shot.set(e, hp[k]);
+      hp[k] += (e.k === 'dmg') ? Math.max(0, e.v - (e.absorbed || 0)) : -e.v;
+    }
+    for (const u of units) if (u.alive || hp[key(u)] > 0) this.sync(u, hp[key(u)], true);
+
+    const bts = toBeats(ev);
+    const unit = w => Math.max(18, this.rate(b.round) * w);
+    let t = 0;
+    for (const bt of bts) {
+      const at = t, dur = unit(beatWeight(bt));
+      // 高亮只活到这一拍结束 —— 否则三拍的金边叠在一起，还是看不出谁在出手
+      setTimeout(() => { if (this.tok === tok) this.playBeat(b, bt, shot, dur); }, at);
+      t += dur;
+    }
+    setTimeout(() => { if (this.tok !== tok) return;
+      for (const u of units) this.sync(u, u.hp); this.log(b); }, t + 40);
+    const sp = CFG.speeds[G.speed] || 1;
+    return Math.max(CFG.roundMin * sp, t + Math.round(CFG.roundDelay * sp * 0.5));
+  },
+
+  /** 放一拍：出手方前倾，技能名浮出，伤害逐个落下，战报同步往下写 */
+  playBeat(b, bt, shot, dur) {
+    const hold = Math.max(180, Math.min(1100, (dur || 300) * 0.88));
+    let li = 0;
+    for (const e of bt.evs) {
+      if (e.li != null) li = Math.max(li, e.li);
+      const el = cellOf(e.ally, e.t);
+      if (!el) continue;
+      const fx = el.querySelector('.fx');
+      if (e.k === 'cast') {
+        const f = document.createElement('div');
+        f.className = 'castname'; f.textContent = e.name;
+        fx.appendChild(f);
+        setTimeout(() => f.remove(), hold);
+        flash(el, 'acting', hold);
+      } else if (e.k === 'dmg' || e.k === 'heal') {
+        const f = document.createElement('div');
+        f.className = 'float' + (e.k === 'heal' ? ' heal' : '') + (e.tag === 'crit' ? ' crit' : '');
+        f.textContent = (e.k === 'heal' ? '+' : '−') + num(e.v);
+        fx.appendChild(f);
+        setTimeout(() => f.remove(), hold);
+        flash(el, e.tag === 'crit' ? 'hit crit' : 'hit', Math.min(hold, 460));
+        if (e.s != null) flash(cellOf(e.sa, e.s), 'strike', Math.min(hold, 340));
+        const u = (e.ally ? b.allies : b.foes)[e.t];
+        if (u && shot.has(e)) this.sync(u, shot.get(e), true);
+      } else if (e.k === 'die') {
+        flash(el, 'fell', Math.max(hold, 700));
+        el.classList.add('dead');
+      }
+    }
+    if (li) this.log(b, li);
+  },
+
+  /** 把一个人的血条、护盾、状态、生死同步到指定血量 */
+  sync(u, hpVal, keepAlive) {
+    const el = cellOf(u.ally, u.idx);
+    if (!el) return;
+    el.classList.toggle('dead', !u.alive && !(keepAlive && hpVal > 0));
+    const bar = el.querySelector('.hpbar em');
+    if (bar) bar.style.width = clamp(hpVal / u.maxHp * 100, 0, 100) + '%';
+    const shb = el.querySelector('.hpbar b');
+    if (shb) shb.style.width = (hpVal > 0 ? shPct(u) : 0) + '%';
+    const box = el.querySelector('.num');
+    if (box) box.textContent = `${num(Math.max(0, hpVal))} / ${num(u.maxHp)}`;
+    const st = el.querySelector('.st');
+    if (st) { const h = stHtml(u); if (st.innerHTML !== h) st.innerHTML = h; }
+  },
+
+  /* 战报跟着画面走：只写到这一拍为止，写完自动滚到底 */
+  log(b, upto) {
+    const lg = $('blog');
+    if (!lg) return;
+    const all = upto ? b.log.slice(0, upto) : b.log;
+    const cut = [];
+    let seen = 0;
+    for (let i = all.length - 1; i >= 0; i--) {
+      if (all[i].c === 'r' && ++seen > 2) break;
+      cut.unshift(all[i]);
+      if (cut.length > 40) break;
+    }
+    lg.innerHTML = cut.map(l => `<div class="${l.c}">${esc(l.s)}</div>`).join('');
+    lg.scrollTop = lg.scrollHeight;
+  },
+
+  finish() {
+    const b = UI.battle;
+    UI.playing = false;
+    UI.rewards = Stages.settle(b);
+    UI.view = 'result';
+    render();
+  },
+};
+
+/* ── 装备选择弹层 ─────────────────────────────────────────────────────── */
+
+function openEquipPick(hid, slot) {
+  const list = Grow.bagEquips(slot);
+  $('modal').innerHTML = `<div class="sheet">
+    <div class="shead">选一件${SLOT_NAME[slot]}</div>
+    ${list.length ? list.map(e => `<div class="opt" data-action="equip-do"
+        data-id="${hid}" data-slot="${slot}" data-eid="${e.id}">
+        <b class="${QCLS[e.q]}">${esc(e.name)}</b>
+        <span>${['武', '防', '智', '捷', '魅', '血'].map((n, i) => {
+          const k = ['atk', 'def', 'int', 'agi', 'cha', 'hp'][i];
+          return e.flat[k] ? `${n}+${e.flat[k]}` : '';
+        }).filter(Boolean).join(' ')}
+        ${e.pct.atk ? ` 武+${Math.round(e.pct.atk * 100)}%` : ''}
+        ${e.pct.hp ? ` 血+${Math.round(e.pct.hp * 100)}%` : ''}</span>
+        <span class="n">×${G.items['eq_' + e.id]}</span></div>`).join('')
+      : '<div class="empty">背囊里没有这一类</div>'}
+    <div class="btns"><div class="btn" data-action="modal-close">关　闭</div></div>
+  </div>`;
+  $('modal').classList.add('on');
+}
+const closeModal = () => { $('modal').classList.remove('on'); $('modal').innerHTML = ''; };
+
+/* 自家的确认框。原来用的是浏览器的 confirm()：样式跟整套界面是两回事，
+   而且装成桌面／主屏应用之后，有的壳子干脆不弹，按下去像没反应。 */
+let askYes = null;
+function ask(title, body, yesTxt, fn) {
+  askYes = fn;
+  $('modal').innerHTML = `<div class="sheet">
+    <div class="shead">${esc(title)}</div>
+    <div class="sbody">${esc(body)}</div>
+    <div class="btns">
+      <div class="btn" data-action="modal-close">算　了</div>
+      <div class="btn warn" data-action="ask-yes">${esc(yesTxt)}</div>
+    </div>
+  </div>`;
+  $('modal').classList.add('on');
+}
+
+/* ── 渲染入口 ─────────────────────────────────────────────────────────── */
+
+function render() {
+  renderTop();
+  const fn = VIEWS[UI.view] || VIEWS.main;
+  $('content').innerHTML = fn();
+  window.scrollTo(0, 0);
+}
+function go(v) { UI.view = v; UI.sel = null; render(); }
+
+/* ── 事件委托（全局唯一） ─────────────────────────────────────────────── */
+
+/* ── 布阵拖动 ──────────────────────────────────────────────────────────
+   手机上是主战场，所以不用 HTML5 的 dragstart（移动端支持得一塌糊涂），
+   统一走 pointer 事件：按住不动 180 毫秒才算「拿起来」，
+   免得轻轻一点就被判成拖拽，点进详情页反而进不去。 */
+const Drag = {
+  from: -1, el: null, ghost: null, armed: false, timer: 0,
+
+  start(ev) {
+    const cell = ev.target.closest('.tslot');
+    if (!cell || !$('tgrid') || cell.classList.contains('empty')) return;
+    const slot = +cell.dataset.slot;
+    if (!(slot >= 0)) return;
+    this.from = slot; this.el = cell; this.armed = false;
+    this.x0 = ev.clientX; this.y0 = ev.clientY;
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => {
+      this.armed = true;
+      cell.classList.add('lifting');
+      if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) {} }
+    }, 180);
+  },
+
+  move(ev) {
+    if (this.from < 0) return;
+    const dx = ev.clientX - this.x0, dy = ev.clientY - this.y0;
+    if (!this.armed) {
+      // 按住之前就滑走了，当成翻页，取消这次拖拽
+      if (dx * dx + dy * dy > 144) this.cancel();
+      return;
+    }
+    ev.preventDefault();
+    this.el.style.transform = `translate(${dx}px,${dy}px)`;
+    this.el.style.zIndex = 20;
+    const over = this.under(ev);
+    for (const n of document.querySelectorAll('.tslot.over')) n.classList.remove('over');
+    if (over && over !== this.el) over.classList.add('over');
+  },
+
+  under(ev) {
+    const n = document.elementFromPoint(ev.clientX, ev.clientY);
+    return n && n.closest ? n.closest('.tslot') : null;
+  },
+
+  end(ev) {
+    clearTimeout(this.timer);
+    if (this.from < 0) return;
+    const armed = this.armed, from = this.from;
+    const target = armed ? this.under(ev) : null;
+    this.cancel();
+    if (!armed) return;
+    this.justDragged = true;
+    setTimeout(() => { this.justDragged = false; }, 60);
+    if (target && +target.dataset.slot >= 0 && +target.dataset.slot !== from) {
+      const e = Grow.swapTeam(from, +target.dataset.slot);
+      if (e) toast(e);
+      render();
+    } else render();
+  },
+
+  cancel() {
+    clearTimeout(this.timer);
+    if (this.el) { this.el.style.transform = ''; this.el.style.zIndex = ''; this.el.classList.remove('lifting'); }
+    for (const n of document.querySelectorAll('.tslot.over')) n.classList.remove('over');
+    this.from = -1; this.el = null; this.armed = false;
+  },
+};
+document.addEventListener('pointerdown', ev => Drag.start(ev));
+document.addEventListener('pointermove', ev => Drag.move(ev), { passive: false });
+document.addEventListener('pointerup', ev => Drag.end(ev));
+document.addEventListener('pointercancel', () => Drag.cancel());
+
+document.addEventListener('click', ev => {
+  // 刚拖完那一下不要再当成点击，否则松手就跳进详情页
+  if (Drag.justDragged) { Drag.justDragged = false; ev.stopPropagation(); return; }
+  const el = ev.target.closest('[data-action]');
+  if (!el) return;
+  const a = el.dataset.action, id = el.dataset.id, slot = el.dataset.slot;
+  ev.stopPropagation();
+
+  switch (a) {
+    case 'go': go(id); break;
+    case 'hero': UI.sel = id; UI.view = 'hero'; render(); break;
+    case 'stage': {
+      const st = DB.stage(id), ch = st && st.ch;
+      const card = ch && !G.seenCh[ch] ? DB.chapterCard(ch) : null;
+      if (card) { UI.card = { ch, title: card.title, lines: card.lines, then: id }; UI.view = 'chapcard'; }
+      else { UI.stage = id; UI.view = 'stage'; }
+      render(); break;
+    }
+    case 'intro-skip': clearTimeout(Play.introTimer);
+      G.seenIntro = true; Save.write(); UI.view = 'main'; render(); break;
+    case 'replay-intro': UI.view = 'intro'; render(); startCrawl(); break;
+    case 'card-done': {
+      const c = UI.card; UI.card = null;
+      if (c) { G.seenCh[c.ch] = true; Save.write(); }
+      if (c && c.then) { UI.stage = c.then; UI.view = 'stage'; }
+      else UI.view = 'stages';
+      render(); break;
+    }
+    case 'fight': closeModal(); Play.start(id); break;
+    // 通过的关卡回头再刷时不必再看一遍演出
+    case 'sweep': {
+      closeModal();
+      const b = Battle.create(id);
+      if (!b || !b.allies.length) { toast('先去布阵'); break; }
+      Battle.runAll(b);
+      UI.battle = b; UI.rewards = Stages.settle(b); UI.view = 'result'; UI.playing = false;
+      render(); break;
+    }
+    case 'speed': {
+      // 换速度立刻生效：作废排队中的定时器，剩下的事件按新节奏重排
+      const order = ['slow', 'normal', 'fast'];
+      G.speed = id && order.includes(id) ? id
+              : order[(order.indexOf(G.speed) + 1) % order.length];
+      Save.write();
+      const box = document.querySelector('.spd');
+      if (box) box.querySelectorAll('i').forEach(n =>
+        n.classList.toggle('on', n.dataset.id === G.speed));
+      // 换挡要立刻见效：作废排队中的拍子，把画面对齐当前战况，马上进下一回合。
+      // 否则按了「疾」还得等这一回合按旧节奏磨完。
+      if (UI.playing && UI.battle) Play.resync();
+      break;
+    }
+    case 'levelup': { const e = Grow.levelUp(id); toast(e || '练成一级'); render(); break; }
+    case 'drillmax': {
+      const r = Grow.drillMax(id);
+      toast(r.n ? `连练 ${r.n} 级，花了 ${r.spent.toLocaleString()} 银 —— ${r.why}` : (r.why || '练不动了'));
+      render(); break;
+    }
+    case 'cure': { const e = Hurt.cure(id); toast(e || '伤好了'); render(); break; }
+    case 'auto-team': { const e = Grow.autoTeam(); toast(e || '已按战力排好，耐揍的站前排'); render(); break; }
+    case 'fold': { G.fold[id] = !G.fold[id]; Save.write(); render(); break; }
+    case 'hsort': UI.hsort = id; render(); break;
+    case 'hfilt': UI.hfilt = id; render(); break;
+    case 'starup': { const e = Grow.starUp(id); toast(e || '升星了'); render(); break; }
+    case 'team': { const e = Grow.addToTeam(id); toast(e || '已上阵'); render(); break; }
+    case 'unteam': { const e = Grow.removeFromTeam(id); toast(e || '已下阵'); render(); break; }
+    case 'equip-pick': openEquipPick(id, slot); break;
+    case 'equip-do': { const e = Grow.equip(id, slot, el.dataset.eid); closeModal(); toast(e || '换好了'); render(); break; }
+    case 'unequip': { const e = Grow.unequip(id, slot); toast(e || '已卸下'); render(); break; }
+    case 'modal-close': closeModal(); break;
+    case 'recruit': {
+      const r = Grow.recruit(+id);
+      if (r.err) { toast(r.err); break; }
+      UI.recruit = r.list; UI.view = 'recruitResult'; render(); break;
+    }
+    case 'gold': {
+      const r = Grow.goldExchange();
+      if (r.err) { toast(r.err); break; }
+      UI.recruit = r.list; UI.view = 'recruitResult'; render(); break;
+    }
+    case 'reset':
+      ask('重开一局', '这一局的将、银两、通关进度会全部清掉，回不来。', '清掉，重来', () => {
+        Save.wipe(); initGame(); Save.write(); go('main'); toast('重开了');
+      });
+      break;
+    case 'ask-yes': { const fn = askYes; askYes = null; closeModal(); if (fn) fn(); break; }
+  }
+});
+
+/* ── 启动 ─────────────────────────────────────────────────────────────── */
+
+function boot() {
+  const s = Save.read();
+  if (s) {
+    Object.assign(G, {
+      heroes: s.heroes || {}, items: s.items || {}, frags: s.frags || {},
+      cleared: s.cleared || {}, team: (s.team || []).filter(h => s.heroes && s.heroes[h]),
+      res: Object.assign({ silver: CFG.startSilver, gold: 0, token: 0 }, s.res || {}),
+      fold: s.fold || {},
+      log: s.log || [], clearCount: s.clearCount || 0, pity: s.pity || { ten: 0, fifty: 0 },
+      speed: s.speed || 'normal', seenIntro: !!s.seenIntro, seenCh: s.seenCh || {},
+    });
+    for (const h of Object.values(G.heroes)) {
+      const t = DB.hero(h.hid) || {};
+      h.base0 ||= { atk: t.atk, def: t.def, int: t.int, agi: t.agi, cha: t.cha, hp: t.hp };
+      h.equipment ||= { weapon: null, armor: null, helmet: null, mount: null, special: null };
+      h.owned ||= (t.sk || []).slice(0, 1);
+    }
+    if (!G.team.length) G.team = Object.keys(G.heroes).slice(0, 2);
+  } else {
+    initGame(); Save.write();
+  }
+  if (!G.seenIntro) { UI.view = 'intro'; render(); startCrawl(); }
+  else render();
+  window.addEventListener('beforeunload', () => Save.write());
+}
+
+/* 供回归测试调用 */
+window.G = G; window.UI = UI; window.CFG = CFG;
+window.DB = DB; window.Stats = Stats; window.Battle = Battle;
+window.Grow = Grow; window.Stages = Stages; window.Save = Save;
+window.render = render; window.go = go; window.makeHero = makeHero; window.initGame = initGame;
+window.grownBase = grownBase; window.growStep = growStep; window.GROW_KEYS = GROW_KEYS;
+window.Hurt = Hurt; window.Guide = Guide;
+
+document.addEventListener('DOMContentLoaded', boot);
