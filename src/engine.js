@@ -14,14 +14,39 @@
 /* ── 0  常量 ─────────────────────────────────────────────────────────── */
 
 const CFG = {
-  maxLv: 50,
-  maxStar: 5,
+  /* 等级与星级的上限按周目取，见 Lap.maxLv / Lap.maxStar 与上面的 lapLv / lapStar。 */
   maxRounds: 30,
   teamSize: 9,
 
   qmult:   { 1: 1.00, 2: 1.10, 3: 1.20, 4: 1.35, 5: 1.50, 6: 1.70 },
-  starMul: { 1: 1.00, 2: 1.12, 3: 1.26, 4: 1.42, 5: 1.60 },
-  starSk:  { 1: 1.00, 2: 1.05, 3: 1.10, 4: 1.15, 5: 1.20 },
+  /* ★6 ★7 是二周目以后的东西。技能位在 ★2/3/4 已经发完，
+     再往上不发新技能，只续属性与技能威力。 */
+  starMul: { 1: 1.00, 2: 1.12, 3: 1.26, 4: 1.42, 5: 1.60, 6: 1.80, 7: 2.02 },
+  starSk:  { 1: 1.00, 2: 1.05, 3: 1.10, 4: 1.15, 5: 1.20, 6: 1.26, 7: 1.32 },
+
+  /* 周目。三周目起数值封顶，周目本身不设上限 —— 想一直刷就一直刷。 */
+  lapLv:   { 1: 50, 2: 60 },   // 查不到的周目一律取 lapLvMax
+  lapStar: { 1: 5,  2: 6  },
+  lapLvMax: 70, lapStarMax: 7,
+
+  /* 二周目玩家是带着满配从第一关重打，而关卡曲线是给「从零长起来」设计的：
+     一周目的敌方等级从 3 爬到 60。拿满级队去打 3 级的小喽啰没有任何意义，
+     光乘一个系数也救不回来 —— 第一章要有挑战就得乘几十倍，末章就该爆了。
+     所以二周目不是「乘」，是「整段平移」：把敌方等级从一周目的 3–60
+     线性映射到本周目的区间，关卡之间的相对难度（章末比小关硬）原样保留。 */
+  foeLv1: [3, 60],
+  lapBand: { 2: [46, 60], 3: [56, 70] },   // 查不到的周目一律取 lapBandMax
+  lapBandMax: [56, 70],
+  /* 平移之外再乘的一道微调，按周目查表 —— 不能用幂次。
+     玩家从二周目到三周目只多 17% 等级上限加 12% 星级倍率，
+     而 1.18 的平方是 1.39，敌方涨得比人快，三周目就停在 136/139 了。
+     三周目起玩家数值封顶（70 / ★7），敌方也必须跟着封顶，
+     否则第四周目必死。往后各周目靠宿星换手感，不靠堆数值。
+     1.18 是二周目校出来的：三局 139/139 全通，场次 291 / 139 / 139，
+     与一周目的 196–234 同一量级；1.22 三局里有一局停在 136，1.35 直接撞墙。 */
+  lapFoeBy: { 1: 1, 2: 1.18 },
+  lapFoeMax: 1.30,
+  fateReroll: 30,              // 重掷一颗宿星要多少符
 
   hpMult: 5,              // 体力 → 血量
   lvGrow: 0.015,          // 每级通用成长
@@ -67,7 +92,7 @@ const CFG = {
      你常用的恰恰是最稀有的那几个，重复概率趋近于零。
      兵符是通用碎片：首通给，任何人都能用，星级这才走得动。 */
   tokenBy: { normal: 0, side: 2, boss: 4, hidden: 6 },
-  starCost: { 1: 2, 2: 4, 3: 8, 4: 16 },
+  starCost: { 1: 2, 2: 4, 3: 8, 4: 16, 5: 32, 6: 64 },
   fragByQ: { 1: 1, 2: 2, 3: 3, 4: 5, 5: 8, 6: 12 },
 
   recruitRate: { 1: 0.45, 2: 0.28, 3: 0.15, 4: 0.08, 5: 0.03, 6: 0.01 },
@@ -196,6 +221,7 @@ const Save = {
         cleared: G.cleared, team: G.team, res: G.res,
         log: G.log, clearCount: G.clearCount, pity: G.pity, speed: G.speed,
         seenIntro: G.seenIntro, seenCh: G.seenCh, fold: G.fold,
+        lap: G.lap, fates: G.fates, everCleared: G.everCleared,
       }));
       return true;
     } catch (e) { return false; }
@@ -217,6 +243,10 @@ const G = {
   heroes: {}, items: {}, frags: {}, cleared: {}, team: [],
   res: { silver: 0, gold: 0, token: 0 }, log: [], clearCount: 0, pity: { ten: 0, fifty: 0 },
   speed: 'normal', seenIntro: false, seenCh: {}, fold: {},
+  /* 周目。老存档没有这三个字段，读进来按一周目算，一切照旧。
+     everCleared 跨周目不清 —— 上一周目打过的关，这一周目可以直接速战，
+     不然重看一遍 139 段关前白很烦。 */
+  lap: 1, fates: [], everCleared: {},
 };
 
 /* 五位数的伤害飘在 46 像素宽的格子上没法看，过万折成「万」。
@@ -244,11 +274,122 @@ function initGame() {
   G.res = { silver: CFG.startSilver, gold: 0, token: 0 };
   G.log = []; G.clearCount = 0; G.pity = { ten: 0, fifty: 0 }; G.speed = G.speed || 'normal';
   G.seenIntro = false; G.seenCh = {}; G.fold = G.fold || {};
+  G.lap = 1; G.fates = []; G.everCleared = {};
   for (const hid of CFG.startHeroes) {
     const h = makeHero(hid);
     if (h) { G.heroes[hid] = h; G.team.push(hid); }
   }
 }
+
+/* ── 4.5  周目与宿星 ─────────────────────────────────────────────────── */
+
+/* 一周目打完时，等级 47/50、星级 4.9/5 都贴着天花板，人却只收到三分之一。
+   两条成长轴封了顶，剩下的收集又全看抽卡运气 —— 于是「通关了但没得玩」。
+   二周目把上限往上抬一档，关卡从头再打一遍，养成全留着。 */
+const Lap = {
+  now()      { return G.lap || 1; },
+  maxLv(l)   { l = l || this.now(); return CFG.lapLv[l]   || CFG.lapLvMax; },
+  maxStar(l) { l = l || this.now(); return CFG.lapStar[l] || CFG.lapStarMax; },
+
+  /** 敌方按周目整体上浮。系数是跑模拟校出来的，不拍脑袋定。 */
+  foeMul() { return CFG.lapFoeBy[this.now()] || CFG.lapFoeMax; },
+
+  /** 本周目敌方等级的区间。一周目原样不动。 */
+  band() { return this.now() <= 1 ? null : (CFG.lapBand[this.now()] || CFG.lapBandMax); },
+
+  /** 推荐等级跟着敌方一起平移。不然二周目第一关会写着「推荐 1–3 级 · 敌方 46 级」。 */
+  recLv(rl) {
+    if (this.now() <= 1 || !rl) return rl;
+    return [this.foeLv(rl[0]), this.foeLv(rl[1])];
+  },
+
+  /** 把一周目的敌方等级映射到本周目的区间 */
+  foeLv(lv) {
+    const b = this.band();
+    if (!b) return lv;
+    const [a0, a1] = CFG.foeLv1, [b0, b1] = b;
+    const t = clamp((lv - a0) / Math.max(1, a1 - a0), 0, 1);
+    return Math.round(b0 + t * (b1 - b0));
+  },
+
+  /** 二周目的主成长轴是星级不是等级，所以符的产出跟着周目走 */
+  tokenMul() { return this.now(); },
+
+  done() { return DB.stageIds().every(sid => G.cleared[sid]); },
+
+  /** 重整旗鼓：人、等级、星、装备、家当全留着，关卡进度和伤势清零 */
+  next() {
+    if (!this.done()) return '这一周目还没打完';
+    for (const sid of Object.keys(G.cleared)) G.everCleared[sid] = 1;
+    G.cleared = {};
+    for (const h of Object.values(G.heroes)) h.hurt = { lv: 0, rest: 0 };
+    G.lap = this.now() + 1;
+    G.seenCh = {};
+    Fate.roll();
+    Save.write();
+    return null;
+  },
+};
+
+/* 宿星。二周目开局石碣上亮三颗，这一周目全程生效，周目之间不继承。
+   每条都有得有失 —— 没有纯赚的，所以花符重掷是权衡，不是刷分。 */
+const FATES = [
+  { id: 'kui',  name: '天魁星', up: '我方武力 +12%',      dn: '敌方血量 +15%',            f: { myAtk: 1.12, foeHp: 1.15 } },
+  { id: 'sha',  name: '天杀星', up: '我方暴击率翻倍',     dn: '我方受到的暴击也翻倍',      f: { myCrit: 2, foeCrit: 2 } },
+  { id: 'su',   name: '天速星', up: '我方捷 +18%',        dn: '我方防 −10%',              f: { myAgi: 1.18, myDef: 0.90 } },
+  { id: 'shou', name: '天寿星', up: '伤势休养少一场',     dn: '治伤价钱翻倍',             f: { rest: -1, cure: 2 } },
+  { id: 'fu',   name: '天富星', up: '银两收入 ×1.6',      dn: '符的产出减半',             f: { silver: 1.6, token: 0.5 } },
+  { id: 'qiao', name: '天巧星', up: '装备掉落翻倍',       dn: '装备品阶上限降一档',        f: { drop: 2, qcap: -1 } },
+  { id: 'ku',   name: '天哭星', up: '银两收入 ×1.8',      dn: '阵亡一律重伤，不再有轻伤',  f: { silver: 1.8, allHeavy: 1 } },
+  { id: 'gu',   name: '地孤星', up: '我方全属性 +15%',    dn: '羁绊全部失效',             f: { myAll: 1.15, noBond: 1 } },
+  { id: 'sha2', name: '地煞星', up: '首通符 +2',          dn: '敌方每关多一人',           f: { tokenAdd: 2, foeMore: 1 } },
+  { id: 'sun',  name: '地损星', up: '首通经验 ×1.4',      dn: '每关结束随机一名上阵者轻伤', f: { exp: 1.4, hurtAfter: 1 } },
+  { id: 'fu2',  name: '地伏星', up: '前排承伤减免 20%',   dn: '后排受创 +20%',            f: { frontCut: 0.8, backUp: 1.2 } },
+  { id: 'ling', name: '地灵星', up: '每回合全队回血 2%',  dn: '安道全不在册时全队血量 −8%', f: { regen: 0.02, needDoc: 1 } },
+];
+
+const Fate = {
+  all() { return FATES; },
+  of(id) { return FATES.find(x => x.id === id) || null; },
+  on()  { return (G.fates || []).map(id => this.of(id)).filter(Boolean); },
+
+  /** 某一条修正当下的值。没抽到这条宿星就返回兜底值。 */
+  v(key, dflt) {
+    let r = dflt;
+    for (const f of this.on()) if (f.f[key] != null) {
+      // 乘数相乘、加数相加：按兜底值是 1 还是 0 判断
+      r = dflt === 1 ? r * f.f[key] : dflt === 0 ? r + f.f[key] : f.f[key];
+    }
+    return r;
+  },
+  has(key) { return this.on().some(f => f.f[key] != null); },
+
+  roll() {
+    const pool = FATES.map(f => f.id);
+    const out = [];
+    while (out.length < 3 && pool.length) out.push(pool.splice(Math.floor(rnd() * pool.length), 1)[0]);
+    G.fates = out;
+    G.fateRerolled = {};
+    return out;
+  },
+
+  /** 一颗只许重掷一次，免得拿符刷到一手顺的 */
+  reroll(id) {
+    const i = (G.fates || []).indexOf(id);
+    if (i < 0) return '没有这颗星';
+    G.fateRerolled = G.fateRerolled || {};
+    if (G.fateRerolled[id]) return '这颗已经换过一次了';
+    if ((G.res.token || 0) < CFG.fateReroll) return `需 ${CFG.fateReroll} 符`;
+    const pool = FATES.map(f => f.id).filter(x => !G.fates.includes(x));
+    if (!pool.length) return '没有别的星可换';
+    G.res.token -= CFG.fateReroll;
+    const got = pool[Math.floor(rnd() * pool.length)];
+    G.fates[i] = got;
+    G.fateRerolled[got] = 1;
+    Save.write();
+    return null;
+  },
+};
 
 /* ── 5  数值层 ───────────────────────────────────────────────────────── */
 /* 全局唯一属性口径。任何地方要数值都来这里拿，包括战力和敌人。 */
@@ -348,8 +489,16 @@ const Stats = {
 
     const g = this.gear(h, hid);
     const team = (opt && opt.team) || G.team;
-    const bd = (opt && opt.noBond) ? { atk: 0, def: 0, int: 0, agi: 0, cha: 0, hp: 0 }
-                                   : this.bond(hid, team);
+    // 敌人走 calcEnemy（noBond），宿星只作用在自己人身上
+    const mine = !(opt && opt.noBond);
+    const bd = (!mine || Fate.has('noBond')) ? { atk: 0, def: 0, int: 0, agi: 0, cha: 0, hp: 0 }
+                                             : this.bond(hid, team);
+    if (mine) {
+      const all = Fate.v('myAll', 1);
+      const fm = { atk: Fate.v('myAtk', 1) * all, def: Fate.v('myDef', 1) * all,
+                   int: all, agi: Fate.v('myAgi', 1) * all, cha: all, hp: Fate.v('myHp', 1) * all };
+      for (const k of Object.keys(raw)) if (fm[k] !== 1) raw[k] *= fm[k];
+    }
 
     const out = {};
     for (const k of ['atk', 'def', 'int', 'agi', 'cha']) {
@@ -392,6 +541,9 @@ const Stats = {
       s.def = Math.max(1, Math.round(s.def * m));
       s.maxHp = Math.max(1, Math.round(s.maxHp * Math.pow(m, 0.5)));
     }
+    // 天魁星：我方武力涨，敌方血量跟着涨
+    const fh = Fate.v('foeHp', 1);
+    if (fh !== 1) s.maxHp = Math.max(1, Math.round(s.maxHp * fh));
     return s;
   },
 
@@ -419,9 +571,11 @@ const Battle = {
     const rl = st.rec_lv || [1, 5];
     const ch = st.ch || 1;
     return {
-      lv: st.enemy_lv || Math.max(1, rl[1]),
-      star: st.enemy_star || (ch > 20 ? 5 : ch > 10 ? 4 : ch > 3 ? 3 : 2),
-      mul: st.enemy_mul != null ? st.enemy_mul : 1,
+      lv: Lap.foeLv(st.enemy_lv || Math.max(1, rl[1])),
+      // 二周目起敌方也跟着多一星，上限与玩家同档
+      star: Math.min(Lap.maxStar(),
+             (st.enemy_star || (ch > 20 ? 5 : ch > 10 ? 4 : ch > 3 ? 3 : 2)) + (Lap.now() - 1)),
+      mul: (st.enemy_mul != null ? st.enemy_mul : 1) * Lap.foeMul(),
     };
   },
 
@@ -471,11 +625,24 @@ const Battle = {
     const allies = G.team.filter(hid => hid && Hurt.able(hid))
       .map((hid, i) => { const s = Stats.calc(hid); return s ? this.unit(hid, s, true, i) : null; })
       .filter(Boolean);
-    const foes = (st.enemies || [])
+    // 地煞星：敌方每关多一人，从这一关已有的敌人里再抽一个补上
+    let elist = (st.enemies || []).slice();
+    if (elist.length && Fate.has('foeMore')) {
+      const n = Math.round(Fate.v('foeMore', 0));
+      for (let i = 0; i < n; i++) elist.push(elist[Math.floor(rnd() * elist.length)]);
+    }
+    const foes = elist
       .map((eid, i) => {
         const s = Stats.calcEnemy(eid, tier.lv, tier.star, tier.mul);
         return s ? this.unit(eid, s, false, i) : null;
       }).filter(Boolean);
+    // 地灵星的另一头：神医不在册，全队血薄一截
+    if (Fate.has('needDoc') && !G.heroes[CFG.doctorId]) {
+      for (const u of allies) {
+        u.maxHp = Math.max(1, Math.round(u.maxHp * 0.92));
+        u.hp = Math.min(u.hp, u.maxHp);
+      }
+    }
     const b = { sid, stage: st, allies, foes, round: 0, over: false, win: null, log: [], events: [] };
     this.tagNames(b);
     return b;
@@ -501,7 +668,10 @@ const Battle = {
    *  有 17 个技能只动魅，若魅不入战，那些技能等于白写。*/
   critOf(u) {
     if (!u) return CFG.critRate;
-    return CFG.critRate + Math.min(CFG.critChaCap, this.eff(u, 'cha') / CFG.critChaK);
+    const base = CFG.critRate + Math.min(CFG.critChaCap, this.eff(u, 'cha') / CFG.critChaK);
+    // 天杀星：双方暴击率一起翻倍。敌人只打我们，所以「敌方暴击翻倍」
+    // 就等于「我方受到的暴击翻倍」，不必再在挨打那头绕一道。
+    return base * Fate.v(u.ally ? 'myCrit' : 'foeCrit', 1);
   },
 
   /** 一次挥刀的结果不该每次都一样。没有这层抖动，九对九打二十回合，
@@ -518,6 +688,11 @@ const Battle = {
 
   /** 统一扣血出口：护盾在所有伤害路径生效 */
   hurt(b, tgt, amount, src, tag) {
+    // 地伏星：自己人前排扛得住些，后排更脆。row 是 0/1/2，0 就是前排。
+    if (tgt.ally && Fate.has('frontCut')) {
+      amount = amount * (tgt.row === 0 ? Fate.v('frontCut', 1) : Fate.v('backUp', 1));
+      amount = Math.max(1, Math.round(amount));
+    }
     let left = amount, absorbed = 0;
     if (tgt.shield > 0) {
       absorbed = Math.min(tgt.shield, left);
@@ -711,6 +886,12 @@ const Battle = {
     b.log.push({ c: 'r', s: `第 ${b.round} 回合` });
     b.events = [{ k: 'round', n: b.round, li: b.log.length }];
 
+    // 地灵星：每回合开头全队回一点血
+    const rg = Fate.v('regen', 0);
+    if (rg > 0) for (const u of b.allies) {
+      if (u.alive && u.hp < u.maxHp) this.heal(b, u, Math.max(1, Math.round(u.maxHp * rg)), null);
+    }
+
     // 出手顺序同样带抖动：捷高的仍然多半先动，但不再是铁打的名次
     const order = [...b.allies, ...b.foes].filter(u => u.alive)
       .map(u => ({ u, k: this.eff(u, 'agi') * (1 + (Math.random() * 2 - 1) * CFG.agiVar) }))
@@ -781,17 +962,20 @@ const Grow = {
     let top = 5;
     for (const sid of DB.stageIds()) {
       if (!G.cleared[sid]) continue;
-      const rl = DB.stage(sid).rec_lv;
+      const rl = Lap.recLv(DB.stage(sid).rec_lv);
       if (rl && rl[1] > top) top = rl[1];
     }
-    return Math.min(CFG.maxLv, top + CFG.drillAhead);
+    // 二周目开局关卡进度清零，但人已经练到上一周目的顶了 —— 不能因此连练都练不动。
+    // 上一周目挣来的等级就是这一周目的底。
+    const floor = Lap.now() > 1 ? Lap.maxLv(Lap.now() - 1) : 0;
+    return Math.min(Lap.maxLv(), Math.max(floor, top + CFG.drillAhead));
   },
 
   /** 督练一级要花多少银两：只补还差的那点经验，快满时便宜。
    *  已经顶到天花板的返回 0，按钮那边据此显示「练不动了」 */
   drillCost(hid) {
     const h = G.heroes[hid];
-    if (!h || h.lv >= CFG.maxLv) return 0;
+    if (!h || h.lv >= Lap.maxLv()) return 0;
     if (h.lv >= this.drillCap()) return 0;
     const gap = Math.max(1, CFG.expNeed(h.lv) - h.exp);
     return Math.ceil(gap * CFG.drillPrice(h.lv));
@@ -801,7 +985,7 @@ const Grow = {
   levelUp(hid) {
     const h = G.heroes[hid];
     if (!h) return '没有这个人';
-    if (h.lv >= CFG.maxLv) return '已满级';
+    if (h.lv >= Lap.maxLv()) return '已满级';
     const cap = this.drillCap();
     if (h.lv >= cap) return `练不动了 —— 督练最多到 ${cap} 级，往前打几关才练得上去`;
     const cost = this.drillCost(hid);
@@ -818,13 +1002,13 @@ const Grow = {
   drillMax(hid, stopAt) {
     const h = G.heroes[hid];
     if (!h) return { n: 0, spent: 0, why: '没有这个人' };
-    const cap = Math.min(CFG.maxLv, this.drillCap(), stopAt || CFG.maxLv);
+    const cap = Math.min(Lap.maxLv(), this.drillCap(), stopAt || Lap.maxLv());
     if (h.lv >= cap) return { n: 0, spent: 0, why: '已到' + (stopAt ? stopAt + ' 级' : '满级') };
     const lv0 = h.lv, silver0 = G.res.silver;
     let why = '';
     // 上限兜底：真有人把银子堆到几百万，也不至于在这儿转到天荒地老
     for (let guard = 0; guard < 4000; guard++) {
-      if (h.lv >= cap) { why = cap >= CFG.maxLv ? '满级了' : `到头了，督练最多到 ${cap} 级`; break; }
+      if (h.lv >= cap) { why = cap >= Lap.maxLv() ? '满级了' : `到头了，督练最多到 ${cap} 级`; break; }
       const c = this.drillCost(hid);
       if (G.res.silver < c) { why = '银两不够了'; break; }
       G.res.silver -= c;
@@ -853,9 +1037,9 @@ const Grow = {
   gainExp(h, amount) {
     h.exp += amount;
     let n = 0;
-    while (h.lv + n < CFG.maxLv && h.exp >= CFG.expNeed(h.lv + n)) { h.exp -= CFG.expNeed(h.lv + n); n++; }
+    while (h.lv + n < Lap.maxLv() && h.exp >= CFG.expNeed(h.lv + n)) { h.exp -= CFG.expNeed(h.lv + n); n++; }
     if (n) { this.applyGrowth(h, n); h.lv += n; }
-    if (h.lv >= CFG.maxLv) h.exp = 0;
+    if (h.lv >= Lap.maxLv()) h.exp = 0;
     return n;
   },
 
@@ -880,7 +1064,7 @@ const Grow = {
   starUp(hid) {
     const h = G.heroes[hid];
     if (!h) return '没有这个人';
-    if (h.star >= CFG.maxStar) return '已满星';
+    if (h.star >= Lap.maxStar()) return '已满星';
     const cost = CFG.starCost[h.star] || 99;
     const own = G.frags[hid] || 0;
     const need = Math.max(0, cost - own);
@@ -936,7 +1120,7 @@ const Grow = {
     const ls = G.team.map(h => (G.heroes[h] || {}).lv || 1);
     if (!ls.length) return 1;
     const avg = ls.reduce((a, b) => a + b, 0) / ls.length;
-    return clamp(Math.round(avg) - 2, 1, CFG.maxLv);
+    return clamp(Math.round(avg) - 2, 1, Lap.maxLv());
   },
 
   gainHero(hid) {
@@ -1076,11 +1260,14 @@ const Hurt = {
       if (!h) continue;
       let lv = 0, rest = 0;
       if (!u.alive) {
-        const soft = relief.has(u.hid);
+        // 天哭星：倒下就是重伤，没有减免这回事
+        const soft = relief.has(u.hid) && !Fate.has('allHeavy');
         lv = soft ? 1 : 2;
         rest = soft ? CFG.hurtLightRest : CFG.hurtHeavyRest;
       } else if (u.hp / u.maxHp < CFG.hurtLightAt) { lv = 1; rest = CFG.hurtLightRest; }
       if (!lv) continue;
+      // 天寿星：休养少一场
+      rest = Math.max(1, rest + Fate.v('rest', 0));
       const old = h.hurt || { lv: 0, rest: 0 };
       h.hurt = { lv: Math.max(old.lv, lv), rest: Math.max(old.rest, rest) };
       out.push({ hid: u.hid, lv: h.hurt.lv, rest: h.hurt.rest, died: !u.alive });
@@ -1121,7 +1308,7 @@ const Hurt = {
     const doc = G.heroes[CFG.doctorId] ? CFG.cureDoctor : 1;
     // 挂在操练价上，自然随等级涨
     const base = Math.max(1, Math.ceil(Math.max(1, CFG.expNeed(h.lv)) * CFG.drillPrice(h.lv)));
-    return Math.max(10, Math.round(base * k * doc));
+    return Math.max(10, Math.round(base * k * doc * Fate.v('cure', 1)));
   },
 
   cure(hid) {
@@ -1153,8 +1340,14 @@ const Guide = {
     const nextStage = DB.stageIds().find(s => !G.cleared[s] && Stages.unlocked(s));
     const st = nextStage ? DB.stage(nextStage) : null;
 
-    if (!Object.keys(G.cleared).length)
+    if (!Object.keys(G.cleared).length) {
+      // 二周目开局带着一身家当从头走，别再说「两个人也够用」
+      if (Lap.now() > 1)
+        return { txt: `${Lap.now()} 周目，从头再走一遍`,
+                 sub: `这一趟敌方强一截，等级能练到 ${Lap.maxLv()}、星级到 ${Lap.maxStar()}；`
+                      + `打过的关可以速战`, act: 'stage', id: nextStage };
       return { txt: '先打第一关：史家村学艺', sub: '两个人也够用，照着打就是', act: 'stage', id: nextStage };
+    }
 
     // 阵上有重伤的空位
     const benchAble = owned.filter(h => !G.team.includes(h) && Hurt.able(h));
@@ -1199,7 +1392,7 @@ const Guide = {
     // 兵符够升星
     for (const hid of G.team) {
       const h = G.heroes[hid];
-      if (h.star >= CFG.maxStar) continue;
+      if (h.star >= Lap.maxStar()) continue;
       const need = CFG.starCost[h.star] || 99;
       if ((G.frags[hid] || 0) + G.res.token >= need)
         return { txt: `${DB.hero(hid).name} 可以升星`, sub: '升一星多一个技能', act: 'hero', id: hid };
@@ -1321,6 +1514,8 @@ const Stages = {
 
     const first = !G.cleared[sid];
     G.cleared[sid] = true;
+    G.everCleared = G.everCleared || {};
+    G.everCleared[sid] = 1;      // 跨周目不清：下一周目这关可以直接速战
     G.clearCount++;
 
     // 经验与银两都随推荐等级走：第 30 章一关的收成不该和第 1 章一样
@@ -1330,19 +1525,21 @@ const Stages = {
     out.push({ icon: '经', text: `经验 +${exp}`, c: 'he' });
     ups.forEach(t => out.push({ icon: '升', text: t, c: 'sk' }));
 
-    const silver = CFG.stageSilver(L);
+    const silver = Math.round(CFG.stageSilver(L) * Fate.v('silver', 1));
     G.res.silver += silver;
     out.push({ icon: '银', text: `银两 +${silver}`, c: '' });
 
     if (chance(0.05)) { G.res.gold += 1; out.push({ icon: '金', text: '黄金 +1', c: 'sk' }); }
 
     for (const d of (st.drops || [])) {
-      if (!chance(d.rate || 0)) continue;
+      const dr = d.t === 'equip' ? Fate.v('drop', 1) : 1;
+      if (!chance((d.rate || 0) * dr)) continue;
       if (d.t === 'hero' && d.id) {
         const r = Grow.gainHero(d.id);
         if (r) out.push({ icon: '将', text: r.got ? `${DB.hero(d.id).name} 入伙（${r.lv} 级）` : `${DB.hero(d.id).name} 碎片 +${r.frag}`, c: 'sk' });
       } else if (d.t === 'equip') {
-        const eid = this.rollEquip(d.slot, d.qmax || 6, d.qmin || 1);
+        const qc = Math.round(Fate.v('qcap', 0));
+        const eid = this.rollEquip(d.slot, Math.max(1, (d.qmax || 6) + qc), Math.max(1, (d.qmin || 1) + qc));
         if (eid) {
           G.items['eq_' + eid] = (G.items['eq_' + eid] || 0) + 1;
           out.push({ icon: '器', text: `获 ${DB.equip(eid).name}`, c: '' });
@@ -1356,18 +1553,21 @@ const Stages = {
 
     if (first) {
       const fr = st.first_reward || {};
-      const fs = CFG.firstSilver(L, kind);
+      const fs = Math.round(CFG.firstSilver(L, kind) * Fate.v('silver', 1));
       G.res.silver += fs;
       out.push({ icon: '首', text: `首通 银两 +${fs}`, c: 'sk' });
-      const fe = CFG.firstExp(L, kind);
+      const fe = Math.round(CFG.firstExp(L, kind) * Fate.v('exp', 1));
       Grow.addExp(fe).forEach(t => out.push({ icon: '升', text: t, c: 'sk' }));
       out.push({ icon: '首', text: `首通 经验 +${fe}`, c: 'sk' });
       // 首通必得一件装备。原来装备只靠 10–20% 的掉落，打到第九章还是赤手空拳，
       // 而难度是按「每格都有本章档次的装备」调的。
-      const tk = CFG.tokenBy[kind] || 1;
+      // 二周目的主成长轴是星级，所以符跟着周目翻倍；
+      // 天富星把它减半，地煞星再补上两个
+      const tk = Math.max(1, Math.round(((CFG.tokenBy[kind] || 1) * Lap.tokenMul()
+                                         * Fate.v('token', 1)) + Fate.v('tokenAdd', 0)));
       G.res.token += tk;
       out.push({ icon: '符', text: `首通 兵符 +${tk}`, c: 'sk' });
-      const cap = this.qCap(st.ch || 1);
+      const cap = Math.max(1, this.qCap(st.ch || 1) + Math.round(Fate.v('qcap', 0)));
       const fe2 = this.rollEquip(null, cap, Math.max(1, cap - 1));
       if (fe2) {
         G.items['eq_' + fe2] = (G.items['eq_' + fe2] || 0) + 1;
@@ -1379,6 +1579,18 @@ const Stages = {
       }
     }
 
+    // 地损星：打完总有人挂点彩
+    if (Fate.has('hurtAfter')) {
+      const pool = b.allies.filter(u => u.alive && G.heroes[u.hid]);
+      if (pool.length) {
+        const u = pool[Math.floor(rnd() * pool.length)];
+        const h = G.heroes[u.hid], old = h.hurt || { lv: 0, rest: 0 };
+        if (!old.lv) {
+          h.hurt = { lv: 1, rest: Math.max(1, CFG.hurtLightRest + Fate.v('rest', 0)) };
+          out.push({ icon: '伤', text: `${DB.hero(u.hid).name} 挂了彩（地损星）`, c: 'dm' });
+        }
+      }
+    }
     this.woundReport(b, out);
     G.log = [...out.slice(0, 3).map(o => o.text), ...G.log].slice(0, 20);
     Save.write();

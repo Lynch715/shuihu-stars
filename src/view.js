@@ -66,7 +66,7 @@ function weaponSvg(hid) {
 /* ── 小部件 ───────────────────────────────────────────────────────────── */
 
 const seal = q => `<span class="seal ${QCLS[q]}">${QSEAL[q]}</span>`;
-const stars = n => '★'.repeat(n) + '☆'.repeat(CFG.maxStar - n);
+const stars = n => '★'.repeat(n) + '☆'.repeat(Math.max(0, Lap.maxStar() - n));
 
 function plate(hid, extra) {
   const t = DB.hero(hid), h = G.heroes[hid];
@@ -124,7 +124,8 @@ function renderTop() {
     <span><i>银</i><b>${G.res.silver.toLocaleString()}</b></span><span class="sep"></span>
     <span><i>金</i><b>${G.res.gold}</b></span><span class="sep"></span>
     <span><i>符</i><b>${G.res.token || 0}</b></span><span class="sep"></span>
-    <span><i>将</i><b>${Object.keys(G.heroes).length}</b></span>`;
+    <span><i>将</i><b>${Object.keys(G.heroes).length}</b></span>
+    ${Lap.now() > 1 ? `<span class="sep"></span><span><i>周目</i><b>${Lap.now()}</b></span>` : ''}`;
   $('nav').innerHTML = NAV.map(([v, t]) =>
     `<div class="tab${UI.view === v ? ' on' : ''}" data-action="go" data-id="${v}">${t}</div>`).join('');
 }
@@ -213,6 +214,13 @@ VIEWS.main = () => {
     <div class="btn main" data-action="go" data-id="stages">出　征</div>
     <div class="btn" data-action="go" data-id="team">布　阵</div>
   </div>
+  ${fateBar()}
+  ${Lap.done() ? `<div class="lapcard" data-action="lap-next">
+      <div class="k">${Lap.now()} 周目已通关</div>
+      <div class="v">重整旗鼓</div>
+      <div class="m">人、等级、星、家当全留着，关隘从头再走一遍；
+        等级上限 ${Lap.maxLv()} → ${Lap.maxLv(Lap.now() + 1)}，星级 ${Lap.maxStar()} → ${Lap.maxStar(Lap.now() + 1)}</div>
+    </div>` : ''}
   ${G.log.length ? section('log', '最　近',
      '<div class="logbox">' + G.log.slice(0, 8).map(l => `<div>${esc(l)}</div>`).join('') + '</div>') : ''}
   <div class="btns" style="margin-top:22px">
@@ -220,6 +228,25 @@ VIEWS.main = () => {
     <div class="btn warn" data-action="reset">重开一局</div>
   </div>`;
 };
+
+/* 宿星条。二周目才有，三颗一直摆在主界面上 —— 这一周目是什么手感，
+   一眼看得见，不用翻菜单。每颗可以花符换一次。 */
+function fateBar() {
+  const on = Fate.on();
+  if (!on.length) return '';
+  return section('fates', `宿星（${on.length}）`,
+    '<div class="fates">' + on.map(f => {
+      const done = (G.fateRerolled || {})[f.id];
+      return `<div class="fate">
+        <div class="fn">${esc(f.name)}</div>
+        <div class="fu">${esc(f.up)}</div>
+        <div class="fd">${esc(f.dn)}</div>
+        ${done ? '<div class="fr done">已换过</div>'
+               : `<div class="fr${(G.res.token || 0) >= CFG.fateReroll ? '' : ' off'}"
+                    data-action="fate-reroll" data-id="${f.id}">换 · ${CFG.fateReroll} 符</div>`}
+      </div>`;
+    }).join('') + '</div>');
+}
 
 /* 群将谱的排法与筛法。收满是两百多人，一路往下翻找不到人。 */
 const SORTS = {
@@ -235,7 +262,7 @@ const FILTS = {
   hurt:  ['带伤',  h => !!Hurt.of(h).lv],
   up:    ['可升星', h => {
     const g = G.heroes[h];
-    const c = g.star < CFG.maxStar ? CFG.starCost[g.star] : null;
+    const c = g.star < Lap.maxStar() ? CFG.starCost[g.star] : null;
     return !!c && (G.frags[h] || 0) + (G.res.token || 0) >= c;
   }],
 };
@@ -263,10 +290,10 @@ VIEWS.hero = () => {
   const hid = UI.sel, t = DB.hero(hid), h = G.heroes[hid];
   if (!t || !h) return '<div class="empty">查无此人</div>';
   const s = Stats.calc(hid);
-  const nextLv = h.lv < CFG.maxLv ? Grow.drillCost(hid) : null;
+  const nextLv = h.lv < Lap.maxLv() ? Grow.drillCost(hid) : null;
   const reach = Grow.drillReach(hid);   // 手上的银子够练到几级
   const dcap = Grow.drillCap();         // 打到哪儿才练得到哪儿
-  const starC = h.star < CFG.maxStar ? CFG.starCost[h.star] : null;
+  const starC = h.star < Lap.maxStar() ? CFG.starCost[h.star] : null;
   const frag = G.frags[hid] || 0;
   const bd = s.meta.bond;
   const bondOn = Object.entries(bd).filter(([, v]) => v > 0);
@@ -305,7 +332,7 @@ VIEWS.hero = () => {
         <div class="drow"><i>智</i><b>${s.int}</b></div>
         <div class="drow"><i>捷</i><b>${s.agi}</b></div>
         <div class="drow"><i>血</i><b>${s.maxHp}</b></div>
-        ${h.lv < CFG.maxLv ? `<div class="dexp"><i>经验</i>
+        ${h.lv < Lap.maxLv() ? `<div class="dexp"><i>经验</i>
           <em><u style="width:${clamp(h.exp / CFG.expNeed(h.lv) * 100, 0, 100)}%"></u></em>
           <b>${Math.round(h.exp)} / ${CFG.expNeed(h.lv)}</b></div>` : ''}
         ${bondOn.length ? `<div class="dbond">羁绊 ${bondOn.map(([k, v]) =>
@@ -315,7 +342,7 @@ VIEWS.hero = () => {
     <div class="dbar">
       <div class="btn sm${nextLv ? afford(G.res.silver, nextLv) : ' dim'}"
            data-action="levelup" data-id="${hid}">${nextLv ? `操练 · ${nextLv} 银`
-             : (h.lv >= CFG.maxLv ? '已满级' : `督练到顶 ${dcap} 级`)}</div>
+             : (h.lv >= Lap.maxLv() ? '已满级' : `督练到顶 ${dcap} 级`)}</div>
       ${nextLv && reach > h.lv
         ? `<div class="btn sm main" data-action="drillmax" data-id="${hid}">连练到 ${reach} 级</div>` : ''}
       ${Hurt.of(hid).lv ? `<div class="btn sm${G.res.silver >= Hurt.cureCost(hid) ? ' main' : ''}"
@@ -389,12 +416,12 @@ VIEWS.stage = () => {
       <div class="side"><b>${foe}</b><i>敌方</i></div>
     </div>
     <div class="pbar"><em style="width:${clamp(my / (my + foe) * 100, 4, 96)}%"></em></div>
-    <div class="meta">推荐 ${st.rec_lv ? st.rec_lv.join('–') : '?'} 级 · 敌方 ${tier.lv} 级 ${tier.star} 星 · 共 ${foes.length} 人</div>
+    <div class="meta">推荐 ${st.rec_lv ? Lap.recLv(st.rec_lv).join('–') : '?'} 级 · 敌方 ${tier.lv} 级 ${tier.star} 星 · 共 ${foes.length} 人</div>
     <div class="foelist">${foes.map(f => `<span class="${QCLS[f.q]}">${esc(f.name)}</span>`).join('')}</div>
     ${dlg && dlg.before ? `<div class="brief">${dlg.before.map(p => `<p>${esc(p)}</p>`).join('')}</div>` : ''}
     <div class="btns">
       <div class="btn main" data-action="fight" data-id="${sid}">出　战</div>
-      ${G.cleared[sid] ? `<div class="btn" data-action="sweep" data-id="${sid}">速　战</div>` : ''}
+      ${(G.cleared[sid] || G.everCleared[sid]) ? `<div class="btn" data-action="sweep" data-id="${sid}">速　战</div>` : ''}
       <div class="btn" data-action="go" data-id="stages">返　回</div>
     </div>
   </div>`;
@@ -1026,6 +1053,20 @@ document.addEventListener('click', ev => {
     case 'auto-team': { const e = Grow.autoTeam(); toast(e || '已按战力排好，耐揍的站前排'); render(); break; }
     case 'fold': { G.fold[id] = !G.fold[id]; Save.write(); render(); break; }
     case 'hsort': UI.hsort = id; render(); break;
+    case 'fate-reroll': { const e = Fate.reroll(id); toast(e || '换了一颗'); render(); break; }
+    case 'lap-next':
+      ask(`开 ${Lap.now() + 1} 周目`,
+          `人、等级、星级、装备、银两、符都留着，关隘进度清零重走。`
+          + `等级上限 ${Lap.maxLv()} 抬到 ${Lap.maxLv(Lap.now() + 1)}，`
+          + `星级 ${Lap.maxStar()} 抬到 ${Lap.maxStar(Lap.now() + 1)}，敌方也跟着强一截。`
+          + `开局会亮三颗宿星。`,
+          '重整旗鼓', () => {
+            const e = Lap.next();
+            if (e) { toast(e); return; }
+            go('main');
+            toast(`${Lap.now()} 周目，宿星已定`);
+          });
+      break;
     case 'hfilt': UI.hfilt = id; render(); break;
     case 'starup': { const e = Grow.starUp(id); toast(e || '升星了'); render(); break; }
     case 'team': { const e = Grow.addToTeam(id); toast(e || '已上阵'); render(); break; }
@@ -1065,6 +1106,8 @@ function boot() {
       fold: s.fold || {},
       log: s.log || [], clearCount: s.clearCount || 0, pity: s.pity || { ten: 0, fifty: 0 },
       speed: s.speed || 'normal', seenIntro: !!s.seenIntro, seenCh: s.seenCh || {},
+      // 老存档没有这三个字段，按一周目读，一切照旧
+      lap: s.lap || 1, fates: s.fates || [], everCleared: s.everCleared || {},
     });
     for (const h of Object.values(G.heroes)) {
       const t = DB.hero(h.hid) || {};
@@ -1087,6 +1130,6 @@ window.DB = DB; window.Stats = Stats; window.Battle = Battle;
 window.Grow = Grow; window.Stages = Stages; window.Save = Save;
 window.render = render; window.go = go; window.makeHero = makeHero; window.initGame = initGame;
 window.grownBase = grownBase; window.growStep = growStep; window.GROW_KEYS = GROW_KEYS;
-window.Hurt = Hurt; window.Guide = Guide;
+window.Hurt = Hurt; window.Guide = Guide; window.Lap = Lap; window.Fate = Fate;
 
 document.addEventListener('DOMContentLoaded', boot);
