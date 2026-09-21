@@ -3,7 +3,7 @@
 水浒群星录 · 立绘处理流水线
 用法：把 GPT 出的原图放进 assets/portraits/source/<hid>.png，然后
       python3 build_portraits.py
-输出：assets/portraits/web/<hid>.webp   480x640  一张通吃
+输出：assets/portraits/web/<hid>.webp   420x560  一张通吃
       assets/portraits/web/manifest.json
 
 一个角色只出一张。三处显示全靠 CSS 缩放，整张 3:4 不裁切：
@@ -15,7 +15,7 @@
   1. 各图绢底拉齐到全组平均（消除批次间色温漂移，限幅 ±12%）
   2. 整体向纸色 #e9e2d0 提亮 LIFT，让立绘与 UI 同色系
   3. 0.5px 高斯降噪，压掉绢纹高频噪点（体积省约三成，线条无损）
-  4. WebP q62 / method 6
+  4. WebP q56 / method 6
 """
 from PIL import Image, ImageFilter
 import numpy as np, glob, os, json
@@ -28,14 +28,19 @@ PAIRS = [('assets/portraits/source', 'assets/portraits/web', False),
 PAPER   = np.array([233, 226, 208], dtype=np.float64)
 LIFT    = 0.35      # 向纸色提亮比例
 BLUR    = 0.5       # 降噪半径
-Q_BIG     = 62
-BIG       = (480, 640)
+# 最大的显示处是详情页 146 CSS px —— 就算 DPR3 手机也才 438 设备像素；
+# 战阵格只有 46–88px。原来出 480×640 属于大材小用，而立绘占了单文件的一半以上，
+# 补齐一百多张之后会把整包顶到七八兆。
+# 实测：战阵格上 360 和 480 肉眼一样；详情页放大看脸，420 和 480 几乎分不出，
+# 360 开始发软。所以落在 420。源图都在 source/，想换回去重跑一遍就是。
+Q_BIG     = 56
+BIG       = (420, 560)
 
 # 范式底图额外出一张半身特写。一张全身图给四五十个人共用，
 # 光靠镜像和色偏，隔两格看过去还是同一个人；换个取景才真换一张脸。
 # 只裁上半部再放大到同样尺寸，卡面构图就从「全身像」变成「胸像」。
 BUST      = 0.58    # 取原图上方这个比例，再拉回 3:4
-Q_BUST    = 58
+Q_BUST    = 52
 
 def silkbg(a):
     h, w, _ = a.shape

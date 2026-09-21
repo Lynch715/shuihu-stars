@@ -1,170 +1,170 @@
 {
  "bandit_1": {
   "portrait": "bandit_1.webp",
-  "bytes": 29510
+  "bytes": 21216
  },
  "bandit_2": {
   "portrait": "bandit_2.webp",
-  "bytes": 27826
+  "bytes": 19872
  },
  "bandit_3": {
   "portrait": "bandit_3.webp",
-  "bytes": 38482
+  "bytes": 27312
  },
  "bandit_4": {
   "portrait": "bandit_4.webp",
-  "bytes": 31818
+  "bytes": 22366
  },
  "bandit_5": {
   "portrait": "bandit_5.webp",
-  "bytes": 24380
+  "bytes": 16544
  },
  "bandit_6": {
   "portrait": "bandit_6.webp",
-  "bytes": 29702
+  "bytes": 21096
  },
  "chai_jin": {
   "portrait": "chai_jin.webp",
-  "bytes": 26760
+  "bytes": 18828
  },
  "dai_zong": {
   "portrait": "dai_zong.webp",
-  "bytes": 23426
+  "bytes": 16386
  },
  "dong_ping": {
   "portrait": "dong_ping.webp",
-  "bytes": 31544
+  "bytes": 22562
  },
  "gongsun_sheng": {
   "portrait": "gongsun_sheng.webp",
-  "bytes": 28270
+  "bytes": 19736
  },
  "guan_sheng": {
   "portrait": "guan_sheng.webp",
-  "bytes": 30824
+  "bytes": 21950
  },
  "hu_yanzhuo": {
   "portrait": "hu_yanzhuo.webp",
-  "bytes": 31048
+  "bytes": 22182
  },
  "hua_rong": {
   "portrait": "hua_rong.webp",
-  "bytes": 29636
+  "bytes": 20954
  },
  "lei_heng": {
   "portrait": "lei_heng.webp",
-  "bytes": 23742
+  "bytes": 16898
  },
  "li_jun": {
   "portrait": "li_jun.webp",
-  "bytes": 26600
+  "bytes": 18912
  },
  "li_kui": {
   "portrait": "li_kui.webp",
-  "bytes": 27772
+  "bytes": 19490
  },
  "li_ying": {
   "portrait": "li_ying.webp",
-  "bytes": 34716
+  "bytes": 24462
  },
  "lin_chong": {
   "portrait": "lin_chong.webp",
-  "bytes": 32218
+  "bytes": 22632
  },
  "liu_tang": {
   "portrait": "liu_tang.webp",
-  "bytes": 30334
+  "bytes": 21206
  },
  "lu_junyi": {
   "portrait": "lu_junyi.webp",
-  "bytes": 26912
+  "bytes": 19226
  },
  "lu_zhishen": {
   "portrait": "lu_zhishen.webp",
-  "bytes": 32936
+  "bytes": 23264
  },
  "mu_hong": {
   "portrait": "mu_hong.webp",
-  "bytes": 27856
+  "bytes": 19496
  },
  "qin_ming": {
   "portrait": "qin_ming.webp",
-  "bytes": 38990
+  "bytes": 27868
  },
  "ruan_xiaoer": {
   "portrait": "ruan_xiaoer.webp",
-  "bytes": 28562
+  "bytes": 20418
  },
  "ruan_xiaoqi": {
   "portrait": "ruan_xiaoqi.webp",
-  "bytes": 30558
+  "bytes": 21930
  },
  "ruan_xiaowu": {
   "portrait": "ruan_xiaowu.webp",
-  "bytes": 39800
+  "bytes": 28042
  },
  "shi_jin": {
   "portrait": "shi_jin.webp",
-  "bytes": 33088
+  "bytes": 23624
  },
  "shi_xiu": {
   "portrait": "shi_xiu.webp",
-  "bytes": 27826
+  "bytes": 19674
  },
  "song_jiang": {
   "portrait": "song_jiang.webp",
-  "bytes": 22726
+  "bytes": 15894
  },
  "suo_chao": {
   "portrait": "suo_chao.webp",
-  "bytes": 35034
+  "bytes": 24792
  },
  "wu_song": {
   "portrait": "wu_song.webp",
-  "bytes": 27162
+  "bytes": 19044
  },
  "wu_yong": {
   "portrait": "wu_yong.webp",
-  "bytes": 30258
+  "bytes": 21466
  },
  "xie_bao": {
   "portrait": "xie_bao.webp",
-  "bytes": 36216
+  "bytes": 25894
  },
  "xie_zhen": {
   "portrait": "xie_zhen.webp",
-  "bytes": 30090
+  "bytes": 21328
  },
  "xu_ning": {
   "portrait": "xu_ning.webp",
-  "bytes": 38772
+  "bytes": 27404
  },
  "yan_qing": {
   "portrait": "yan_qing.webp",
-  "bytes": 26464
+  "bytes": 18694
  },
  "yang_xiong": {
   "portrait": "yang_xiong.webp",
-  "bytes": 24710
+  "bytes": 17468
  },
  "yang_zhi": {
   "portrait": "yang_zhi.webp",
-  "bytes": 29540
+  "bytes": 20322
  },
  "zhang_heng": {
   "portrait": "zhang_heng.webp",
-  "bytes": 30326
+  "bytes": 21186
  },
  "zhang_qing": {
   "portrait": "zhang_qing.webp",
-  "bytes": 30478
+  "bytes": 21274
  },
  "zhang_shun": {
   "portrait": "zhang_shun.webp",
-  "bytes": 20324
+  "bytes": 14292
  },
  "zhu_tong": {
   "portrait": "zhu_tong.webp",
-  "bytes": 24434
+  "bytes": 17466
  }
 }
