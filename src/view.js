@@ -303,6 +303,7 @@ VIEWS.hero = () => {
   const dcap = Grow.drillCap();         // 打到哪儿才练得到哪儿
   const starC = h.star < Lap.maxStar() ? CFG.starCost[h.star] : null;
   const frag = G.frags[hid] || 0;
+  const wild = Grow.wildTotal();   // 无主碎片，谁都能用
   const bd = s.meta.bond;
   const bondOn = Object.entries(bd).filter(([, v]) => v > 0);
 
@@ -355,9 +356,15 @@ VIEWS.hero = () => {
         ? `<div class="btn sm main" data-action="drillmax" data-id="${hid}">连练到 ${reach} 级</div>` : ''}
       ${Hurt.of(hid).lv ? `<div class="btn sm${G.res.silver >= Hurt.cureCost(hid) ? ' main' : ''}"
            data-action="cure" data-id="${hid}">郎中 · ${Hurt.cureCost(hid)} 银</div>` : ''}
-      <div class="btn sm${starC && frag + (G.res.token || 0) >= starC ? ' main' : ''}"
+      <div class="btn sm${starC && frag + wild + (G.res.token || 0) >= starC ? ' main' : ''}"
            data-action="starup" data-id="${hid}">${starC
-             ? `升星 · ${Math.min(frag, starC)}/${starC}${frag < starC ? ` +符${starC - frag}` : ''}`
+             ? `升星 · ${Math.min(frag, starC)}/${starC}${(() => {
+                 // 差的那部分先由无主碎片顶，不够才动兵符，按钮上照这个次序写
+                 let gap = Math.max(0, starC - frag);
+                 if (!gap) return '';
+                 const w = Math.min(gap, wild); gap -= w;
+                 return (w ? ` +片${w}` : '') + (gap ? ` +符${gap}` : '');
+               })()}`
              : '已满星'}</div>
       <div class="btn sm${Hurt.heavy(hid) && !G.team.includes(hid) ? ' dim' : ''}"
            data-action="${G.team.includes(hid) ? 'unteam' : 'team'}" data-id="${hid}">
@@ -525,9 +532,13 @@ VIEWS.items = () => {
       `<div class="itrow"><b>${esc(DB.hero(h) ? DB.hero(h).name : h)}</b>
         <span class="n">×${G.frags[h]}</span></div>`).join('')}</div>`) : '') +
     (cons.length ? section('bagItem', '杂　物', `<div class="frame tight">${cons.map(k => {
-      const it = DB.item(k);
-      return `<div class="itrow"><b>${esc(it ? it.name : k)}</b>
-        <span class="s">${esc(it ? it.desc : '')}</span><span class="n">×${G.items[k]}</span></div>`;
+      const it = DB.item(k) || {};
+      const live = it.type === 'exp' || it.type === 'cure';   // 点得动的只有这两类
+      return `<div class="itrow${live ? ' on' : ''}"${live ? ` data-action="use-item" data-id="${k}"` : ''}>
+        <b>${esc(it.name || k)}</b>
+        <span class="s">${esc(it.desc || '')}</span>
+        <span class="n">×${G.items[k]}</span>
+        ${live ? '<span class="go">用</span>' : ''}</div>`;
     }).join('')}</div>`) : '');
 };
 
@@ -927,6 +938,35 @@ function ask(title, body, yesTxt, fn) {
   $('modal').classList.add('on');
 }
 
+/* 用东西之前先挑人。经验书挑谁都行，伤药只列身上带伤的 —— 
+   列一堆没伤的人让玩家自己找，是另一种不体贴。 */
+function openUsePick(key) {
+  const it = DB.item(key) || {};
+  const cure = it.type === 'cure';
+  let list = Object.keys(G.heroes);
+  if (cure) list = list.filter(h => Hurt.of(h).lv && (Hurt.of(h).lv < 2 || (it.v || 1) >= 2));
+  else list = list.filter(h => G.heroes[h].lv < Lap.maxLv());
+  list.sort((a, b) => cure ? (Hurt.of(b).lv - Hurt.of(a).lv) || (Stats.heroPower(b) - Stats.heroPower(a))
+                           : (G.heroes[a].lv - G.heroes[b].lv));
+
+  $('modal').innerHTML = `<div class="sheet">
+    <div class="shead">${esc(it.name)}　用在谁身上</div>
+    <div class="scroll">
+    ${list.length ? list.map(h => {
+      const t = DB.hero(h), g = G.heroes[h], u = Hurt.of(h);
+      return `<div class="opt" data-action="use-do" data-id="${key}" data-hid="${h}">
+        <b class="${QCLS[t.q]}">${esc(t.name)}</b>
+        <span>${cure ? (u.lv === 2 ? '重伤' : '轻伤') + `　还需休养 ${u.rest} 场`
+                     : `Lv.${g.lv}　经验 ${Math.round(g.exp)} / ${CFG.expNeed(g.lv)}`}</span>
+      </div>`;
+    }).join('')
+      : `<div class="empty">${cure ? '没人需要它' : '都满级了'}</div>`}
+    </div>
+    <div class="btns"><div class="btn" data-action="modal-close">关　闭</div></div>
+  </div>`;
+  $('modal').classList.add('on');
+}
+
 /* ── 渲染入口 ─────────────────────────────────────────────────────────── */
 
 function render() {
@@ -1073,6 +1113,21 @@ document.addEventListener('click', ev => {
     case 'fold': { G.fold[id] = !G.fold[id]; Save.write(); render(); break; }
     case 'hsort': UI.hsort = id; render(); break;
     case 'fate-reroll': { const e = Fate.reroll(id); toast(e || '换了一颗'); render(); break; }
+    case 'use-item': {
+      const it = DB.item(id) || {};
+      // 大还丹是全军一起的，不用挑人
+      if (it.type === 'cure' && (it.v || 0) >= 9) {
+        const r = Grow.useItem(id, null);
+        toast(typeof r === 'string' ? r : r.ok); render();
+      } else openUsePick(id);
+      break;
+    }
+    case 'use-do': {
+      const r = Grow.useItem(id, el.dataset.hid);
+      closeModal();
+      toast(typeof r === 'string' ? r : r.ok);
+      render(); break;
+    }
     case 'lap-next':
       ask(`开 ${Lap.now() + 1} 周目`,
           `人、等级、星级、装备、银两、符都留着，关隘进度清零重走。`

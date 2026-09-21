@@ -960,6 +960,54 @@ const Battle = {
 /* ── 7  养成 ─────────────────────────────────────────────────────────── */
 
 const Grow = {
+  /** 用一件杂物。行囊里点它就走这儿 —— 原来 G.items 只有写入没有消耗，
+   *  背包攒一堆兵法和伤药，一件也用不掉。 */
+  useItem(key, hid) {
+    const n = G.items[key] || 0;
+    if (n <= 0) return '背囊里没有这个';
+    const it = DB.item(key);
+    if (!it) return '这是什么东西';
+    const take = () => { if (--G.items[key] <= 0) delete G.items[key]; Save.write(); };
+
+    if (it.type === 'exp') {
+      const h = G.heroes[hid];
+      if (!h) return '先挑一个人';
+      if (h.lv >= Lap.maxLv()) return `${DB.hero(hid).name}已满级`;
+      const ups = this.addExpTo(h, it.v || 0);
+      take();
+      return { ok: `${DB.hero(hid).name} 读完${it.name}，长了 ${it.v} 经验${ups ? `，升 ${ups} 级` : ''}` };
+    }
+
+    if (it.type === 'cure') {
+      // 大还丹是全军的，别的都是点一个人
+      if ((it.v || 0) >= 9) {
+        const hurt = Object.keys(G.heroes).filter(h => Hurt.of(h).lv);
+        if (!hurt.length) return '全军无伤，留着吧';
+        for (const h of hurt) G.heroes[h].hurt = { lv: 0, rest: 0 };
+        take();
+        return { ok: `一丸${it.name}下去，${hurt.length} 人的伤全好了` };
+      }
+      const h = G.heroes[hid];
+      if (!h) return '先挑一个人';
+      const u = Hurt.of(hid);
+      if (!u.lv) return `${DB.hero(hid).name}身上没伤`;
+      if (u.lv === 2 && (it.v || 1) < 2) return `${it.name}治不了重伤`;
+      h.hurt = { lv: 0, rest: 0 };
+      take();
+      return { ok: `${DB.hero(hid).name} 敷了${it.name}，伤好了` };
+    }
+
+    return '这个东西还没派上用场';
+  },
+
+  /** 给指定的人加经验并结算升级 */
+  addExpTo(h, amount) {
+    const before = h.lv;
+    this.gainExp(h, amount);
+    Save.write();
+    return h.lv - before;
+  },
+
   /** 督练的天花板：打到哪儿，才练得到哪儿。
    *  银子原来可以无限往操练里填，于是招兵买马那一头永远没余钱；
    *  而且谁钱多谁就能把等级堆过头，把关卡难度直接抹平。
@@ -1067,16 +1115,42 @@ const Grow = {
   },
 
   /** 升星先耗本人碎片，不够的部分用兵符顶 */
+  /** 通用碎片：三种无主的碎片，升星时能顶任何人的专属碎片。
+   *  按抵的片数从小到大用，先花零碎的。 */
+  wildFrags() { return ['frag', 'frag2', 'frag3']; },
+  wildTotal() {
+    return this.wildFrags().reduce((a, k) =>
+      a + (G.items[k] || 0) * ((DB.item(k) || {}).v || 1), 0);
+  },
+  /** 从通用碎片里扣掉 n 片，返回实际扣到的片数 */
+  spendWild(n) {
+    let left = n;
+    for (const k of this.wildFrags()) {
+      const per = (DB.item(k) || {}).v || 1;
+      while (left > 0 && (G.items[k] || 0) > 0) {
+        G.items[k]--; left -= per;
+        if (G.items[k] <= 0) delete G.items[k];
+      }
+      if (left <= 0) break;
+    }
+    return n - Math.max(0, left);   // 多扣的那点算搭进去了，碎片本来就不找零
+  },
+
   starUp(hid) {
     const h = G.heroes[hid];
     if (!h) return '没有这个人';
     if (h.star >= Lap.maxStar()) return '已满星';
     const cost = CFG.starCost[h.star] || 99;
     const own = G.frags[hid] || 0;
-    const need = Math.max(0, cost - own);
-    if (need > G.res.token)
-      return `需 ${cost}：现有碎片 ${own}、兵符 ${G.res.token}`;
+    const wild = this.wildTotal();
+    let need = Math.max(0, cost - own);
+    // 先用本人的专属碎片，再用无主碎片，最后才动兵符
+    const byWild = Math.min(need, wild);
+    if (need - byWild > G.res.token)
+      return `需 ${cost}：现有碎片 ${own}、无主碎片 ${wild}、兵符 ${G.res.token}`;
     G.frags[hid] = own - Math.min(own, cost);
+    if (byWild) this.spendWild(byWild);
+    need -= byWild;
     G.res.token -= need;
     h.star++;
     const all = DB.hero(hid).sk || [];
@@ -1553,9 +1627,18 @@ const Stages = {
           out.push({ icon: '器', text: `获 ${DB.equip(eid).name}`, c: '' });
         }
       } else if (d.t === 'con' && d.id) {
-        G.items[d.id] = (G.items[d.id] || 0) + (d.v || 1);
+        // 银两和黄金本身就在物品表里，原来一并塞进背包当摆设 ——
+        // 打一关弹「获 黄金」，钱包纹丝不动。59 处黄金掉落全废在这儿。
         const it = DB.item(d.id);
-        out.push({ icon: '物', text: `获 ${it ? it.name : d.id}`, c: '' });
+        if (d.id === 'silver' || d.id === 'gold') {
+          const v = d.v || (d.id === 'gold' ? 1 : 100);
+          G.res[d.id] += v;
+          out.push({ icon: d.id === 'gold' ? '金' : '银',
+                     text: `${d.id === 'gold' ? '黄金' : '银两'} +${v}`, c: 'sk' });
+        } else {
+          G.items[d.id] = (G.items[d.id] || 0) + 1;
+          out.push({ icon: '物', text: `获 ${it ? it.name : d.id}`, c: '' });
+        }
       }
     }
 

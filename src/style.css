@@ -90,6 +90,11 @@ body{
 /* 自家确认框的正文 */
 .sbody{font-size:.86em;color:var(--ink-2);line-height:1.9;padding:4px 2px 2px}
 
+/* 行囊里能用的东西，右边挂个「用」字 */
+.itrow .go{font-family:var(--f-title);font-size:.78em;color:var(--indigo);
+  border:1px solid var(--ink-4);padding:0 9px;min-height:30px;
+  display:inline-flex;align-items:center;justify-content:center;flex:none;margin-left:6px}
+
 /* 招贤所得：一人一行。五列写死 —— 头像、名字、绰号、品阶、入伙还是碎片 */
 .rcrow{display:grid;grid-template-columns:34px auto 1fr auto 4.8em;gap:9px;align-items:center;
   padding:7px 0;border-bottom:1px solid var(--ink-4);cursor:pointer}
@@ -310,7 +315,7 @@ body{
 .bondrow .mem .in{color:var(--cinnabar);border-color:var(--cinnabar)}
 
 /* 背包 */
-.itrow{display:flex;align-items:baseline;gap:8px;border-bottom:1px solid var(--ink-4);
+.itrow{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--ink-4);
   padding:7px 0;font-size:.8em}
 .itrow:last-child{border-bottom:none}
 .itrow b{font-weight:400;font-family:var(--f-title);font-size:1.06em;flex:none}
