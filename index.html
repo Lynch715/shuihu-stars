@@ -66,9 +66,16 @@ body{
 .sec h2{font-family:var(--f-title);font-size:1.04em;font-weight:400;letter-spacing:.14em;white-space:nowrap}
 /* 横线原来是 flex:1，右边附注一长一短，两个小节的线就错开了。
    给附注定一个固定宽度，线一律收在同一处 */
-.sec .line{flex:1;height:1px;background:linear-gradient(90deg,var(--ink-3),transparent)}
-.sec .tp{width:8.8em;flex:none;text-align:right;white-space:nowrap;
+/* 三者抢宽度的次序：标题最后让，其次横线，先让的是右边那格附注。
+   反过来的话，章节名那种长标题会被截成「第1章 · 少华山聚…」。 */
+.sec h2{flex:none;min-width:0;max-width:72%;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.sec .line{flex:1 1 auto;min-width:1.2em;height:1px;
+  background:linear-gradient(90deg,var(--ink-3),transparent)}
+.sec .tp{flex:0 8 8.8em;width:8.8em;text-align:right;white-space:nowrap;
   overflow:hidden;text-overflow:ellipsis}
+/* 没有附注的小节也补一格空的（见 sectionTitle），
+   否则两条横线一长一短，同一页上下一看就歪 */
 .sec .tp{font-family:var(--f-title);font-size:.84em;color:var(--gold)}
 .sec .tp.zero{color:var(--ink-4)}
 .frame{border:1px solid var(--ink-3);box-shadow:inset 0 0 0 1px var(--paper),inset 0 0 0 3px var(--ink-4);
@@ -90,6 +97,25 @@ body{
 .pk.on{background:var(--ink-2);color:var(--paper);border-color:var(--ink-2)}
 /* 自家确认框的正文 */
 .sbody{font-size:.86em;color:var(--ink-2);line-height:1.9;padding:4px 2px 2px}
+
+/* 招贤所得：一人一行。五列写死 —— 头像、名字、绰号、品阶、入伙还是碎片 */
+.rcrow{display:grid;grid-template-columns:34px auto 1fr auto 4.8em;gap:9px;align-items:center;
+  padding:7px 0;border-bottom:1px solid var(--ink-4);cursor:pointer}
+.rcrow:last-child{border-bottom:0}
+.rcrow .face{grid-column:1;width:34px;height:45px;overflow:hidden;border:1px solid var(--ink-4);
+  background:var(--paper);display:flex;align-items:center;justify-content:center}
+.rcrow .face img{width:100%;height:100%;object-fit:cover;object-position:50% 8%}
+.rcrow .face .weap{width:100%;height:100%;display:flex;align-items:center;justify-content:center;
+  color:var(--ink-4);padding:5px}
+.rcrow .face .weap svg{height:100%;width:auto}
+.rcrow b{grid-column:2;font-family:var(--f-title);font-weight:400;font-size:1.02em;
+  white-space:nowrap}
+.rcrow .ti{grid-column:3;font-size:.74em;color:var(--ink-3);min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rcrow .q{grid-column:4;font-family:var(--f-title);font-size:.74em;
+  border:1px solid currentColor;padding:1px 5px;line-height:1.5}
+.rcrow .got{grid-column:5;font-size:.74em;color:var(--gold);text-align:right;white-space:nowrap}
+.rcrow.hi{background:rgba(168,128,44,.07)}
 
 /* 宿星条 */
 .fates{display:grid;grid-template-columns:1fr;gap:7px}
@@ -185,17 +211,27 @@ body{
 .drow b{font-weight:400;font-family:var(--f-title);font-size:1.1em}
 .drow s{text-decoration:none;font-size:.78em;color:var(--cinnabar);border:1px solid var(--cinnabar);padding:0 3px}
 .dbond{font-size:.7em;color:var(--indigo);margin-top:5px;line-height:1.6}
-.dbar{display:flex;flex-wrap:wrap;gap:7px;margin-top:11px}
-.dbar .btn.sm{flex:1 1 40%;min-width:0;white-space:nowrap;padding-left:6px;padding-right:6px}
+/* 这一排的按钮个数是变的：有没有「连练」看钱够不够，有没有「郎中」看伤不伤。
+   原来写 flex:1 1 40%，两个正好，三个就是 120%，收缩时按内容分配，
+   「操练 · 105 银」被压成了 32 像素的一条。改成等分栅格，几个都一样宽。 */
+.dbar{display:grid;grid-template-columns:repeat(2,1fr);gap:7px;margin-top:11px}
+.dbar .btn.sm{min-width:0;white-space:nowrap;padding-left:6px;padding-right:6px;
+  overflow:hidden;text-overflow:ellipsis}
+/* 奇数个时最后一个占满整行，不留半截空位 */
+.dbar .btn.sm:last-child:nth-child(odd){grid-column:1/-1}
 .eqbox{margin-top:10px;border-top:1px solid var(--ink-4);padding-top:6px}
 .eqrow{display:flex;align-items:center;gap:8px;font-size:.8em;line-height:2.1}
 .eqrow i{font-style:normal;color:var(--ink-4);width:2.6em;flex:none}
 .eqrow b{font-weight:400;flex:1;font-family:var(--f-title);font-size:1.05em}
 .eqrow b.dim{color:var(--ink-4)}
 .eqrow{min-height:44px}
-.eqrow .act{font-family:var(--f-title);font-size:.9em;color:var(--indigo);
+/* 五行的「配」键原来撑满整行高，上下边框首尾相接，连成一根竖条。
+   按钮收到 32 高，中间就断得开；手指够得着的范围用伪元素补回 44。 */
+.eqrow .act{position:relative;font-family:var(--f-title);font-size:.9em;color:var(--indigo);
   border:1px solid var(--ink-4);padding:0 12px;cursor:pointer;
-  display:inline-flex;align-items:center;align-self:stretch;min-width:44px;justify-content:center}
+  display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:32px}
+.eqrow .act::before{content:"";position:absolute;left:0;right:0;top:50%;height:44px;
+  transform:translateY(-50%)}
 .dbio{font-size:.78em;color:var(--ink-2);line-height:1.95;margin-top:10px;
   border-top:1px solid var(--ink-4);padding-top:8px}
 .dsk{margin-top:8px;border-top:1px solid var(--ink-4);padding-top:7px}
@@ -240,13 +276,19 @@ body{
   line-height:2;color:var(--ink-2)}
 
 /* 布阵 */
-.tgrid{display:grid;grid-template-columns:2.1em repeat(3,1fr);gap:8px;align-items:stretch}
-.rowtag{display:flex;flex-direction:column;align-items:center;justify-content:center;
-  gap:3px;color:var(--ink-3);border-right:1px solid var(--ink-4);padding-right:2px}
-.rowtag b{font-family:var(--f-title);font-weight:400;font-size:.8em;line-height:1.15;
-  writing-mode:vertical-rl;letter-spacing:.18em}
-.rowtag i{font-style:normal;font-size:.66em;writing-mode:vertical-rl;letter-spacing:.1em}
+/* 排号原来是左边一条竖标签栏，占掉 2.1em，把九宫格整体往右推了 42 像素 ——
+   同一页上，标题和按钮在 16，格子却从 58 起，怎么看怎么歪。
+   改成每一排上面压一条横标签，格子回到满宽，左右和别处齐平，格子还宽了一圈。 */
+.tgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;align-items:stretch}
+.rowtag{grid-column:1/-1;display:flex;align-items:center;gap:8px;color:var(--ink-3);
+  margin-top:2px}
+.rowtag:first-child{margin-top:0}
+.rowtag b{font-family:var(--f-title);font-weight:400;font-size:.82em;letter-spacing:.18em;
+  flex:none}
+.rowtag::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,var(--ink-4),transparent)}
+.rowtag i{font-style:normal;font-size:.72em;letter-spacing:.1em;flex:none;order:3}
 .rowtag.front{color:var(--cinnabar)}
+.rowtag.front::after{background:linear-gradient(90deg,var(--cinnabar),transparent);opacity:.45}
 .tslot{position:relative;border:1px solid var(--ink-4);background:var(--paper-2);padding:5px 4px 7px;
   text-align:center;cursor:pointer;overflow:hidden}
 .tslot .por{width:100%;aspect-ratio:3/4;object-fit:cover;display:block;
@@ -371,7 +413,8 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 /* 章首题词 */
 .chapcard{position:fixed;inset:0;z-index:55;background:var(--paper);cursor:pointer;
   display:flex;flex-direction:column;align-items:center;justify-content:center;
-  padding:0 34px;text-align:center;animation:cardin .5s ease-out}
+  /* 底下还有一行「轻触继续」定在下缘，不扣掉它整块看着就偏下 */
+  padding:0 34px 42px;text-align:center;animation:cardin .5s ease-out}
 @keyframes cardin{from{opacity:0}to{opacity:1}}
 .cc-ch{font-family:var(--f-title);font-size:.82em;letter-spacing:.3em;color:var(--ink-3)}
 .cc-t{font-family:var(--f-title);font-size:2.1em;letter-spacing:.24em;
@@ -486,19 +529,29 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .rdlg{font-size:.8em;color:var(--ink-2);line-height:1.95;border-top:1px solid var(--ink-4);
   border-bottom:1px solid var(--ink-4);padding:8px 0;margin-bottom:9px;text-align:left}
 .rlist{text-align:left}
-.ritem{display:flex;align-items:baseline;gap:8px;font-size:.82em;line-height:2}
+/* 七八条奖励叠下来，左边那列小方印原来上下相接连成一根柱子。
+   给行距，方印之间才断得开。 */
+.ritem{display:flex;align-items:center;gap:9px;font-size:.82em;line-height:1.9;
+  padding:2px 0}
 .ritem i{font-style:normal;font-family:var(--f-title);color:var(--cinnabar);
-  border:1px solid var(--cinnabar);width:1.7em;text-align:center;flex:none;font-size:.88em}
+  border:1px solid var(--cinnabar);width:1.7em;line-height:1.6;text-align:center;
+  flex:none;font-size:.88em;align-self:center}
 .ritem .sk{color:var(--q-tian)}.ritem .he{color:var(--q-meng)}
 
 /* 弹层与提示 */
 #modal{position:fixed;inset:0;background:rgba(42,37,31,.4);z-index:50;display:none;
   align-items:flex-end;justify-content:center}
 #modal.on{display:flex}
+/* 抽屉是贴着屏幕下缘弹出来的，底下得给 iPhone 的小黑条让位。
+   内容长了只滚中间那段，抬头和按钮钉住 —— 原来整个抽屉一起滚，
+   兵器攒到十几件就得一路滚到底才够得着「关闭」。 */
 .sheet{width:100%;max-width:460px;background:var(--paper);border-top:2px solid var(--ink);
-  padding:12px 16px 20px;max-height:76vh;overflow-y:auto}
+  padding:12px 16px calc(20px + env(safe-area-inset-bottom));
+  max-height:82vh;max-height:82dvh;display:flex;flex-direction:column;min-height:0}
+.sheet .scroll{overflow-y:auto;min-height:0;flex:1 1 auto;-webkit-overflow-scrolling:touch}
+.sheet .btns{flex:none}
 .shead{font-family:var(--f-title);font-size:1.1em;letter-spacing:.14em;text-align:center;
-  border-bottom:1px solid var(--ink-4);padding-bottom:7px;margin-bottom:4px}
+  border-bottom:1px solid var(--ink-4);padding-bottom:7px;margin-bottom:4px;flex:none}
 .opt{display:flex;align-items:baseline;gap:8px;border-bottom:1px solid var(--ink-4);
   padding:9px 0;font-size:.82em;cursor:pointer}
 .opt b{font-weight:400;font-family:var(--f-title);font-size:1.08em;flex:none}
@@ -777,6 +830,12 @@ const G = {
 /* 五位数的伤害飘在 46 像素宽的格子上没法看，过万折成「万」。
    战报和格子共用这一条，免得一边写「27万」一边写「93132」。 */
 const num = v => v >= 10000 ? (v / 10000).toFixed(v >= 100000 ? 0 : 1) + '万' : String(Math.round(v));
+
+/* 关名在数据里带着「·Boss」和「★」两种后缀，是给自己看的记号：
+   前者章末关有，后者隐藏关有。玩家那边不该看见 —— 关名左边本来就有方印标着，
+   名字里再带一次是多余的，中英混排还把整页的古籍味破了。
+   只在显示时剥掉，数据里的 name 原样留着，调试和模拟还靠它认关卡类型。 */
+const stName = n => String(n || '').replace(/·Boss$/i, '').replace(/^★/, '');
 
 const UI = { view: 'main', sel: null, stage: null, battle: null, playing: false,
   hsort: 'q', hfilt: 'all' };   // 群将谱当下的排法与筛法，只活在这一次会话里
@@ -1927,7 +1986,9 @@ const Guide = {
     if (G.res.silver >= CFG.recruitCost10 + CFG.recruitCost1)
       return { txt: '银两够十连了', sub: '去酒肆招兵买马', act: 'go', id: 'tavern' };
 
-    if (st) return { txt: `下一关：${st.name}`, sub: `第${st.ch}章 · 推荐 ${(st.rec_lv || [1, 5])[1]} 级 · 敌 ${(st.enemies || []).length} 人`, act: 'stage', id: nextStage };
+    if (st) return { txt: `下一关：${stName(st.name)}`,
+      sub: `第${st.ch}章 · 推荐 ${Lap.recLv(st.rec_lv || [1, 5])[1]} 级 · 敌 ${(st.enemies || []).length} 人`,
+      act: 'stage', id: nextStage };
     return { txt: '关隘已经打通了', sub: '石碣上的名字，还差几个', act: 'go', id: 'codex' };
   },
 };
@@ -1982,11 +2043,11 @@ const Stages = {
     const req = this.reqOf(sid);
     if (req && !G.cleared[req]) {
       const r = DB.stage(req);
-      return `须先通「${r ? r.name : req}」`;
+      return `须先通「${r ? stName(r.name) : req}」`;
     }
     const line = this.mainLine(st.ch || 1);
     const i = line.indexOf(sid);
-    if (i > 0) { const p = DB.stage(line[i - 1]); return `须先通「${p ? p.name : ''}」`; }
+    if (i > 0) { const p = DB.stage(line[i - 1]); return `须先通「${p ? stName(p.name) : ''}」`; }
     return '尚未解锁';
   },
 
@@ -2080,10 +2141,10 @@ const Stages = {
       const fr = st.first_reward || {};
       const fs = Math.round(CFG.firstSilver(L, kind) * Fate.v('silver', 1));
       G.res.silver += fs;
-      out.push({ icon: '首', text: `首通 银两 +${fs}`, c: 'sk' });
+      out.push({ icon: '银', text: `首通 银两 +${fs}`, c: 'sk' });
       const fe = Math.round(CFG.firstExp(L, kind) * Fate.v('exp', 1));
       Grow.addExp(fe).forEach(t => out.push({ icon: '升', text: t, c: 'sk' }));
-      out.push({ icon: '首', text: `首通 经验 +${fe}`, c: 'sk' });
+      out.push({ icon: '经', text: `首通 经验 +${fe}`, c: 'sk' });
       // 首通必得一件装备。原来装备只靠 10–20% 的掉落，打到第九章还是赤手空拳，
       // 而难度是按「每格都有本章档次的装备」调的。
       // 二周目的主成长轴是星级，所以符跟着周目翻倍；
@@ -2096,11 +2157,11 @@ const Stages = {
       const fe2 = this.rollEquip(null, cap, Math.max(1, cap - 1));
       if (fe2) {
         G.items['eq_' + fe2] = (G.items['eq_' + fe2] || 0) + 1;
-        out.push({ icon: '首', text: `首通 获 ${DB.equip(fe2).name}`, c: 'sk' });
+        out.push({ icon: '器', text: `首通 获 ${DB.equip(fe2).name}`, c: 'sk' });
       }
       if (fr.hero && DB.hero(fr.hero)) {
         const r = Grow.gainHero(fr.hero);
-        out.push({ icon: '首', text: r.got ? `首通 ${DB.hero(fr.hero).name} 入伙（${r.lv} 级）` : `首通 ${DB.hero(fr.hero).name} 碎片 +${r.frag}`, c: 'sk' });
+        out.push({ icon: '将', text: r.got ? `首通 ${DB.hero(fr.hero).name} 入伙（${r.lv} 级）` : `首通 ${DB.hero(fr.hero).name} 碎片 +${r.frag}`, c: 'sk' });
       }
     }
 
@@ -2208,7 +2269,7 @@ function plate(hid, extra) {
     ${inTeam ? '<span class="onfield">阵</span>' : ''}
     <div class="pinfo">
       <div class="nm">${esc(t.name)}</div>
-      <div class="ti">${esc(t.title || '')}${h ? ` · Lv.${h.lv}` : ''}</div>
+      <div class="ti">${esc(titleOf(t))}${h ? `${titleOf(t) ? ' · ' : ''}Lv.${h.lv}` : ''}</div>
       ${s ? `<div class="st"><span><i>武</i>${s.atk}</span><span><i>防</i>${s.def}</span><span><i>血</i>${s.maxHp}</span></div>` : ''}
       <div class="stars">${h ? stars(h.star) : (extra || '')}</div>
     </div>
@@ -2216,14 +2277,22 @@ function plate(hid, extra) {
 }
 
 /** 小节抬头。给了 key 就可以点着收起来，收起状态存进存档。 */
+/* 关名去后缀（stName）在引擎里，引擎和视图共用一条 */
+
+/* 有六个人的绰号字段就是名字本身（五种杂兵，外加潘金莲）。
+   照直显示就成了「潘金莲　潘金莲」。 */
+const titleOf = t => (t && t.title && t.title !== t.name) ? t.title : '';
+
 /* 钱够不够，按钮上直接看出来：够→主按钮，不够→灰掉 */
 const afford = (have, cost) => have >= cost ? 'main' : 'off';
 
 function sectionTitle(t, right, key) {
   const f = key ? !!G.fold[key] : false;
+  // 右边没附注的也补一格空的，不然有附注的小节横线短一截，同一页上下一看就歪
   return `<div class="sec${key ? ' foldable' : ''}${f ? ' folded' : ''}"
     ${key ? `data-action="fold" data-id="${esc(key)}"` : ''}>
-    <span class="fish"></span><h2>${esc(t)}</h2><span class="line"></span>${right || ''}</div>`;
+    <span class="fish"></span><h2>${esc(t)}</h2><span class="line"></span>${
+      right || '<span class="tp"></span>'}</div>`;
 }
 
 /** 抬头 + 内容，收起时内容不渲染 —— 图鉴那种两百多格的列表，
@@ -2450,7 +2519,7 @@ VIEWS.hero = () => {
       <div class="dside">
         ${seal(t.q)}
         <div class="dnm">${esc(t.name)}</div>
-        <div class="dti">${esc(t.title || '')}</div>
+        <div class="dti">${esc(titleOf(t))}</div>
         <div class="dlv">Lv.${h.lv} · ${stars(h.star)}</div>
         ${Hurt.of(hid).lv ? `<div class="dhurt ${Hurt.heavy(hid) ? 'hv' : 'lt'}">
           ${esc(Hurt.txt(hid))}${Hurt.heavy(hid) ? '' : `　属性 ×${CFG.hurtLightMul}`}</div>` : ''}
@@ -2504,16 +2573,20 @@ VIEWS.stages = () => {
     html += sectionTitle(`第${ch}章${chName ? ' · ' + chName : ''}`, null, fk);
     if (G.fold[fk]) continue;
     html += '<div class="frame tight">';
+    let ord = 0;                       // 本章内普通关的序号，给左边那方小印用
     for (const sid of list) {
       const st = DB.stage(sid);
+      const plain = !st.is_boss && !st.hidden && !/_f\d/.test(sid);
+      const k = plain ? ord++ : -1;
       const open = Stages.unlocked(sid), done = !!G.cleared[sid];
       const n = (st.enemies || []).length;
       html += `<div class="stage${done ? ' done' : ''}${open ? '' : ' lock'}"
           ${open ? `data-action="stage" data-id="${sid}"` : ''}>
-        <div class="no">${st.is_boss ? '王' : st.hidden ? '秘' : /_f\d/.test(sid) ? '支' : ''}</div>
+        <div class="no">${st.is_boss ? '王' : st.hidden ? '秘' : /_f\d/.test(sid) ? '支'
+          : '一二三四五六七八九十'[k] || (k + 1)}</div>
         <div class="mid">
-          <div class="t">${esc(st.name)}</div>
-          <div class="m">${open ? `难易 <span class="hard">${'一二三四五六七'[Math.min((st.diff || 1) - 1, 6)]}</span> · 推荐 ${st.rec_lv ? st.rec_lv[1] : '?'} 级 · 敌 ${n} 人`
+          <div class="t">${esc(stName(st.name))}</div>
+          <div class="m">${open ? `难易 <span class="hard">${'一二三四五六七'[Math.min((st.diff || 1) - 1, 6)]}</span> · 推荐 ${st.rec_lv ? Lap.recLv(st.rec_lv)[1] : '?'} 级 · 敌 ${n} 人`
                                 : esc(Stages.lockReason(sid))}</div>
         </div>
         ${done ? '<div class="chk">已通</div>' : ''}
@@ -2536,7 +2609,7 @@ VIEWS.stage = () => {
   const foes = (st.enemies || []).map(e => DB.hero(e)).filter(Boolean);
 
   return `<div class="frame">
-    <div class="sname">${esc(st.name)}</div>
+    <div class="sname">${esc(stName(st.name))}</div>
     <div class="vsbar">
       <div class="side"><b>${my}</b><i>我方</i></div>
       <div class="mid ${verdict[1]}">${verdict[0]}</div>
@@ -2657,7 +2730,7 @@ VIEWS.bonds = () => {
     return { b, have, owned, tier, nextT };
   }).sort((a, c) => (c.tier ? 1 : 0) - (a.tier ? 1 : 0) || c.have - a.have);
 
-  return section('bonds', `羁绊谱（${rows.filter(r => r.tier).length}/${rows.length} 激活）`,
+  return section('bonds', `羁绊谱 ${rows.filter(r => r.tier).length}/${rows.length}`,
     `<div class="frame tight">${rows.map(({ b, have, owned, tier, nextT }) =>
       `<div class="bondrow${tier ? ' on' : ''}">
         <b>${esc(b.name)}</b>
@@ -2689,20 +2762,25 @@ VIEWS.tavern = () => {
   </div>`;
 };
 
+/* 十连结果原来铺十张大人物牌。两百多人共用十二张范式底图，别处还能靠
+   镜像色调半身遮掩，十张并排摊开就彻底穿帮 —— 一屏里四个是同一个铁盔兵。
+   改成一人一行：小头像 + 名字绰号 + 品阶 + 入伙还是碎片。
+   撞车不再并排摆出来，也看得更快。 */
 VIEWS.recruitResult = () => {
   const list = UI.recruit || [];
-  return sectionTitle('招贤所得') + `<div class="plates">${list.map(r => {
-    const t = DB.hero(r.hid);
-    return `<div class="plate${hasPortrait(r.hid) ? ' has' : ''}${t.q === 6 ? ' jue' : ''}"
-        data-action="hero" data-id="${r.hid}">
-      ${hasPortrait(r.hid) ? porTag('por', r.hid)
-                           : `<div class="weap">${weaponSvg(r.hid)}</div>`}
-      ${seal(t.q)}
-      <div class="pinfo"><div class="nm">${esc(t.name)}</div>
-        <div class="ti">${esc(t.title || '')}</div>
-        <div class="stars">${r.got ? '新入伙' : `碎片 +${r.frag}`}</div></div>
-    </div>`;
-  }).join('')}</div>
+  const got = list.filter(r => r.got).length;
+  return sectionTitle('招贤所得', `<span class="tp">入伙 ${got} · 碎片 ${list.length - got}</span>`) +
+    `<div class="frame tight">${list.map(r => {
+      const t = DB.hero(r.hid);
+      return `<div class="rcrow${t.q >= 5 ? ' hi' : ''}" data-action="hero" data-id="${r.hid}">
+        <span class="face">${hasPortrait(r.hid) ? porTag('por', r.hid)
+                                                 : `<span class="weap">${weaponSvg(r.hid)}</span>`}</span>
+        <b class="${QCLS[t.q]}">${esc(t.name)}</b>
+        <span class="ti">${esc(titleOf(t))}</span>
+        <span class="q ${QCLS[t.q]}">${QTXT[t.q]}</span>
+        <span class="got">${r.got ? '新入伙' : `碎片 +${r.frag}`}</span>
+      </div>`;
+    }).join('')}</div>
   <div class="btns"><div class="btn main" data-action="go" data-id="tavern">再　来</div>
     <div class="btn" data-action="go" data-id="heroes">看　人</div></div>`;
 };
@@ -2795,7 +2873,7 @@ VIEWS.result = () => {
   const win = b.win;
   return `<div class="frame result">
     <div class="rtitle ${win ? 'win' : 'lose'}">${win ? '得　胜' : '败　绩'}</div>
-    <div class="rsub">${esc(b.stage.name)} · 共 ${b.round} 回合${
+    <div class="rsub">${esc(stName(b.stage.name))} · 共 ${b.round} 回合${
       b.result === 'timeout' ? '（三十回合没分出胜负，按伤亡算）' : ''}</div>
     ${dlg ? `<div class="rdlg">${esc(win ? (dlg.after_win || '') : (dlg.after_lose || ''))}</div>` : ''}
     ${win ? `<div class="rlist">${r.map(o =>
@@ -3002,6 +3080,7 @@ function openEquipPick(hid, slot) {
   const list = Grow.bagEquips(slot);
   $('modal').innerHTML = `<div class="sheet">
     <div class="shead">选一件${SLOT_NAME[slot]}</div>
+    <div class="scroll">
     ${list.length ? list.map(e => `<div class="opt" data-action="equip-do"
         data-id="${hid}" data-slot="${slot}" data-eid="${e.id}">
         <b class="${QCLS[e.q]}">${esc(e.name)}</b>
@@ -3009,10 +3088,11 @@ function openEquipPick(hid, slot) {
           const k = ['atk', 'def', 'int', 'agi', 'cha', 'hp'][i];
           return e.flat[k] ? `${n}+${e.flat[k]}` : '';
         }).filter(Boolean).join(' ')}
-        ${e.pct.atk ? ` 武+${Math.round(e.pct.atk * 100)}%` : ''}
-        ${e.pct.hp ? ` 血+${Math.round(e.pct.hp * 100)}%` : ''}</span>
+        ${e.pct.atk ? ` 武力+${Math.round(e.pct.atk * 100)}%` : ''}
+        ${e.pct.hp ? ` 体魄+${Math.round(e.pct.hp * 100)}%` : ''}</span>
         <span class="n">×${G.items['eq_' + e.id]}</span></div>`).join('')
       : '<div class="empty">背囊里没有这一类</div>'}
+    </div>
     <div class="btns"><div class="btn" data-action="modal-close">关　闭</div></div>
   </div>`;
   $('modal').classList.add('on');

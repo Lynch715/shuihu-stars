@@ -81,7 +81,7 @@ function plate(hid, extra) {
     ${inTeam ? '<span class="onfield">阵</span>' : ''}
     <div class="pinfo">
       <div class="nm">${esc(t.name)}</div>
-      <div class="ti">${esc(t.title || '')}${h ? ` · Lv.${h.lv}` : ''}</div>
+      <div class="ti">${esc(titleOf(t))}${h ? `${titleOf(t) ? ' · ' : ''}Lv.${h.lv}` : ''}</div>
       ${s ? `<div class="st"><span><i>武</i>${s.atk}</span><span><i>防</i>${s.def}</span><span><i>血</i>${s.maxHp}</span></div>` : ''}
       <div class="stars">${h ? stars(h.star) : (extra || '')}</div>
     </div>
@@ -89,14 +89,22 @@ function plate(hid, extra) {
 }
 
 /** 小节抬头。给了 key 就可以点着收起来，收起状态存进存档。 */
+/* 关名去后缀（stName）在引擎里，引擎和视图共用一条 */
+
+/* 有六个人的绰号字段就是名字本身（五种杂兵，外加潘金莲）。
+   照直显示就成了「潘金莲　潘金莲」。 */
+const titleOf = t => (t && t.title && t.title !== t.name) ? t.title : '';
+
 /* 钱够不够，按钮上直接看出来：够→主按钮，不够→灰掉 */
 const afford = (have, cost) => have >= cost ? 'main' : 'off';
 
 function sectionTitle(t, right, key) {
   const f = key ? !!G.fold[key] : false;
+  // 右边没附注的也补一格空的，不然有附注的小节横线短一截，同一页上下一看就歪
   return `<div class="sec${key ? ' foldable' : ''}${f ? ' folded' : ''}"
     ${key ? `data-action="fold" data-id="${esc(key)}"` : ''}>
-    <span class="fish"></span><h2>${esc(t)}</h2><span class="line"></span>${right || ''}</div>`;
+    <span class="fish"></span><h2>${esc(t)}</h2><span class="line"></span>${
+      right || '<span class="tp"></span>'}</div>`;
 }
 
 /** 抬头 + 内容，收起时内容不渲染 —— 图鉴那种两百多格的列表，
@@ -323,7 +331,7 @@ VIEWS.hero = () => {
       <div class="dside">
         ${seal(t.q)}
         <div class="dnm">${esc(t.name)}</div>
-        <div class="dti">${esc(t.title || '')}</div>
+        <div class="dti">${esc(titleOf(t))}</div>
         <div class="dlv">Lv.${h.lv} · ${stars(h.star)}</div>
         ${Hurt.of(hid).lv ? `<div class="dhurt ${Hurt.heavy(hid) ? 'hv' : 'lt'}">
           ${esc(Hurt.txt(hid))}${Hurt.heavy(hid) ? '' : `　属性 ×${CFG.hurtLightMul}`}</div>` : ''}
@@ -377,16 +385,20 @@ VIEWS.stages = () => {
     html += sectionTitle(`第${ch}章${chName ? ' · ' + chName : ''}`, null, fk);
     if (G.fold[fk]) continue;
     html += '<div class="frame tight">';
+    let ord = 0;                       // 本章内普通关的序号，给左边那方小印用
     for (const sid of list) {
       const st = DB.stage(sid);
+      const plain = !st.is_boss && !st.hidden && !/_f\d/.test(sid);
+      const k = plain ? ord++ : -1;
       const open = Stages.unlocked(sid), done = !!G.cleared[sid];
       const n = (st.enemies || []).length;
       html += `<div class="stage${done ? ' done' : ''}${open ? '' : ' lock'}"
           ${open ? `data-action="stage" data-id="${sid}"` : ''}>
-        <div class="no">${st.is_boss ? '王' : st.hidden ? '秘' : /_f\d/.test(sid) ? '支' : ''}</div>
+        <div class="no">${st.is_boss ? '王' : st.hidden ? '秘' : /_f\d/.test(sid) ? '支'
+          : '一二三四五六七八九十'[k] || (k + 1)}</div>
         <div class="mid">
-          <div class="t">${esc(st.name)}</div>
-          <div class="m">${open ? `难易 <span class="hard">${'一二三四五六七'[Math.min((st.diff || 1) - 1, 6)]}</span> · 推荐 ${st.rec_lv ? st.rec_lv[1] : '?'} 级 · 敌 ${n} 人`
+          <div class="t">${esc(stName(st.name))}</div>
+          <div class="m">${open ? `难易 <span class="hard">${'一二三四五六七'[Math.min((st.diff || 1) - 1, 6)]}</span> · 推荐 ${st.rec_lv ? Lap.recLv(st.rec_lv)[1] : '?'} 级 · 敌 ${n} 人`
                                 : esc(Stages.lockReason(sid))}</div>
         </div>
         ${done ? '<div class="chk">已通</div>' : ''}
@@ -409,7 +421,7 @@ VIEWS.stage = () => {
   const foes = (st.enemies || []).map(e => DB.hero(e)).filter(Boolean);
 
   return `<div class="frame">
-    <div class="sname">${esc(st.name)}</div>
+    <div class="sname">${esc(stName(st.name))}</div>
     <div class="vsbar">
       <div class="side"><b>${my}</b><i>我方</i></div>
       <div class="mid ${verdict[1]}">${verdict[0]}</div>
@@ -530,7 +542,7 @@ VIEWS.bonds = () => {
     return { b, have, owned, tier, nextT };
   }).sort((a, c) => (c.tier ? 1 : 0) - (a.tier ? 1 : 0) || c.have - a.have);
 
-  return section('bonds', `羁绊谱（${rows.filter(r => r.tier).length}/${rows.length} 激活）`,
+  return section('bonds', `羁绊谱 ${rows.filter(r => r.tier).length}/${rows.length}`,
     `<div class="frame tight">${rows.map(({ b, have, owned, tier, nextT }) =>
       `<div class="bondrow${tier ? ' on' : ''}">
         <b>${esc(b.name)}</b>
@@ -562,20 +574,25 @@ VIEWS.tavern = () => {
   </div>`;
 };
 
+/* 十连结果原来铺十张大人物牌。两百多人共用十二张范式底图，别处还能靠
+   镜像色调半身遮掩，十张并排摊开就彻底穿帮 —— 一屏里四个是同一个铁盔兵。
+   改成一人一行：小头像 + 名字绰号 + 品阶 + 入伙还是碎片。
+   撞车不再并排摆出来，也看得更快。 */
 VIEWS.recruitResult = () => {
   const list = UI.recruit || [];
-  return sectionTitle('招贤所得') + `<div class="plates">${list.map(r => {
-    const t = DB.hero(r.hid);
-    return `<div class="plate${hasPortrait(r.hid) ? ' has' : ''}${t.q === 6 ? ' jue' : ''}"
-        data-action="hero" data-id="${r.hid}">
-      ${hasPortrait(r.hid) ? porTag('por', r.hid)
-                           : `<div class="weap">${weaponSvg(r.hid)}</div>`}
-      ${seal(t.q)}
-      <div class="pinfo"><div class="nm">${esc(t.name)}</div>
-        <div class="ti">${esc(t.title || '')}</div>
-        <div class="stars">${r.got ? '新入伙' : `碎片 +${r.frag}`}</div></div>
-    </div>`;
-  }).join('')}</div>
+  const got = list.filter(r => r.got).length;
+  return sectionTitle('招贤所得', `<span class="tp">入伙 ${got} · 碎片 ${list.length - got}</span>`) +
+    `<div class="frame tight">${list.map(r => {
+      const t = DB.hero(r.hid);
+      return `<div class="rcrow${t.q >= 5 ? ' hi' : ''}" data-action="hero" data-id="${r.hid}">
+        <span class="face">${hasPortrait(r.hid) ? porTag('por', r.hid)
+                                                 : `<span class="weap">${weaponSvg(r.hid)}</span>`}</span>
+        <b class="${QCLS[t.q]}">${esc(t.name)}</b>
+        <span class="ti">${esc(titleOf(t))}</span>
+        <span class="q ${QCLS[t.q]}">${QTXT[t.q]}</span>
+        <span class="got">${r.got ? '新入伙' : `碎片 +${r.frag}`}</span>
+      </div>`;
+    }).join('')}</div>
   <div class="btns"><div class="btn main" data-action="go" data-id="tavern">再　来</div>
     <div class="btn" data-action="go" data-id="heroes">看　人</div></div>`;
 };
@@ -668,7 +685,7 @@ VIEWS.result = () => {
   const win = b.win;
   return `<div class="frame result">
     <div class="rtitle ${win ? 'win' : 'lose'}">${win ? '得　胜' : '败　绩'}</div>
-    <div class="rsub">${esc(b.stage.name)} · 共 ${b.round} 回合${
+    <div class="rsub">${esc(stName(b.stage.name))} · 共 ${b.round} 回合${
       b.result === 'timeout' ? '（三十回合没分出胜负，按伤亡算）' : ''}</div>
     ${dlg ? `<div class="rdlg">${esc(win ? (dlg.after_win || '') : (dlg.after_lose || ''))}</div>` : ''}
     ${win ? `<div class="rlist">${r.map(o =>
@@ -875,6 +892,7 @@ function openEquipPick(hid, slot) {
   const list = Grow.bagEquips(slot);
   $('modal').innerHTML = `<div class="sheet">
     <div class="shead">选一件${SLOT_NAME[slot]}</div>
+    <div class="scroll">
     ${list.length ? list.map(e => `<div class="opt" data-action="equip-do"
         data-id="${hid}" data-slot="${slot}" data-eid="${e.id}">
         <b class="${QCLS[e.q]}">${esc(e.name)}</b>
@@ -882,10 +900,11 @@ function openEquipPick(hid, slot) {
           const k = ['atk', 'def', 'int', 'agi', 'cha', 'hp'][i];
           return e.flat[k] ? `${n}+${e.flat[k]}` : '';
         }).filter(Boolean).join(' ')}
-        ${e.pct.atk ? ` 武+${Math.round(e.pct.atk * 100)}%` : ''}
-        ${e.pct.hp ? ` 血+${Math.round(e.pct.hp * 100)}%` : ''}</span>
+        ${e.pct.atk ? ` 武力+${Math.round(e.pct.atk * 100)}%` : ''}
+        ${e.pct.hp ? ` 体魄+${Math.round(e.pct.hp * 100)}%` : ''}</span>
         <span class="n">×${G.items['eq_' + e.id]}</span></div>`).join('')
       : '<div class="empty">背囊里没有这一类</div>'}
+    </div>
     <div class="btns"><div class="btn" data-action="modal-close">关　闭</div></div>
   </div>`;
   $('modal').classList.add('on');

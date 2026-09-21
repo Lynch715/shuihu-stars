@@ -253,6 +253,12 @@ const G = {
    战报和格子共用这一条，免得一边写「27万」一边写「93132」。 */
 const num = v => v >= 10000 ? (v / 10000).toFixed(v >= 100000 ? 0 : 1) + '万' : String(Math.round(v));
 
+/* 关名在数据里带着「·Boss」和「★」两种后缀，是给自己看的记号：
+   前者章末关有，后者隐藏关有。玩家那边不该看见 —— 关名左边本来就有方印标着，
+   名字里再带一次是多余的，中英混排还把整页的古籍味破了。
+   只在显示时剥掉，数据里的 name 原样留着，调试和模拟还靠它认关卡类型。 */
+const stName = n => String(n || '').replace(/·Boss$/i, '').replace(/^★/, '');
+
 const UI = { view: 'main', sel: null, stage: null, battle: null, playing: false,
   hsort: 'q', hfilt: 'all' };   // 群将谱当下的排法与筛法，只活在这一次会话里
 
@@ -1402,7 +1408,9 @@ const Guide = {
     if (G.res.silver >= CFG.recruitCost10 + CFG.recruitCost1)
       return { txt: '银两够十连了', sub: '去酒肆招兵买马', act: 'go', id: 'tavern' };
 
-    if (st) return { txt: `下一关：${st.name}`, sub: `第${st.ch}章 · 推荐 ${(st.rec_lv || [1, 5])[1]} 级 · 敌 ${(st.enemies || []).length} 人`, act: 'stage', id: nextStage };
+    if (st) return { txt: `下一关：${stName(st.name)}`,
+      sub: `第${st.ch}章 · 推荐 ${Lap.recLv(st.rec_lv || [1, 5])[1]} 级 · 敌 ${(st.enemies || []).length} 人`,
+      act: 'stage', id: nextStage };
     return { txt: '关隘已经打通了', sub: '石碣上的名字，还差几个', act: 'go', id: 'codex' };
   },
 };
@@ -1457,11 +1465,11 @@ const Stages = {
     const req = this.reqOf(sid);
     if (req && !G.cleared[req]) {
       const r = DB.stage(req);
-      return `须先通「${r ? r.name : req}」`;
+      return `须先通「${r ? stName(r.name) : req}」`;
     }
     const line = this.mainLine(st.ch || 1);
     const i = line.indexOf(sid);
-    if (i > 0) { const p = DB.stage(line[i - 1]); return `须先通「${p ? p.name : ''}」`; }
+    if (i > 0) { const p = DB.stage(line[i - 1]); return `须先通「${p ? stName(p.name) : ''}」`; }
     return '尚未解锁';
   },
 
@@ -1555,10 +1563,10 @@ const Stages = {
       const fr = st.first_reward || {};
       const fs = Math.round(CFG.firstSilver(L, kind) * Fate.v('silver', 1));
       G.res.silver += fs;
-      out.push({ icon: '首', text: `首通 银两 +${fs}`, c: 'sk' });
+      out.push({ icon: '银', text: `首通 银两 +${fs}`, c: 'sk' });
       const fe = Math.round(CFG.firstExp(L, kind) * Fate.v('exp', 1));
       Grow.addExp(fe).forEach(t => out.push({ icon: '升', text: t, c: 'sk' }));
-      out.push({ icon: '首', text: `首通 经验 +${fe}`, c: 'sk' });
+      out.push({ icon: '经', text: `首通 经验 +${fe}`, c: 'sk' });
       // 首通必得一件装备。原来装备只靠 10–20% 的掉落，打到第九章还是赤手空拳，
       // 而难度是按「每格都有本章档次的装备」调的。
       // 二周目的主成长轴是星级，所以符跟着周目翻倍；
@@ -1571,11 +1579,11 @@ const Stages = {
       const fe2 = this.rollEquip(null, cap, Math.max(1, cap - 1));
       if (fe2) {
         G.items['eq_' + fe2] = (G.items['eq_' + fe2] || 0) + 1;
-        out.push({ icon: '首', text: `首通 获 ${DB.equip(fe2).name}`, c: 'sk' });
+        out.push({ icon: '器', text: `首通 获 ${DB.equip(fe2).name}`, c: 'sk' });
       }
       if (fr.hero && DB.hero(fr.hero)) {
         const r = Grow.gainHero(fr.hero);
-        out.push({ icon: '首', text: r.got ? `首通 ${DB.hero(fr.hero).name} 入伙（${r.lv} 级）` : `首通 ${DB.hero(fr.hero).name} 碎片 +${r.frag}`, c: 'sk' });
+        out.push({ icon: '将', text: r.got ? `首通 ${DB.hero(fr.hero).name} 入伙（${r.lv} 级）` : `首通 ${DB.hero(fr.hero).name} 碎片 +${r.frag}`, c: 'sk' });
       }
     }
 
