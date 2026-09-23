@@ -175,9 +175,10 @@ check('开局状态正常', async b => {
     valid: (G.team || []).every(h => h && G.heroes[h]),
     names: (G.team || []).map(h => (__api.hero(h) || {}).name || h),
     silver: G.res && G.res.silver,
+    want: (window.CFG && CFG.startSilver) || 500,   // V10.1 起手给够一次十连
   }));
   await ctx.close();
-  const ok = r.heroes >= 2 && r.valid && r.silver === 500;
+  const ok = r.heroes >= 2 && r.valid && r.silver === r.want;
   return [ok, `起手 ${r.names.join('、')}　银两 ${r.silver}` + (r.valid ? '' : '　← 队伍含无效 ID')];
 });
 

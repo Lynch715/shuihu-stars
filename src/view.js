@@ -123,10 +123,15 @@ function toast(msg) {
 
 /* ── 顶栏与导航 ───────────────────────────────────────────────────────── */
 
+/* 第一行是每局都在来回点的四个，第二行隔一阵才看一次。
+   「聚义」就是主界面 —— 原来导航里没有它，进了哪一页都回不了首页。 */
 const NAV = [
-  ['heroes', '群将'], ['stages', '关隘'], ['team', '布阵'],
-  ['items', '行囊'], ['bonds', '羁绊'], ['tavern', '酒肆'], ['codex', '图鉴'],
+  ['main', '聚义'], ['stages', '关隘'], ['team', '布阵'], ['heroes', '群将'],
+  ['tavern', '酒肆'], ['items', '行囊'], ['bonds', '羁绊'], ['codex', '图鉴'],
 ];
+/* 子页面亮哪个导航格 */
+const NAV_OF = { hero: null, stage: 'stages', chapcard: 'stages', recruitResult: 'tavern',
+  battle: 'stages', result: 'stages' };
 
 function renderTop() {
   $('res').innerHTML = `
@@ -135,8 +140,10 @@ function renderTop() {
     <span><i>符</i><b>${G.res.token || 0}</b></span><span class="sep"></span>
     <span><i>将</i><b>${Object.keys(G.heroes).length}</b></span>
     ${Lap.now() > 1 ? `<span class="sep"></span><span><i>周目</i><b>${Lap.now()}</b></span>` : ''}`;
+  const cur = UI.view === 'hero' ? UI.hfrom
+            : (UI.view in NAV_OF ? NAV_OF[UI.view] : UI.view);
   $('nav').innerHTML = NAV.map(([v, t]) =>
-    `<div class="tab${UI.view === v ? ' on' : ''}" data-action="go" data-id="${v}">${t}</div>`).join('');
+    `<div class="tab${cur === v ? ' on' : ''}" data-action="go" data-id="${v}">${t}</div>`).join('');
 }
 
 /* ── 各视图 ───────────────────────────────────────────────────────────── */
@@ -297,17 +304,82 @@ const FILTS = {
   team:  ['在阵',  h => G.team.includes(h)],
   idle:  ['未上阵', h => !G.team.includes(h)],
   hurt:  ['带伤',  h => !!Hurt.of(h).lv],
-  up:    ['可升星', h => {
-    const g = G.heroes[h];
-    const c = g.star < Lap.maxStar() ? CFG.starCost[g.star] : null;
-    return !!c && (G.frags[h] || 0) + (G.res.token || 0) >= c;
-  }],
+  up:    ['可升星', h => { const n = Grow.starNeed(h); return !!n && !n.max && n.ok; }],
 };
+
+/** 群将谱当下排出来的那一串人。详情页左右切换也按这一串走 */
+function heroesShown() {
+  const sk = SORTS[UI.hsort] ? UI.hsort : 'q';
+  const fk = FILTS[UI.hfilt] ? UI.hfilt : 'all';
+  return Object.keys(G.heroes).filter(FILTS[fk][1]).sort(SORTS[sk][1]);
+}
+
+/** 图鉴里已收的人，按图鉴的排法 */
+function codexOwned() {
+  const bySrc = {};
+  DB.heroIds().filter(k => DB.hero(k).src !== '杂兵')
+    .forEach(k => (bySrc[DB.hero(k).src || '其他'] ||= []).push(k));
+  return Object.values(bySrc).flatMap(ids =>
+    ids.slice().sort((a, b) => DB.hero(b).q - DB.hero(a).q)).filter(k => G.heroes[k]);
+}
+
+/** 从哪一页点进详情，就在那一页的人里左右切 */
+function heroCtx(from, id) {
+  let list;
+  if (from === 'heroes') list = heroesShown();
+  else if (from === 'team') list = G.team.slice();
+  else if (from === 'codex') list = codexOwned();
+  else if (from === 'recruitResult') list = [...new Set((UI.recruit || []).map(r => r.hid))];
+  else list = G.team.includes(id) ? G.team.slice() : [id];
+  list = list.filter(h => G.heroes[h]);
+  if (!list.includes(id)) list = [id];
+  return list;
+}
+
+function openHero(id) {
+  if (UI.view !== 'hero') {
+    UI.hfrom = UI.view;
+    UI.hlist = heroCtx(UI.view, id);
+  } else if (!(UI.hlist || []).includes(id)) {
+    UI.hlist = [id];
+  }
+  UI.sel = id; UI.view = 'hero'; render();
+}
+
+function stepHero(d) {
+  const L = (UI.hlist || []).filter(h => G.heroes[h]);
+  if (L.length < 2) return;
+  const i = Math.max(0, L.indexOf(UI.sel));
+  UI.sel = L[(i + d + L.length) % L.length];
+  render();
+}
+
+/* 属性的用处写在数字后面。原来一排「武防智捷魅」，魅是干什么的没人知道 */
+function statNote(k, s) {
+  if (k === 'int') return `技能威力 +${Math.round((skillPow(s.int, s.atk) - 1) * 100)}%`;
+  if (k === 'agi') return `先手 · 暴击 ${Math.round(critRate(s.agi, s.crit) * 100)}%`;
+  return { atk: '伤害', def: '减伤', hp: '' }[k];
+}
+
+/** 装备的全部属性写成一行 */
+function eqTxt(e) {
+  const p = [];
+  for (const k of ['atk', 'def', 'int', 'agi', 'hp']) if (e.flat[k]) p.push(`${STAT_NAME[k]}+${e.flat[k]}`);
+  for (const k of ['atk', 'def', 'hp']) if (e.pct[k]) p.push(`${STAT_NAME[k]}+${Math.round(e.pct[k] * 100)}%`);
+  return p.join(' ');
+}
+const OB_NAME = { atk: '武', def: '防', int: '智', agi: '捷', hp: '血', crit: '暴击', all: '全属性' };
+function obTxt(e) {
+  if (!e.exclusive || !e.ownerBonus) return '';
+  const who = DB.hero(e.exclusive);
+  return `${who ? who.name : ''}用时 ` + Object.entries(e.ownerBonus)
+    .filter(([, v]) => v).map(([k, v]) => `${OB_NAME[k] || k}+${Math.round(v * 100)}%`).join(' ');
+}
 
 VIEWS.heroes = () => {
   const sk = SORTS[UI.hsort] ? UI.hsort : 'q';
   const fk = FILTS[UI.hfilt] ? UI.hfilt : 'all';
-  const ids = Object.keys(G.heroes).filter(FILTS[fk][1]).sort(SORTS[sk][1]);
+  const ids = heroesShown();
   const all = Object.keys(G.heroes).length;
 
   const bar = `<div class="picker">
@@ -330,10 +402,11 @@ VIEWS.hero = () => {
   const nextLv = h.lv < Lap.maxLv() ? Grow.drillCost(hid) : null;
   const reach = Grow.drillReach(hid);   // 手上的银子够练到几级
   const dcap = Grow.drillCap();         // 打到哪儿才练得到哪儿
-  const starC = h.star < Lap.maxStar() ? CFG.starCost[h.star] : null;
-  const frag = G.frags[hid] || 0;
-  const wild = Grow.wildTotal();   // 无主碎片，谁都能用
+  const sn = Grow.starNeed(hid);
   const bd = s.meta.bond;
+  const L = (UI.hlist || []).filter(x => G.heroes[x]);
+  const pos = L.indexOf(hid);
+  const multi = L.length > 1;
   const bondOn = Object.entries(bd).filter(([, v]) => v > 0);
 
   const skRows = (t.sk || []).map((id, i) => {
@@ -345,16 +418,24 @@ VIEWS.hero = () => {
 
   const eqRows = SLOTS.map(slot => {
     const e = DB.equip(h.equipment[slot]);
+    const mine = e && e.exclusive === hid;
     return `<div class="eqrow">
       <i>${SLOT_NAME[slot]}</i>
       ${e ? `<b class="${QCLS[e.q]}">${esc(e.name)}</b>
+             <span class="eqs">${esc(eqTxt(e))}${mine ? `<em>${esc(obTxt(e))}</em>` : ''}</span>
              <span class="act" data-action="unequip" data-id="${hid}" data-slot="${slot}">卸</span>`
           : `<b class="dim">空</b>
              <span class="act" data-action="equip-pick" data-id="${hid}" data-slot="${slot}">配</span>`}
     </div>`;
   }).join('');
 
-  return `<div class="detail">
+  const back = UI.hfrom && UI.hfrom !== 'hero' ? UI.hfrom : 'heroes';
+  return `<div class="detail" id="hdetail">
+    ${multi ? `<div class="hnav">
+      <span class="hstep" data-action="hero-step" data-id="-1">‹ ${esc(DB.hero(L[(pos - 1 + L.length) % L.length]).name)}</span>
+      <b>${pos + 1} / ${L.length}</b>
+      <span class="hstep" data-action="hero-step" data-id="1">${esc(DB.hero(L[(pos + 1) % L.length]).name)} ›</span>
+    </div>` : ''}
     <div class="dtop">
       ${hasPortrait(hid) ? porTag('dpor', hid)
         : `<div class="dpor ph">${weaponSvg(hid)}</div>`}
@@ -365,10 +446,10 @@ VIEWS.hero = () => {
         <div class="dlv">Lv.${h.lv} · ${stars(h.star)}</div>
         ${Hurt.of(hid).lv ? `<div class="dhurt ${Hurt.heavy(hid) ? 'hv' : 'lt'}">
           ${esc(Hurt.txt(hid))}${Hurt.heavy(hid) ? '' : `　属性 ×${CFG.hurtLightMul}`}</div>` : ''}
-        <div class="drow"><i>武</i><b>${s.atk}</b>${s.meta.apt ? '<s>擅长</s>' : ''}</div>
-        <div class="drow"><i>防</i><b>${s.def}</b></div>
-        <div class="drow"><i>智</i><b>${s.int}</b></div>
-        <div class="drow"><i>捷</i><b>${s.agi}</b></div>
+        <div class="drow"><i>武</i><b>${s.atk}</b><u>${statNote('atk', s)}</u>${s.meta.apt ? '<s>擅长</s>' : ''}</div>
+        <div class="drow"><i>防</i><b>${s.def}</b><u>${statNote('def', s)}</u></div>
+        <div class="drow"><i>智</i><b>${s.int}</b><u>${statNote('int', s)}</u></div>
+        <div class="drow"><i>捷</i><b>${s.agi}</b><u>${statNote('agi', s)}</u></div>
         <div class="drow"><i>血</i><b>${s.maxHp}</b></div>
         ${h.lv < Lap.maxLv() ? `<div class="dexp"><i>经验</i>
           <em><u style="width:${clamp(h.exp / CFG.expNeed(h.lv) * 100, 0, 100)}%"></u></em>
@@ -385,16 +466,10 @@ VIEWS.hero = () => {
         ? `<div class="btn sm main" data-action="drillmax" data-id="${hid}">连练到 ${reach} 级</div>` : ''}
       ${Hurt.of(hid).lv ? `<div class="btn sm${G.res.silver >= Hurt.cureCost(hid) ? ' main' : ''}"
            data-action="cure" data-id="${hid}">郎中 · ${Hurt.cureCost(hid)} 银</div>` : ''}
-      <div class="btn sm${starC && frag + wild + (G.res.token || 0) >= starC ? ' main' : ''}"
-           data-action="starup" data-id="${hid}">${starC
-             ? `升星 · ${Math.min(frag, starC)}/${starC}${(() => {
-                 // 差的那部分先由无主碎片顶，不够才动兵符，按钮上照这个次序写
-                 let gap = Math.max(0, starC - frag);
-                 if (!gap) return '';
-                 const w = Math.min(gap, wild); gap -= w;
-                 return (w ? ` +片${w}` : '') + (gap ? ` +符${gap}` : '');
-               })()}`
-             : '已满星'}</div>
+      <div class="btn sm${!sn.max && sn.ok ? ' main' : ''}"
+           data-action="starup" data-id="${hid}">${sn.max
+             ? `已满星${G.frags[hid] ? ` · 碎片 ${G.frags[hid]}` : ''}`
+             : `升星 · 片${sn.useOwn}/${sn.cost}${sn.token ? `+符${sn.token}` : ''}`}</div>
       <div class="btn sm${Hurt.heavy(hid) && !G.team.includes(hid) ? ' dim' : ''}"
            data-action="${G.team.includes(hid) ? 'unteam' : 'team'}" data-id="${hid}">
         ${G.team.includes(hid) ? '下阵' : (Hurt.heavy(hid) ? '伤重' : '上阵')}</div>
@@ -402,7 +477,7 @@ VIEWS.hero = () => {
     <div class="eqbox">${eqRows}</div>
     <div class="dbio">${esc(t.bio || '')}</div>
     <div class="dsk">${skRows}</div>
-    <div class="btns"><div class="btn" data-action="go" data-id="heroes">返　回</div></div>
+    <div class="btns"><div class="btn" data-action="go" data-id="${back}">返　回</div></div>
   </div>`;
 };
 
@@ -551,6 +626,7 @@ VIEWS.items = () => {
           ? ` data-action="hero" data-id="${users[0]}"` : ''}>
         <b class="${QCLS[e.q]}">${esc(e.name)}</b>
         <span class="s">${SLOT_NAME[e.slot] || e.slot}</span>
+        <span class="eqs">${esc(eqTxt(e))}${e.exclusive ? `<em>专属 · ${esc(obTxt(e))}</em>` : ''}</span>
         <span class="who">${users.length
           ? users.map(h => esc(DB.hero(h).name)).join('、') + ' 在用'
           : ''}</span>
@@ -558,9 +634,15 @@ VIEWS.items = () => {
     }).join('')}</div>`
       : '<div class="empty">空空如也</div>'),
       `<span class="tp${idle + Object.keys(worn).length ? '' : ' zero'}">闲置 ${idle} · 在用 ${Object.keys(worn).length}</span>`) +
-    (fr.length ? section('bagFrag', `武将碎片（${fr.length}）`, `<div class="frame tight">${fr.map(h =>
-      `<div class="itrow"><b>${esc(DB.hero(h) ? DB.hero(h).name : h)}</b>
-        <span class="n">×${G.frags[h]}</span></div>`).join('')}</div>`) : '') +
+    (fr.length ? section('bagFrag', `武将碎片（${fr.length}）`, `<div class="frame tight">${fr.map(h => {
+      const n = Grow.starNeed(h);
+      return `<div class="itrow on"${G.heroes[h] ? ` data-action="hero" data-id="${h}"` : ''}>
+        <b>${esc(DB.hero(h) ? DB.hero(h).name : h)}</b>
+        <span class="s">${!n ? '' : n.max ? `满星，每 ${CFG.fragMelt} 片折一枚兵符`
+          : `下一星要 ${n.cost}${n.token ? `，差的 ${n.token} 片用兵符补` : '，够了'}`}</span>
+        <span class="n">×${G.frags[h]}</span></div>`;
+    }).join('')}</div>`,
+      `<span class="tp">兵符 ${G.res.token || 0}</span>`) : '') +
     (cons.length ? section('bagItem', '杂　物', `<div class="frame tight">${cons.map(k => {
       const it = DB.item(k) || {};
       const live = it.type === 'exp' || it.type === 'cure';   // 点得动的只有这两类
@@ -603,7 +685,8 @@ VIEWS.tavern = () => {
   return sectionTitle('酒肆招贤') + `<div class="frame">
     <div class="rates">${rate}</div>
     <div class="note">先按上列概率定品阶，再在该品阶内等概率取人。<b>显示的就是真实概率。</b><br>
-      十连保底至少一名「名」，累计 50 抽保底一名「天罡」。</div>
+      十连保底至少一名「名」，累计 50 抽保底一名「天罡」。<br>
+      关卡不送人，武将只在这里招。招到重复的给碎片，满星之后碎片 ${CFG.fragMelt} 片折一枚兵符。</div>
     <div class="btns">
       <div class="btn ${afford(G.res.silver, CFG.recruitCost1)}" data-action="recruit" data-id="1">
         单抽 · ${CFG.recruitCost1} 银</div>
@@ -631,7 +714,7 @@ VIEWS.recruitResult = () => {
         <b class="${QCLS[t.q]}">${esc(t.name)}</b>
         <span class="ti">${esc(titleOf(t))}</span>
         <span class="q ${QCLS[t.q]}">${QTXT[t.q]}</span>
-        <span class="got">${r.got ? '新入伙' : `碎片 +${r.frag}`}</span>
+        <span class="got">${r.got ? '新入伙' : r.token ? `满星 · 兵符 +${r.token}` : `碎片 +${r.frag}`}</span>
       </div>`;
     }).join('')}</div>
   <div class="btns"><div class="btn main" data-action="go" data-id="tavern">再　来</div>
@@ -677,7 +760,7 @@ function stHtml(u) {
   let h = '';
   for (const k of Object.keys(ST_MARK))
     if (u.status[k]) h += `<i class="sm ${ST_MARK[k][1]}">${ST_MARK[k][0]}</i>`;
-  for (const k of ['atk', 'def', 'int', 'agi', 'cha']) {
+  for (const k of ['atk', 'def', 'int', 'agi']) {
     const v = u.status['buff_' + k];
     if (!v || !v.val) continue;
     h += `<i class="sm bf ${v.val > 0 ? 'up' : 'dn'}">${STAT_NAME[k]}${v.val > 0 ? '▲' : '▼'}</i>`;
@@ -939,12 +1022,8 @@ function openEquipPick(hid, slot) {
     ${list.length ? list.map(e => `<div class="opt" data-action="equip-do"
         data-id="${hid}" data-slot="${slot}" data-eid="${e.id}">
         <b class="${QCLS[e.q]}">${esc(e.name)}</b>
-        <span>${['武', '防', '智', '捷', '魅', '血'].map((n, i) => {
-          const k = ['atk', 'def', 'int', 'agi', 'cha', 'hp'][i];
-          return e.flat[k] ? `${n}+${e.flat[k]}` : '';
-        }).filter(Boolean).join(' ')}
-        ${e.pct.atk ? ` 武力+${Math.round(e.pct.atk * 100)}%` : ''}
-        ${e.pct.hp ? ` 体魄+${Math.round(e.pct.hp * 100)}%` : ''}</span>
+        <span>${esc(eqTxt(e))}${e.exclusive
+          ? `<em class="${e.exclusive === hid ? 'mine' : ''}">专属 · ${esc(obTxt(e))}</em>` : ''}</span>
         <span class="n">×${G.items['eq_' + e.id]}</span></div>`).join('')
       : '<div class="empty">背囊里没有这一类</div>'}
     </div>
@@ -1092,7 +1171,8 @@ document.addEventListener('click', ev => {
 
   switch (a) {
     case 'go': go(id); break;
-    case 'hero': UI.sel = id; UI.view = 'hero'; render(); break;
+    case 'hero': openHero(id); break;
+    case 'hero-step': stepHero(+id); break;
     case 'stage': {
       const st = DB.stage(id), ch = st && st.ch;
       const card = ch && !G.seenCh[ch] ? DB.chapterCard(ch) : null;
@@ -1206,6 +1286,27 @@ document.addEventListener('click', ev => {
   }
 });
 
+/* ── 详情页左右切换：手机横滑、电脑方向键 ─────────────────────────────
+   只认横向为主的一划，竖着翻页不受影响。 */
+const Swipe = { x: 0, y: 0, on: false };
+// 用 touch 事件而不用 pointer：手指一动浏览器就接管滚动，pointer 那头会被 cancel 掉
+document.addEventListener('touchstart', ev => {
+  if (UI.view !== 'hero' || ev.touches.length !== 1 || !ev.target.closest('#hdetail')) return;
+  Swipe.on = true; Swipe.x = ev.touches[0].clientX; Swipe.y = ev.touches[0].clientY;
+}, { passive: true });
+document.addEventListener('touchend', ev => {
+  if (!Swipe.on) return;
+  Swipe.on = false;
+  const t = ev.changedTouches[0];
+  const dx = t.clientX - Swipe.x, dy = t.clientY - Swipe.y;
+  if (Math.abs(dx) > 60 && Math.abs(dx) > Math.abs(dy) * 1.6) stepHero(dx < 0 ? 1 : -1);
+}, { passive: true });
+document.addEventListener('keydown', ev => {
+  if (UI.view !== 'hero' || $('modal').classList.contains('on')) return;
+  if (ev.key === 'ArrowLeft') stepHero(-1);
+  else if (ev.key === 'ArrowRight') stepHero(1);
+});
+
 /* ── 启动 ─────────────────────────────────────────────────────────────── */
 
 function boot() {
@@ -1223,11 +1324,12 @@ function boot() {
     });
     for (const h of Object.values(G.heroes)) {
       const t = DB.hero(h.hid) || {};
-      h.base0 ||= { atk: t.atk, def: t.def, int: t.int, agi: t.agi, cha: t.cha, hp: t.hp };
+      h.base0 ||= { atk: t.atk, def: t.def, int: t.int, agi: t.agi, hp: t.hp };
       h.equipment ||= { weapon: null, armor: null, helmet: null, mount: null, special: null };
       h.owned ||= (t.sk || []).slice(0, 1);
     }
     if (!G.team.length) G.team = Object.keys(G.heroes).slice(0, 2);
+    Save.migrate(); Save.write();
   } else {
     initGame(); Save.write();
   }

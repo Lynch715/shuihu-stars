@@ -565,3 +565,29 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
   color:var(--paper);font-size:.84em;padding:8px 18px;z-index:60;opacity:0;pointer-events:none;
   transition:opacity .25s;font-family:var(--f-title);letter-spacing:.06em;white-space:nowrap}
 #toast.on{opacity:.96}
+
+/* V10.1 · 详情页左右切换 */
+.hnav{display:flex;align-items:center;justify-content:space-between;gap:8px;
+  font-size:.78em;color:var(--ink-3);margin:-4px 0 8px;user-select:none}
+.hnav b{font-weight:400;font-family:var(--f-title);color:var(--ink-2);letter-spacing:.1em;flex:none}
+.hstep{flex:1;min-width:0;min-height:40px;display:flex;align-items:center;cursor:pointer;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--indigo);
+  font-family:var(--f-title);-webkit-tap-highlight-color:transparent}
+.hstep:last-child{justify-content:flex-end}
+#hdetail{touch-action:pan-y}
+
+/* 属性后面的用处 */
+.drow u{text-decoration:none;font-size:.8em;color:var(--ink-4);white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis;min-width:0}
+
+/* 装备属性：详情页、行囊、选装备弹层都写全 */
+.eqrow b{flex:none}
+.eqs{flex:1;min-width:0;color:var(--ink-3);font-size:.82em;line-height:1.45;
+  font-variant-numeric:tabular-nums}
+.eqs em,.opt span em{font-style:normal;color:var(--cinnabar);display:block}
+.opt span em.mine{font-weight:600}
+.itrow .eqs{flex:1 1 0}
+.itrow:has(.eqs) .who{margin-left:0;padding-right:0;flex:none;max-width:5.5em;text-align:right}
+.itrow:has(.eqs) .n{flex:none}
+.itrow:has(.eqs) .s{flex:0 0 auto}
+.eqrow .act{margin-left:auto;flex:none}

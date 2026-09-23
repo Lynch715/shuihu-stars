@@ -75,11 +75,14 @@ const SIM = function (LAPS, MUL, CAP, BEN) {
         const stg = DB.stage(sid);
         const want = Lap.recLv(stg.rec_lv || [1, 5])[1] + 3 * (tries[sid] || 0);
         teamUp(); gearUp(); starUp();
+        // V10.1 起武将只能靠抽：人手不到 20 先抽人；手上有钱就十连（同 playthrough.js --nomed）
+        while (Object.keys(G.heroes).length < 20 && G.res.silver >= CFG.recruitCost1)
+          Grow.recruit(G.res.silver >= CFG.recruitCost10 ? 10 : 1);
+        teamUp(); gearUp(); starUp();
         if (Object.keys(G.heroes).filter(h => Hurt.able(h)).length < CFG.teamSize + 3) cureUp(0);
         levelTo(want, CFG.recruitCost1);
-        const medKit = G.team.reduce((a, h) => a + Math.max(0, Hurt.cureCost(h)), 0) || 0;
-        const reserve = Math.max(CFG.recruitCost1, medKit * 2);
-        while (!(tries[sid] || 0) && G.res.silver - reserve >= CFG.recruitCost10 * 1.2) Grow.recruit(10);
+        const reserve = CFG.recruitCost1;
+        while (G.res.silver - reserve >= CFG.recruitCost10) Grow.recruit(10);
         if ((tries[sid] || 0) >= 1) cureUp(0);
         teamUp(); gearUp(); starUp(); levelTo(want, 0);
 

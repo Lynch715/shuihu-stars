@@ -9,10 +9,12 @@
  */
 const { chromium } = require('playwright');
 const HTML = process.argv[2], RUNS = +(process.argv[3] || 1);
-const PROFILE = process.argv.includes('--profile');   // 摸底跑：压低难度，只为采集养成曲线
+const PROFILE = process.argv.includes('--profile');
+const ROSTER = +((process.argv.find(a => a.startsWith('--roster=')) || '--roster=12').slice(9));
+const PULLK = +((process.argv.find(a => a.startsWith('--pull=')) || '--pull=1.2').slice(7));   // 摸底跑：压低难度，只为采集养成曲线
 
 const SIM = function (opt) {
-  const { RUNS, PROFILE } = opt;
+  const { RUNS, PROFILE, PULLK, ROSTER, NOMED } = opt;
   const runs = [];
   // 摸底跑用真实难度，但死磕到底 —— 打不过就多练几级再来，
   // 要的是「一路打过去手里会攒下什么」，不是「第一次就能不能过」。
@@ -80,13 +82,23 @@ const SIM = function (opt) {
         const want = (stg.rec_lv || [1, 5])[1] + 3 * (st.tries[sid] || 0);
         teamUp(); gearUp(); starUp();
         // 先治伤：主力躺着的时候，抽一百张卡也顶不上把林冲治好
+        // V10.1 起武将只能靠抽：人手不到 ROSTER 个时，先抽人，再治伤、练级
+        while (Object.keys(G.heroes).length < ROSTER && G.res.silver >= CFG.recruitCost1) {
+          const bal = G.res.silver;
+          if (G.res.silver >= CFG.recruitCost10) { Grow.recruit(10); st.pulls += 10; }
+          else { Grow.recruit(1); st.pulls += 1; }
+          st.spendGacha += bal - G.res.silver;
+        }
+        teamUp(); gearUp(); starUp();
         if (Object.keys(G.heroes).filter(h => Hurt.able(h)).length < CFG.teamSize + 3) cureUp(0);
         levelTo(want, CFG.recruitCost1);
         // 抽卡之前先把治伤的钱留出来。原来一有闲钱就十连，
         // 轮到伤员时账上永远是空的 —— 真人不会这么花钱。
         const medKit = G.team.reduce((a, h) => a + Math.max(0, Hurt.cureCost(h)), 0) || 0;
-        const reserve = Math.max(CFG.recruitCost1, medKit * 2);
-        while (!(st.tries[sid] || 0) && G.res.silver - reserve >= CFG.recruitCost10 * 1.2) {
+        // V10.1：人只能靠抽，治伤钱不再整笔压着不动 —— 真人手上有两万银两不会一张不抽
+        const reserve = NOMED ? CFG.recruitCost1 : Math.max(CFG.recruitCost1, medKit * 2);
+        // V10.1：人只能抽，钱宽裕就十连，不再只在头一次打这关时才抽
+        while (G.res.silver - reserve >= CFG.recruitCost10 * (PULLK || 1.2)) {
           const bal = G.res.silver; Grow.recruit(10);
           st.spendGacha += bal - G.res.silver; st.pulls += 10;
         }
@@ -162,7 +174,9 @@ const SIM = function (opt) {
   p.on('pageerror', e => console.error('页面错误:', e.message));
   await p.goto('file://' + require('path').resolve(HTML));
   await p.waitForTimeout(700);
-  const rs = await p.evaluate(`(${SIM.toString()})({RUNS:${RUNS},PROFILE:${PROFILE}})`);
+  const EASE = process.argv.find(a => a.startsWith('--ease='));
+  if (EASE) await p.evaluate(`CFG.foeEase = ${EASE.slice(7)}`);
+  const rs = await p.evaluate(`(${SIM.toString()})({RUNS:${RUNS},PROFILE:${PROFILE},PULLK:${PULLK},ROSTER:${ROSTER},NOMED:${process.argv.includes('--nomed')}})`);
   await br.close();
 
   rs.forEach((r, i) => {
