@@ -10,7 +10,7 @@
   --f-body:"Songti SC","STSong","SimSun","宋体",serif;
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html{-webkit-text-size-adjust:100%}
+html{-webkit-text-size-adjust:100%;touch-action:pan-x pan-y}  /* 只许滚动，不许双指缩放和双击放大 */
 body{
   font-family:var(--f-body);color:var(--ink);background:var(--paper);
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.12'/%3E%3C/svg%3E");
@@ -388,6 +388,11 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 
 /* 开场字幕 */
 .crawl{position:fixed;inset:0;z-index:60;background:var(--paper);overflow:hidden;cursor:pointer}
+.scene-full,.scene-card,.scene-stage{background-size:cover;background-position:center;pointer-events:none}
+.scene-full{position:absolute;inset:0;opacity:.18;filter:saturate(.78)}
+/* 章首卡：图是横幅，放在标题上方，不铺满整屏（竖屏铺满会只剩中间一条且放大发糊） */
+.scene-card{position:absolute;top:0;left:50%;transform:translateX(-50%);width:min(100%,560px);aspect-ratio:3/2;max-height:46vh;background-position:center 40%;opacity:.55;-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(180deg,#000 45%,transparent);-webkit-mask-composite:source-in;mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent),linear-gradient(180deg,#000 45%,transparent);mask-composite:intersect}
+.scene-stage{height:120px;margin:-13px -12px 12px;background-position:center 42%;opacity:.30;-webkit-mask-image:linear-gradient(90deg,transparent,#000 13%,#000 87%,transparent),linear-gradient(180deg,#000,transparent);mask-image:linear-gradient(90deg,transparent,#000 13%,#000 87%,transparent),linear-gradient(180deg,#000,transparent);-webkit-mask-composite:source-in;mask-composite:intersect}
 .crawl::after{content:"";position:absolute;inset:0;pointer-events:none;
   background:linear-gradient(var(--paper) 0%,rgba(233,226,208,0) 16%,
     rgba(233,226,208,0) 78%,var(--paper) 100%)}
@@ -412,6 +417,8 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
   display:flex;flex-direction:column;align-items:center;justify-content:center;
   /* 底下还有一行「轻触继续」定在下缘，不扣掉它整块看着就偏下 */
   padding:0 34px 42px;text-align:center;animation:cardin .5s ease-out}
+.chapcard>*:not(.scene-card):not(.cc-go){position:relative;z-index:1}
+.cc-go{z-index:1}
 @keyframes cardin{from{opacity:0}to{opacity:1}}
 .cc-ch{font-family:var(--f-title);font-size:.82em;letter-spacing:.3em;color:var(--ink-3)}
 .cc-t{font-family:var(--f-title);font-size:2.1em;letter-spacing:.24em;

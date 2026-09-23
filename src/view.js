@@ -5,7 +5,7 @@
 
 /* ── 立绘 ─────────────────────────────────────────────────────────────── */
 /* 立绘三级回退：本人的 → 范式的（多人共用）→ 兵器剪影。
-   PORTRAITS / ARCHETYPES 由构建脚本注入，值是 base64 的 data URI。 */
+   PORTRAITS / ARCHETYPES 由构建脚本注入，值是「相对路径?v=哈希」，图片按需加载。 */
 const ownPortrait = hid => (window.PORTRAITS && window.PORTRAITS[hid]) || '';
 /* 范式底图每张都出了全身、半身两个取景，按 hid 定死用哪个。 */
 const archPortrait = hid => {
@@ -30,7 +30,8 @@ function hashId(s) {
   return Math.abs(h);
 }
 const porAttr = hid => ownPortrait(hid) ? '' : ` data-v="${hashId(hid) % 8}"`;
-const porTag = (cls, hid) => `<img class="${cls}" src="${portraitOf(hid)}"${porAttr(hid)} alt="">`;
+// lazy：群将、图鉴一页上百张人物牌，只取滚到眼前的那些
+const porTag = (cls, hid) => `<img class="${cls}" src="${portraitOf(hid)}"${porAttr(hid)} alt="" loading="lazy" decoding="async">`;
 
 /* 伤印：重伤朱砂、轻伤赭石，后面跟还要休养几场 */
 function hurtTag(hid) {
@@ -142,6 +143,15 @@ function renderTop() {
 
 const VIEWS = {};
 
+function sceneOf(ch) {
+  const card = DB.chapterCard(ch);
+  return card && card.scene && window.SCENES ? window.SCENES[card.scene] || '' : '';
+}
+function sceneLayer(ch, cls) {
+  const scene = typeof ch === 'string' ? (window.SCENES && window.SCENES[ch]) || '' : sceneOf(ch);
+  return scene ? `<div class="${cls}" style="background-image:url('${scene}')"></div>` : '';
+}
+
 /** 字幕从屏幕下缘往上推。时长按内容实际高度算，
  *  短屏幕和长屏幕的观感才一样。 */
 function startCrawl() {
@@ -174,6 +184,7 @@ function startCrawl() {
 VIEWS.intro = () => {
   const rows = DB.story.intro || [];
   return `<div class="crawl" data-action="intro-skip">
+    ${sceneLayer(27, 'scene-full')}
     <div class="crawl-in" id="crawlIn">
       ${rows.map(r => r.b ? '<div class="cr-b"></div>'
         : r.h ? `<div class="cr-h">${esc(r.h)}</div>`
@@ -191,10 +202,26 @@ VIEWS.chapcard = () => {
   const c = UI.card;
   if (!c) return '<div class="empty"></div>';
   return `<div class="chapcard" data-action="card-done">
+    ${sceneLayer(c.ch, 'scene-card')}
     <div class="cc-ch">第 ${c.ch} 章</div>
     <div class="cc-t">${esc(c.title)}</div>
     <div class="cc-rule"></div>
     ${c.lines.map(l => `<div class="cc-l">${esc(l)}</div>`).join('')}
+    <div class="cc-go">轻触继续</div>
+  </div>`;
+};
+
+/* 尾声：头一回把一周目的关隘全打通时出一张，版式同章首卡。
+   之后从主界面「重看尾声」进。 */
+VIEWS.epilogue = () => {
+  const e = DB.story.epilogue;
+  if (!e) return '<div class="empty"></div>';
+  return `<div class="chapcard epi" data-action="epi-done">
+    ${sceneLayer(e.scene || '', 'scene-card')}
+    <div class="cc-ch">群 星 录</div>
+    <div class="cc-t">${esc(e.title)}</div>
+    <div class="cc-rule"></div>
+    ${e.lines.map(l => `<div class="cc-l">${esc(l)}</div>`).join('')}
     <div class="cc-go">轻触继续</div>
   </div>`;
 };
@@ -233,6 +260,8 @@ VIEWS.main = () => {
      '<div class="logbox">' + G.log.slice(0, 8).map(l => `<div>${esc(l)}</div>`).join('') + '</div>') : ''}
   <div class="btns" style="margin-top:22px">
     <div class="btn" data-action="replay-intro">重看开篇</div>
+    ${G.seenEpi ? '<div class="btn" data-action="epilogue">重看尾声</div>' : ''}
+    ${window.Pwa && Pwa.available() ? '<div class="btn" data-action="pwa-offer">装到桌面</div>' : ''}
     <div class="btn warn" data-action="reset">重开一局</div>
   </div>`;
 };
@@ -427,7 +456,8 @@ VIEWS.stage = () => {
   const tier = Battle.enemyTier(sid);
   const foes = (st.enemies || []).map(e => DB.hero(e)).filter(Boolean);
 
-  return `<div class="frame">
+  return `<div class="frame stage-frame">
+    ${sceneLayer(st.ch, 'scene-stage')}
     <div class="sname">${esc(stName(st.name))}</div>
     <div class="vsbar">
       <div class="side"><b>${my}</b><i>我方</i></div>
@@ -703,7 +733,9 @@ VIEWS.result = () => {
       `<div class="ritem"><i>${o.icon}</i><span class="${o.c}">${esc(o.text)}</span></div>`).join('')}</div>`
       : '<div class="rdlg">整顿人马，练几级、换身装备，再来一趟。</div>'}
     <div class="btns">
-      <div class="btn main" data-action="go" data-id="stages">回关隘</div>
+      ${win && !G.seenEpi && DB.story.epilogue && Lap.done()
+        ? '<div class="btn main" data-action="epilogue">尾　声</div>'
+        : '<div class="btn main" data-action="go" data-id="stages">回关隘</div>'}
       <div class="btn" data-action="fight" data-id="${b.sid}">再战一场</div>
     </div>
   </div>`;
@@ -1064,13 +1096,15 @@ document.addEventListener('click', ev => {
     case 'stage': {
       const st = DB.stage(id), ch = st && st.ch;
       const card = ch && !G.seenCh[ch] ? DB.chapterCard(ch) : null;
-      if (card) { UI.card = { ch, title: card.title, lines: card.lines, then: id }; UI.view = 'chapcard'; }
+      if (card) { UI.card = { ch, title: card.title, lines: card.lines, scene: card.scene, then: id }; UI.view = 'chapcard'; }
       else { UI.stage = id; UI.view = 'stage'; }
       render(); break;
     }
     case 'intro-skip': clearTimeout(Play.introTimer);
       G.seenIntro = true; Save.write(); UI.view = 'main'; render(); break;
     case 'replay-intro': UI.view = 'intro'; render(); startCrawl(); break;
+    case 'epilogue': UI.view = 'epilogue'; render(); break;
+    case 'epi-done': G.seenEpi = true; Save.write(); go('main'); break;
     case 'card-done': {
       const c = UI.card; UI.card = null;
       if (c) { G.seenCh[c.ch] = true; Save.write(); }
@@ -1149,6 +1183,10 @@ document.addEventListener('click', ev => {
     case 'equip-do': { const e = Grow.equip(id, slot, el.dataset.eid); closeModal(); toast(e || '换好了'); render(); break; }
     case 'unequip': { const e = Grow.unequip(id, slot); toast(e || '已卸下'); render(); break; }
     case 'modal-close': closeModal(); break;
+    case 'pwa-install': Pwa.install(); break;
+    case 'pwa-later': Pwa.later(); break;
+    case 'pwa-offer': Pwa.offer(); break;
+    case 'pwa-reload': Pwa.reload(); break;
     case 'recruit': {
       const r = Grow.recruit(+id);
       if (r.err) { toast(r.err); break; }
@@ -1179,7 +1217,7 @@ function boot() {
       res: Object.assign({ silver: CFG.startSilver, gold: 0, token: 0 }, s.res || {}),
       fold: s.fold || {},
       log: s.log || [], clearCount: s.clearCount || 0, pity: s.pity || { ten: 0, fifty: 0 },
-      speed: s.speed || 'normal', seenIntro: !!s.seenIntro, seenCh: s.seenCh || {},
+      speed: s.speed || 'normal', seenIntro: !!s.seenIntro, seenCh: s.seenCh || {}, seenEpi: !!s.seenEpi,
       // 老存档没有这三个字段，按一周目读，一切照旧
       lap: s.lap || 1, fates: s.fates || [], everCleared: s.everCleared || {},
     });

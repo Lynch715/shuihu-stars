@@ -86,6 +86,10 @@ const CFG = {
   drillPrice: lv => 0.8 + 0.06 * lv,          // 每点经验的银两单价
   drillAhead: 3,                              // 督练最多领先当前战线几级
   loseExp: 0.35,                              // 败仗拿三成经验
+  /* 败仗原来一文钱不给。可治伤要钱、督练也要钱，输掉的仗只出不进 ——
+     三周目一旦开始输，账上永远凑不出翻盘的钱。经验都给三成了，
+     银两没有理由是零，同一个口径。 */
+  loseSilver: 0.35,
   /* 伤势。原来一场仗打完什么都不留下 —— 全员满血复活，输了重来一遍就是，
      于是难度形同虚设，一百单八将也只用得着最强的九个。
      现在阵亡的人要养伤，而且「只有没上阵的人才恢复」——想让主力缓过来，
@@ -95,6 +99,20 @@ const CFG = {
   hurtLightAt: 0.25,      // 血线低于这个比例算轻伤
   hurtLightMul: 0.8,      // 带伤上阵的属性折扣
   hurtMinRoster: 4,       // 可用人手不足这个数时，重伤降级为轻伤（防开局卡死）
+  /* 一场仗最多几人重伤。原来没有上限：一败九人全抬下去，顶上来的是生手 ——
+     经验只给上阵的人，于是越换越弱、越弱越输，一路滚到打不动。
+     三周目八局里三局死在这个循环上，卡住时伤员 18–22 人、队伍均级
+     比推荐低十几级。封了顶，一败折损三人，另外六个带轻伤接着打。 */
+  hurtHeavyMax: 3,
+  /* 二梯队拿半份经验。原来经验只给上阵的九个人，板凳上的永远是生手 ——
+     主力一挂彩，顶上来的比推荐等级低十几级，这才是伤病死循环的发动机。
+     只给按战力排在正选之后的九个人，不是全员：一百单八将人人满级的话，
+     伤病就彻底没牙了。
+     比例是扫出来的：0.5 三周目八局过七局，但一周目从 196 场掉到 158 场，
+     首周目的火候削掉了两成；0.35 六局过五局；0.25 六局全过，一周目
+     还是 158–310 场，与改动前同一量级。取 0.25 —— 够让替补接得上手，
+     不够让一百单八将人人满级。 */
+  benchExp: 0.25,
   cureHeavy: 2.5, cureLight: 1.0,   // 治疗价 = 系数 × 一级操练钱
   cureDoctor: 0.4,        // 安道全在册时打四折
   doctorId: 'an_daoquan',
@@ -231,7 +249,7 @@ const Save = {
         heroes: G.heroes, items: G.items, frags: G.frags,
         cleared: G.cleared, team: G.team, res: G.res,
         log: G.log, clearCount: G.clearCount, pity: G.pity, speed: G.speed,
-        seenIntro: G.seenIntro, seenCh: G.seenCh, fold: G.fold,
+        seenIntro: G.seenIntro, seenCh: G.seenCh, fold: G.fold, seenEpi: G.seenEpi,
         lap: G.lap, fates: G.fates, everCleared: G.everCleared,
       }));
       return true;
@@ -254,6 +272,7 @@ const G = {
   heroes: {}, items: {}, frags: {}, cleared: {}, team: [],
   res: { silver: 0, gold: 0, token: 0 }, log: [], clearCount: 0, pity: { ten: 0, fifty: 0 },
   speed: 'normal', seenIntro: false, seenCh: {}, fold: {},
+  seenEpi: false,   // 尾声只在头一回打完一周目时自动出，之后从主界面重看
   /* 周目。老存档没有这三个字段，读进来按一周目算，一切照旧。
      everCleared 跨周目不清 —— 上一周目打过的关，这一周目可以直接速战，
      不然重看一遍 139 段关前白很烦。 */
@@ -290,7 +309,7 @@ function initGame() {
   G.heroes = {}; G.items = {}; G.frags = {}; G.cleared = {}; G.team = [];
   G.res = { silver: CFG.startSilver, gold: 0, token: 0 };
   G.log = []; G.clearCount = 0; G.pity = { ten: 0, fifty: 0 }; G.speed = G.speed || 'normal';
-  G.seenIntro = false; G.seenCh = {}; G.fold = G.fold || {};
+  G.seenIntro = false; G.seenCh = {}; G.fold = G.fold || {}; G.seenEpi = false;
   G.lap = 1; G.fates = []; G.everCleared = {};
   for (const hid of CFG.startHeroes) {
     const h = makeHero(hid);
@@ -1121,12 +1140,27 @@ const Grow = {
       for (const k of GROW_KEYS) h.base[k] += growStep(t, h.base0, k);
   },
 
+  /** 二梯队：按战力排在正选之后的那一阵人。伤病轮换靠他们接手。 */
+  reserve() {
+    return Object.keys(G.heroes)
+      .filter(h => !G.team.includes(h))
+      .sort((a, b) => Stats.heroPower(b) - Stats.heroPower(a))
+      .slice(0, CFG.teamSize);
+  },
+
   addExp(amount) {
     const up = [];
     for (const hid of G.team) {
       const h = G.heroes[hid];
       if (!h) continue;
       if (this.gainExp(h, amount)) up.push(`${DB.hero(hid).name} 升至 ${h.lv} 级`);
+    }
+    // 二梯队跟着练，拿半份。见 CFG.benchExp
+    const half = Math.round(amount * CFG.benchExp);
+    if (half > 0) for (const hid of this.reserve()) {
+      const h = G.heroes[hid];
+      if (!h) continue;
+      if (this.gainExp(h, half)) up.push(`${DB.hero(hid).name} 升至 ${h.lv} 级`);
     }
     return up;
   },
@@ -1346,8 +1380,10 @@ const Hurt = {
     const dead = b.allies.filter(u => !u.alive);
     const ableAfterAll = Object.keys(G.heroes)
       .filter(h => this.able(h) && !dead.some(u => u.hid === h)).length;
-    // 超出的名额从战力最高的人开始减免 —— 主力留着能用，玩家才转得动
-    let spare = Math.max(0, floor - ableAfterAll);
+    // 超出的名额从战力最高的人开始减免 —— 主力留着能用，玩家才转得动。
+    // 两条线取宽的那条：一是阵容底线（手上凑不出一阵就得减免），
+    // 二是一场仗的重伤人数上限（见 CFG.hurtHeavyMax）。
+    let spare = Math.max(0, floor - ableAfterAll, dead.length - CFG.hurtHeavyMax);
     const relief = new Set(dead.slice()
       .sort((x, y) => Stats.heroPower(y.hid) - Stats.heroPower(x.hid))
       .slice(0, spare).map(u => u.hid));
@@ -1606,6 +1642,9 @@ const Stages = {
       const ups = Grow.addExp(e);
       out.push({ icon: '经', text: `打输了也长经验 +${e}`, c: 'he' });
       ups.forEach(t => out.push({ icon: '升', text: t, c: 'sk' }));
+      // 败仗也收得回一点银两 —— 不然治伤的钱永远凑不出来
+      const ls = Math.round(CFG.stageSilver(L0) * CFG.loseSilver * Fate.v('silver', 1));
+      if (ls > 0) { G.res.silver += ls; out.push({ icon: '银', text: `收拢残局 +${ls}`, c: '' }); }
       this.woundReport(b, out);   // 输了更该挂彩
       Save.write();
       return out;

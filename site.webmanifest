@@ -1,0 +1,16 @@
+{
+  "name": "文字水浒 · 群星录",
+  "short_name": "群星录",
+  "description": "九人对阵，星宿聚义。把一百单八个名字一个一个找回来。",
+  "lang": "zh-CN",
+  "start_url": ".",
+  "scope": ".",
+  "display": "standalone",
+  "background_color": "#e9e2d0",
+  "theme_color": "#e9e2d0",
+  "icons": [
+    { "src": "icon/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -15,10 +15,14 @@ const MUL = MULARG ? MULARG.split(',').map(Number) : null;
 // 调参用：--mulcap=3 临时覆盖二周目起的关卡强度系数削顶
 const CAPARG = (process.argv.find(a => a.startsWith('--mulcap=')) || '').split('=')[1];
 const CAP = CAPARG ? +CAPARG : null;
+// 调参用：--bench=0.35 临时覆盖二梯队经验比例
+const BENARG = (process.argv.find(a => a.startsWith('--bench=')) || '').split('=')[1];
+const BEN = BENARG ? +BENARG : null;
 
-const SIM = function (LAPS, MUL, CAP) {
+const SIM = function (LAPS, MUL, CAP, BEN) {
   if (MUL) { CFG.lapFoeBy[2] = MUL[0]; CFG.lapFoeMax = MUL[1]; }
   if (CAP) CFG.lapMulCap = CAP;
+  if (BEN != null) CFG.benchExp = BEN;
   initGame();
   const order = [];
   for (const ch of DB.chapters) for (const sid of DB.byChapter[ch]) order.push(sid);
@@ -125,7 +129,7 @@ const SIM = function (LAPS, MUL, CAP) {
   p.on('pageerror', e => console.log('  页面异常 ' + e.message));
   await p.goto('file://' + require('path').resolve(HTML));
   await p.waitForTimeout(1500);
-  const res = await p.evaluate(`(${SIM.toString()})(${LAPS}, ${JSON.stringify(MUL)}, ${JSON.stringify(CAP)})`);
+  const res = await p.evaluate(`(${SIM.toString()})(${LAPS}, ${JSON.stringify(MUL)}, ${JSON.stringify(CAP)}, ${JSON.stringify(BEN)})`);
   console.log('周目　通关　　战斗　敌级区间　等级上限　队伍均级　拥有');
   for (const r of res)
     console.log(`  ${r.lap}　${String(r.cleared + '/' + r.total).padStart(7)}　${String(r.battles).padStart(4)} 场　`

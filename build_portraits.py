@@ -42,6 +42,16 @@ BIG       = (420, 560)
 BUST      = 0.58    # 取原图上方这个比例，再拉回 3:4
 Q_BUST    = 52
 
+# 场景原画不是四角露绢底的立绘：以整张最亮的 10% 像素作色温基准，
+# 提亮得更淡，退到章节文字后面也不会抢视线。
+SCENE_SRC, SCENE_OUT = 'assets/scenes/source', 'assets/scenes/web'
+SCENE_BIG, Q_SCENE, SCENE_LIFT = (720, 480), 50, 0.45
+
+def scene_bg(a):
+    flat = a.reshape(-1, 3)
+    lum = flat.mean(axis=1)
+    return flat[lum >= np.quantile(lum, .90)].mean(axis=0)
+
 def silkbg(a):
     h, w, _ = a.shape
     k = int(min(h, w) * 0.07)
@@ -91,6 +101,31 @@ def run(SRC_DIR, OUT_DIR, bust=False):
     print(f'{SRC_DIR} → {n} 张合计 {total/1024:.1f}KB，单张均 {total/n/1024:.1f}KB'
           f'（内嵌后约 {total*1.33/1024:.1f}KB）\n')
 
+def run_scenes():
+    os.makedirs(SCENE_OUT, exist_ok=True)
+    files = sorted(glob.glob(f'{SCENE_SRC}/*.png') + glob.glob(f'{SCENE_SRC}/*.jpg'))
+    if not files:
+        print(f'（{SCENE_SRC}/ 里没有原图，跳过）'); return
+    arrs = {f: np.asarray(Image.open(f).convert('RGB')).astype(np.float64) for f in files}
+    grp = np.mean([scene_bg(a) for a in arrs.values()], axis=0)
+    tgt = grp + (PAPER - grp) * SCENE_LIFT
+    manifest, total = {}, 0
+    for f, a in arrs.items():
+        sid = os.path.splitext(os.path.basename(f))[0]
+        g = np.clip(grp / scene_bg(a), .88, 1.12) * (tgt / grp)
+        im = Image.fromarray(np.clip(a * g, 0, 255).astype(np.uint8))
+        out = f'{SCENE_OUT}/{sid}.webp'
+        im.resize(SCENE_BIG, Image.LANCZOS).filter(ImageFilter.GaussianBlur(BLUR)).save(
+            out, 'WEBP', quality=Q_SCENE, method=6)
+        b = os.path.getsize(out); total += b
+        manifest[sid] = {'scene': f'{sid}.webp', 'bytes': b}
+        print(f'{sid:<16} {b/1024:>6.1f}KB')
+    json.dump(manifest, open(f'{SCENE_OUT}/manifest.json', 'w'), ensure_ascii=False, indent=1)
+    print('-' * 52)
+    print(f'{SCENE_SRC} → {len(files)} 张合计 {total/1024:.1f}KB，单张均 {total/len(files)/1024:.1f}KB'
+          f'（内嵌后约 {total*1.33/1024:.1f}KB）\n')
+
 if __name__ == '__main__':
     for a, b, c in PAIRS:
         run(a, b, c)
+    run_scenes()

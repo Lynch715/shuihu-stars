@@ -4,17 +4,24 @@
 
   python3 build.py
 
-把 src/ 下的源文件 + data/gameData_v10.json + assets/portraits/web/*.webp
-组装成一个自包含的 HTML。产出仍是单文件，但源码是分开的。
+把 src/ 下的源文件 + data/gameData_v10.json 组装成一个 HTML。
+图片不再内嵌：html 里只写相对路径，浏览器按需去取，service worker 负责缓存和离线。
+
+为什么拆：内嵌时整包 gzip 后 4.3MB，其中图片 4.18MB、代码加数据只有 144KB，
+而且游戏要等整页下完才启动 —— 首次打开要干等 4.3MB。拆开后首屏只要一百多 KB，
+每次上线更新也只重下这一百多 KB，图片留在缓存里不动。
+代价：不再是单文件。本地双击 html 照样能玩（相对路径），但要连 assets/ 一起拷。
 
   src/style.css      样式
   src/engine.js      引擎（数据/存档/数值/战斗/养成/结算）
   src/view.js        渲染与演出
   data/gameData_v10.json
-  assets/portraits/web/*.webp   → base64 内联进 window.PORTRAITS（一人一张）
-  assets/portraits/arch/*.webp  → base64 内联进 window.ARCHETYPES（范式，多人共用）
+  assets/portraits/web/*.webp   → window.PORTRAITS  （一人一张）
+  assets/portraits/arch/*.webp  → window.ARCHETYPES （范式，多人共用）
+  assets/scenes/web/*.webp      → window.SCENES     （章节场景）
+  三者的值都是「相对路径?v=内容哈希」。换了图哈希就变，缓存不会拿旧图顶上。
 """
-import base64, json, os, sys, glob, re
+import hashlib, json, os, sys, glob, re
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 def p(*a): return os.path.join(ROOT, *a)
@@ -25,26 +32,44 @@ VERSION = 'V10.0'
 def read(path):
     with open(path, encoding='utf-8') as f: return f.read()
 
+# 图片引用：相对路径 + 内容哈希
+BYTES = {}
+def ref(f):
+    b = open(f, 'rb').read()
+    rel = os.path.relpath(f, ROOT).replace(os.sep, '/')
+    BYTES[rel] = len(b)
+    return f'{rel}?v={hashlib.md5(b).hexdigest()[:8]}'
+
 # ── 素材 ─────────────────────────────────────────────────────────────
 css = read(p('src', 'style.css'))
 engine = read(p('src', 'engine.js'))
 view = read(p('src', 'view.js'))
+pwa = read(p('src', 'pwa.js'))
 data = read(p('data', 'gameData_v10.json'))
 
 # 范式立绘：十二张兜底图，多人共用（见 data/assign_archetype.py）
 arch = {}
 for f in sorted(glob.glob(p('assets', 'portraits', 'arch', '*.webp'))):
     aid = os.path.splitext(os.path.basename(f))[0]
-    with open(f, 'rb') as fh:
-        arch[aid] = 'data:image/webp;base64,' + base64.b64encode(fh.read()).decode()
+    arch[aid] = ref(f)
 
 portraits = {}
 for f in sorted(glob.glob(p('assets', 'portraits', 'web', '*.webp'))):
     hid = os.path.splitext(os.path.basename(f))[0]
     if hid.endswith('_h'):           # 旧的头像档，不再使用
         continue
-    with open(f, 'rb') as fh:
-        portraits[hid] = 'data:image/webp;base64,' + base64.b64encode(fh.read()).decode()
+    portraits[hid] = ref(f)
+
+SCENE_IDS = {'sc_shangang', 'sc_shuipo', 'sc_zhuang', 'sc_zhoucheng',
+             'sc_xueyuan', 'sc_kuangye', 'sc_jiangnan', 'sc_dianting'}
+scenes = {}
+for f in sorted(glob.glob(p('assets', 'scenes', 'web', '*.webp'))):
+    sid = os.path.splitext(os.path.basename(f))[0]
+    if sid not in SCENE_IDS:
+        print('!! 未登记的场景 ID：', sid); sys.exit(1)
+    scenes[sid] = ref(f)
+if set(scenes) != SCENE_IDS:
+    print('!! 场景图缺失：', '、'.join(sorted(SCENE_IDS - set(scenes)))); sys.exit(1)
 
 # 校验：立绘的 hid 必须在数据里
 ids = set(json.loads(data)['heroes'])
@@ -62,8 +87,15 @@ html = f'''<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no,viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0,maximum-scale=1.0,user-scalable=no,viewport-fit=cover">
 <meta name="theme-color" content="#e9e2d0">
+<link rel="icon" href="favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="icon/icon-32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="icon/icon-180.png">
+<link rel="manifest" href="site.webmanifest">
+<meta name="apple-mobile-web-app-title" content="群星录">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
 <title>文字水浒 · 群星录 {VERSION}</title>
 <style>
 {css}</style>
@@ -79,12 +111,15 @@ html = f'''<!DOCTYPE html>
 <div id="toast"></div>
 
 <script type="application/json" id="gameData">{data}</script>
-<script>window.PORTRAITS={json.dumps(portraits)};window.ARCHETYPES={json.dumps(arch)};</script>
+<script>window.PORTRAITS={json.dumps(portraits)};window.ARCHETYPES={json.dumps(arch)};window.SCENES={json.dumps(scenes)};</script>
 <script>
 {engine}
 </script>
 <script>
 {view}
+</script>
+<script>
+{pwa}
 </script>
 </body>
 </html>
@@ -95,12 +130,15 @@ with open(OUT, 'w', encoding='utf-8') as f:
 
 size = os.path.getsize(OUT)
 lines = html.count('\n') + 1
-pb = sum(len(v) for v in portraits.values())
+sz = lambda d: sum(BYTES[v.split('?')[0]] for v in d.values())
+pb = sz(portraits)
 print(f'已构建 {os.path.basename(OUT)}')
 print(f'  大小 {size/1024/1024:.2f}MB　行数 {lines}')
-ab = sum(len(v) for v in arch.values())
+ab = sz(arch)
+sb = sz(scenes)
+print(f'  外置图片（按需加载）')
 print(f'  数据 {len(data)/1024:.0f}KB　立绘 {len(portraits)} 张 / {pb/1024:.0f}KB'
-      f'　范式 {len(arch)} 张 / {ab/1024:.0f}KB')
+      f'　范式 {len(arch)} 张 / {ab/1024:.0f}KB　场景 {len(scenes)} 张 / {sb/1024:.0f}KB')
 print(f'  样式 {len(css)/1024:.0f}KB　引擎 {len(engine)/1024:.0f}KB　视图 {len(view)/1024:.0f}KB')
 
 # 重复函数定义自检 —— 这次重构的核心约束
