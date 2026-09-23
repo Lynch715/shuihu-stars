@@ -26,8 +26,8 @@ import hashlib, json, os, sys, glob, re
 ROOT = os.path.dirname(os.path.abspath(__file__))
 def p(*a): return os.path.join(ROOT, *a)
 
-OUT = p('水浒群星录_V10.1.html')
-VERSION = 'V10.1'
+OUT = p('水浒群星录_V10.2.html')
+VERSION = 'V10.2'
 
 def read(path):
     with open(path, encoding='utf-8') as f: return f.read()

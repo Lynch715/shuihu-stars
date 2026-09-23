@@ -559,7 +559,7 @@ VIEWS.team = () => {
     if (hid) {
       const t = DB.hero(hid), s = Stats.calc(hid);
       slots.push(`<div class="tslot${Hurt.heavy(hid) ? ' hurt-out' : ''}" data-action="hero" data-id="${hid}"
-        data-slot="${i}" draggable="true">
+        data-slot="${i}">
         ${hasPortrait(hid) ? porTag('por', hid)
                            : `<div class="por ph">${weaponSvg(hid)}</div>`}
         ${hurtTag(hid)}
@@ -789,19 +789,55 @@ VIEWS.battle = () => {
   const b = UI.battle;
   if (!b) return '<div class="empty">没有进行中的战斗</div>';
   const n = Math.max(b.allies.length, b.foes.length);
-  return `<div class="board" data-n="${n}">
+  const done = !!b.settled;
+  return `<div class="board${done ? ' done' : ''}" data-n="${n}">
     <div class="bhead"><span>第 <b id="rn">${b.round}</b> 回合</span>
-      <span class="spd" data-action="speed">${['slow', 'normal', 'fast'].map(k =>
+      ${done ? '<span class="bend-h">战　罢</span>'
+      : `<span class="spd" data-action="speed">${['slow', 'normal', 'fast'].map(k =>
         `<i class="${G.speed === k ? 'on' : ''}" data-action="speed" data-id="${k}">${CFG.speedTxt[k]}</i>`
-      ).join('')}</span></div>
+      ).join('')}</span>`}</div>
     <div class="side-label">敌　方</div>
     <div class="grid" id="gfoe">${b.foes.map(u => cellHtml(u, n)).join('')}</div>
     <div class="vs">对　阵</div>
     <div class="side-label">我　方</div>
     <div class="grid" id="gally">${b.allies.map(u => cellHtml(u, n)).join('')}</div>
-    <div class="log" id="blog"></div>
+    ${done ? `<div class="bend">
+      <div class="bend-t ${b.win ? 'win' : 'lose'}">${b.win ? '得　胜' : '败　绩'}</div>
+      <div class="bend-s">共 ${b.round} 回合${b.result === 'timeout' ? ' · 三十回合没分出胜负，按伤亡算' : ''}</div>
+      <div class="btns">
+        <div class="btn" data-action="blog-full">${UI.logFull ? '收起战报' : '看战报'}</div>
+        <div class="btn main" data-action="settle-go">结　算</div>
+      </div></div>` : ''}
+    <div class="log${done && UI.logFull ? ' full' : ''}" id="blog">${done ? logHtml(b.log, !UI.logFull) : ''}</div>
   </div>`;
 };
+
+/* 战报：tail 为真时只取最后两回合（演出中滚动用），否则整场 */
+function logHtml(all, tail) {
+  let cut = all;
+  if (tail) {
+    cut = [];
+    let seen = 0;
+    for (let i = all.length - 1; i >= 0; i--) {
+      if (all[i].c === 'r' && ++seen > 2) break;
+      cut.unshift(all[i]);
+      if (cut.length > 40) break;
+    }
+  }
+  return cut.map(l => `<div class="${l.c}">${esc(l.s)}</div>`).join('');
+}
+
+function openBattleLog() {
+  const b = UI.battle;
+  if (!b) return;
+  $('modal').innerHTML = `<div class="sheet">
+    <div class="shead">战　报 · ${esc(stName(b.stage.name))}</div>
+    <div class="scroll log full" id="mlog">${logHtml(b.log)}</div>
+    <div class="btns"><div class="btn" data-action="modal-close">关　闭</div></div>
+  </div>`;
+  $('modal').classList.add('on');
+  const m = $('mlog'); if (m) m.scrollTop = 0;
+}
 
 VIEWS.result = () => {
   const b = UI.battle, r = UI.rewards || [];
@@ -821,6 +857,7 @@ VIEWS.result = () => {
         : '<div class="btn main" data-action="go" data-id="stages">回关隘</div>'}
       <div class="btn" data-action="fight" data-id="${b.sid}">再战一场</div>
     </div>
+    <div class="btns"><div class="btn" data-action="blog-modal">战　报</div></div>
   </div>`;
 };
 
@@ -869,7 +906,7 @@ const Play = {
   start(sid) {
     const b = Battle.create(sid);
     if (!b || !b.allies.length) { toast('先去布阵'); return; }
-    UI.battle = b; UI.view = 'battle'; UI.playing = true; this.tok++;
+    UI.battle = b; UI.view = 'battle'; UI.playing = true; UI.logFull = false; this.tok++;
     this.shown = 0;
     render();
     this.step();
@@ -878,7 +915,7 @@ const Play = {
   /** 打到后面回合数多，节奏自然该收一收 —— 开场看得清，鏖战不拖沓 */
   rate(round) {
     const s = CFG.speeds[G.speed] || 1;
-    const decay = round <= 6 ? 1 : round <= 12 ? 0.8 : round <= 20 ? 0.62 : 0.5;
+    const decay = round <= 6 ? 1 : round <= 12 ? 0.9 : round <= 20 ? 0.8 : 0.7;
     return CFG.beatBase * s * decay;
   },
 
@@ -898,7 +935,7 @@ const Play = {
     if (!b || b.over) return this.finish();
     const ev = Battle.runRound(b);
     const span = this.paint(b, ev);
-    if (b.over) { setTimeout(() => this.finish(), G.speed === 'fast' ? 300 : 900); return; }
+    if (b.over) { setTimeout(() => this.finish(), span); return; }
     setTimeout(() => this.step(), span);
   },
 
@@ -941,7 +978,7 @@ const Play = {
 
   /** 放一拍：出手方前倾，技能名浮出，伤害逐个落下，战报同步往下写 */
   playBeat(b, bt, shot, dur) {
-    const hold = Math.max(180, Math.min(1100, (dur || 300) * 0.88));
+    const hold = Math.max(180, Math.min(1500, (dur || 300) * 0.88));
     let li = 0;
     for (const e of bt.evs) {
       if (e.li != null) li = Math.max(li, e.li);
@@ -991,24 +1028,22 @@ const Play = {
   log(b, upto) {
     const lg = $('blog');
     if (!lg) return;
-    const all = upto ? b.log.slice(0, upto) : b.log;
-    const cut = [];
-    let seen = 0;
-    for (let i = all.length - 1; i >= 0; i--) {
-      if (all[i].c === 'r' && ++seen > 2) break;
-      cut.unshift(all[i]);
-      if (cut.length > 40) break;
-    }
-    lg.innerHTML = cut.map(l => `<div class="${l.c}">${esc(l.s)}</div>`).join('');
+    lg.innerHTML = logHtml(upto ? b.log.slice(0, upto) : b.log, true);
     lg.scrollTop = lg.scrollHeight;
   },
 
+  /* 打完先停在战场上，让人看一眼战况、翻翻战报，按「结算」才去结算页。
+     奖励和伤病这一刻就记进存档 —— 不点结算直接走开，东西也不会丢。 */
   finish() {
     const b = UI.battle;
+    if (!b || b.settled) return;
+    this.tok++;
     UI.playing = false;
     UI.rewards = Stages.settle(b);
-    UI.view = 'result';
+    b.settled = true;
+    if (UI.view !== 'battle') { toast(b.win ? '刚才那一仗打赢了，东西已入囊' : '刚才那一仗输了'); return; }
     render();
+    const lg = $('blog'); if (lg) lg.scrollTop = lg.scrollHeight;
   },
 };
 
@@ -1160,6 +1195,16 @@ document.addEventListener('pointerdown', ev => Drag.start(ev));
 document.addEventListener('pointermove', ev => Drag.move(ev), { passive: false });
 document.addEventListener('pointerup', ev => Drag.end(ev));
 document.addEventListener('pointercancel', () => Drag.cancel());
+/* 手机上光在 pointermove 里 preventDefault 拦不住滚动：手指一动浏览器就接管去滚页面，
+   随手发一个 pointercancel，拖拽当场作废。得在 touchmove 上拦（必须非 passive）。
+   只在「已经拿起来」之后拦，没按够时间就滑，照样是翻页。 */
+document.addEventListener('touchmove', ev => {
+  if (Drag.from >= 0 && Drag.armed && ev.cancelable) ev.preventDefault();
+}, { passive: false });
+/* 长按立绘会弹出存图菜单，也会打断拖拽 */
+document.addEventListener('contextmenu', ev => {
+  if (ev.target.closest && ev.target.closest('.tslot')) ev.preventDefault();
+});
 
 document.addEventListener('click', ev => {
   // 刚拖完那一下不要再当成点击，否则松手就跳进详情页
@@ -1199,7 +1244,7 @@ document.addEventListener('click', ev => {
       const b = Battle.create(id);
       if (!b || !b.allies.length) { toast('先去布阵'); break; }
       Battle.runAll(b);
-      UI.battle = b; UI.rewards = Stages.settle(b); UI.view = 'result'; UI.playing = false;
+      UI.battle = b; UI.rewards = Stages.settle(b); b.settled = true; UI.view = 'result'; UI.playing = false;
       render(); break;
     }
     case 'speed': {
@@ -1263,6 +1308,18 @@ document.addEventListener('click', ev => {
     case 'equip-do': { const e = Grow.equip(id, slot, el.dataset.eid); closeModal(); toast(e || '换好了'); render(); break; }
     case 'unequip': { const e = Grow.unequip(id, slot); toast(e || '已卸下'); render(); break; }
     case 'modal-close': closeModal(); break;
+    case 'settle-go': if (UI.battle && UI.battle.settled) { UI.view = 'result'; render(); } break;
+    case 'blog-full': {
+      UI.logFull = !UI.logFull;
+      render();
+      const lg = $('blog');
+      if (lg) {
+        lg.scrollTop = lg.scrollHeight;
+        if (UI.logFull) lg.scrollIntoView({ block: 'start', behavior: 'smooth' });
+      }
+      break;
+    }
+    case 'blog-modal': openBattleLog(); break;
     case 'pwa-install': Pwa.install(); break;
     case 'pwa-later': Pwa.later(); break;
     case 'pwa-offer': Pwa.offer(); break;

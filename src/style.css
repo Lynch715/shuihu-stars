@@ -342,7 +342,9 @@ body{
 .cx.no{color:var(--ink-4);cursor:default}
 
 /* 布阵拖动 */
-.tslot{touch-action:manipulation;transition:box-shadow .15s}
+.tslot{touch-action:manipulation;transition:box-shadow .15s;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none}
+.tslot img{-webkit-user-drag:none;user-drag:none;pointer-events:none}
 .tslot.lifting{box-shadow:0 4px 14px rgba(42,37,31,.28);opacity:.92;
   transition:none;cursor:grabbing;pointer-events:none}
 .tslot.over{box-shadow:0 0 0 2px var(--gold) inset}
@@ -514,6 +516,8 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
   font-size:.84em;line-height:1.9;max-height:150px;overflow-y:auto}
 .log .r{font-family:var(--f-title);color:var(--ink-2);border-bottom:1px dotted var(--ink-4);
   margin:4px 0 2px;letter-spacing:.14em}
+.log.full{max-height:62vh;max-height:62dvh}
+.sheet .log.full{max-height:none;margin-top:6px}
 .log .sk{color:var(--q-tian)}.log .dm{color:var(--cinnabar)}
 .log .he{color:var(--q-meng)}.log .sh{color:var(--indigo)}.log .in{color:var(--ink-3)}
 /* 立绘尺寸随上阵人数切档 */
@@ -591,3 +595,15 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .itrow:has(.eqs) .n{flex:none}
 .itrow:has(.eqs) .s{flex:0 0 auto}
 .eqrow .act{margin-left:auto;flex:none}
+
+/* V10.2 打完停在战场：结果横幅 + 看战报 / 结算 */
+.bend-h{color:var(--ink-3);letter-spacing:.2em}
+.bend-t{font-family:var(--f-title);letter-spacing:.2em}
+.bend-t.win{color:var(--q-meng)}.bend-t.lose{color:var(--cinnabar)}
+.bend{margin-top:10px;border:1px solid var(--ink-3);background:var(--paper);padding:10px 12px 12px;
+  text-align:center;animation:fade-in .35s ease-out}
+.bend .bend-t{font-size:1.45em;letter-spacing:.3em;text-indent:.3em}
+.bend-s{font-size:.78em;color:var(--ink-3);margin-top:2px}
+.bend .btns{margin-top:10px}
+.board.done .cell{transition:opacity .3s}
+@keyframes fade-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}

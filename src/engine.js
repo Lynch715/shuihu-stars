@@ -158,7 +158,9 @@ const CFG = {
      出了人命、暴击、群攻的拍子给更多停留时间。 */
   beatBase: 150,          // 一拍的基准毫秒
   roundMin: 900,          // 一回合最少占多久，免得三两下的回合一闪而过
-  speeds: { slow: 1.6, normal: 1.0, fast: 0.26 },
+  /* V10.2 拉开三档：原来 缓 1.6 / 常 1.0 / 疾 0.26，缓和常只差六成，手机上分不出来，
+     常速本身也嫌快。现在前几回合一回合约 缓 5.5 秒 / 常 3.3 秒 / 疾 1.2 秒。 */
+  speeds: { slow: 3.0, normal: 1.7, fast: 0.6 },
   speedTxt: { slow: '缓', normal: '常', fast: '疾' },
   roundDelay: 520,        // 回合之间的停顿 ms
   saveKey: 'shuihu_v10',
