@@ -763,8 +763,12 @@ const CFG = {
   lapFoeBy: { 1: 1, 2: 0.85 },
   lapFoeMax: 0.86,
   /* V10.3.4 二三周目大幅抬难度：星级每周目 +2、关卡补满九人、穿甲不低于一成。 */
-  lapStarAdd: 2,
-  lapGearFloor: 0.10,
+  /* V10.3.5 二周目起敌方星级、装备配齐：星级 = 上一周目的上限（Boss 关再 +1，不超本周目上限），
+     穿甲 = 15% 起、每周目 +5%，章内再按 foeGear 往上走。 */
+  lapStarBoss: 0,   // Boss 再 +1 星时 ch7 / ch15 / ch22 的 Boss 关三局三停
+  lapGear: { 2: 0.15 }, lapGearStep: 0.05,
+  /* 二周目起杂兵换成同阵营名将：普通关只换猛/名（≤4），Boss 与支线不限。见 Battle.roster */
+  lapRosterQ: 4,
   /* V10.3 再下调（原 1.00 / 1.06）：技能整套换过之后敌方的绝世将（孙安、邓元觉这些）指挥+护盾+治疗一套齐，
      二周目按 1.00 打，停在 ch20_f2 田虎决战·孙安，伤员 12；0.94 一轮 139 场全过。 */
   /* V10.1 下调（原 1.12 / 1.18）。人只能靠抽之后，一周目带进二周目的阵容
@@ -1624,7 +1628,11 @@ const Stats = {
    * 等级与星级保持叙事诚实，界面显示即真实。
    */
   /** 关卡强度系数按这个敌人的品质封顶再乘折扣 */
-  foeMul(hid, tier) { return Lap.foeMulOf(tier.mul, (DB.hero(hid) || {}).q, tier.ch) * (tier.ease == null ? 1 : tier.ease); },
+  foeMul(hid, tier) {
+    // 二周目起支线关的倍率再打七五折：ch20_f2 田虎决战七个名将 ★5 ×2.0，三局三停
+    const sideCut = (tier.side && Lap.now() > 1) ? 0.75 : 1;
+    return Lap.foeMulOf(tier.mul, (DB.hero(hid) || {}).q, tier.ch) * (tier.ease == null ? 1 : tier.ease) * sideCut;
+  },
 
   calcEnemy(hid, lv, star, mul, gear) {
     const base = grownBase(hid, lv);
@@ -1656,7 +1664,7 @@ const Stats = {
     const st = DB.stage(sid);
     if (!st) return 0;
     const t = Battle.enemyTier(sid);
-    return (st.enemies || []).reduce((a, e) => a + this.power(this.calcEnemy(e, t.lv, t.star, this.foeMul(e, t), t.gear)), 0);
+    return Battle.roster(sid).reduce((a, e) => a + this.power(this.calcEnemy(e, t.lv, t.star, this.foeMul(e, t), t.gear)), 0);
   },
 };
 
@@ -1677,15 +1685,46 @@ const Battle = {
       lv: side ? Math.min(lv0, Lap.maxLv() + 1) : lv0,
       // 二周目起敌方也跟着多一星，上限与玩家同档
       // V10.3.4 二周目起每周目多两星（原来一星）：二周目玩家已是 ★6，敌人才 4 星
-      star: Math.min(Lap.maxStar(),
-             (st.enemy_star || (ch > 21 ? 5 : ch > 10 ? 4 : ch > 3 ? 3 : 2)) + CFG.lapStarAdd * (Lap.now() - 1)),
+      star: Lap.now() <= 1
+        ? (st.enemy_star || (ch > 21 ? 5 : ch > 10 ? 4 : ch > 3 ? 3 : 2))
+        : Math.min(Lap.maxStar(), Lap.maxStar(Lap.now() - 1) + (st.is_boss ? CFG.lapStarBoss : 0)),
       // mul 按敌人品质封顶，这里给的是「封顶前」的值，calcEnemy 那头按人封
       mul: (st.enemy_mul != null ? st.enemy_mul : 1),
       ease: (Lap.now() <= 1 ? foeEase(ch, side) : 1) * (G.mode === 'chaos' ? CFG.chaosEase : 1),
-      gear: side ? 0 : Math.max(Lap.foeGear(ch), Lap.now() > 1 ? CFG.lapGearFloor : 0),
+      gear: Lap.now() <= 1 ? (side ? 0 : Lap.foeGear(ch))
+          : (CFG.lapGear[Lap.now()] != null ? CFG.lapGear[Lap.now()] : CFG.lapGear[2] + CFG.lapGearStep * (Lap.now() - 2)) + Lap.foeGear(ch),
       side,
       ch,
     };
+  },
+
+  /** 这一关这一周目的敌方名单。关卡页显示与开打用同一份。
+   *  一周目照数据；二周目起杂兵换成同阵营名将、补满九人，名单按 sid+周目定死，看到什么打什么。 */
+  roster(sid) {
+    const st = DB.stage(sid);
+    if (!st) return [];
+    const base = (st.enemies || []).slice();
+    if (Lap.now() <= 1) return base;
+    const side = !!st.hidden || (/_f\d+$/.test(sid) && (DB.byChapter[st.ch] || []).some(x => !/_f\d+$/.test(x) && !(DB.stage(x) || {}).hidden));
+    const named = base.filter(e => (DB.hero(e) || {}).src !== '杂兵');
+    const facs = new Set(named.map(e => DB.hero(e).faction).filter(Boolean));
+    const qmax = st.is_boss ? 6 : CFG.lapRosterQ;   // 支线本来就高六级，换人也只换猛名，不然 ch20_f2 三局全停
+    const used = new Set(named);
+    // 候选：同阵营在前，无阵营的朝廷/说岳人物垫后；同一关不重复；顺序按 sid+周目哈希定死
+    const h32 = str => { let h = 2166136261; for (const c of str) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } return h; };
+    const key = sid + '#' + Lap.now();
+    const cand = DB.heroIds().filter(k => { const t = DB.hero(k); return t.src !== '杂兵' && !used.has(k) && t.q <= qmax && t.q >= 2; })
+      .map(k => ({ k, f: facs.has(DB.hero(k).faction) ? 0 : !DB.hero(k).faction ? 1 : 2, r: h32(key + k) }))
+      .filter(x => x.f < 2)
+      .sort((a, c) => a.f - c.f || a.r - c.r).map(x => x.k);
+    const out = named.slice();
+    let i = 0;
+    // 先把杂兵一个个换掉，再补到九人
+    const want = Math.max(base.length, CFG.teamSize);
+    while (out.length < want && i < cand.length) out.push(cand[i++]);
+    // 候选不够（阵营小又都用过）就用原有名将复制
+    for (let j = 0; out.length < want && named.length; j++) out.push(named[j % named.length]);
+    return out;
   },
 
   unit(hid, stats, ally, idx) {
@@ -1730,16 +1769,7 @@ const Battle = {
       .map((hid, i) => { const s = Stats.calc(hid); return s ? this.unit(hid, s, true, i) : null; })
       .filter(Boolean);
     // 地煞星：敌方每关多一人，从这一关已有的敌人里再抽一个补上
-    let elist = (st.enemies || []).slice();
-    // V10.3.4 二周目起补满九人：前中期关卡本来五六个人，玩家九个满配打六个没意思。
-    // 补的是这一关的名将（杂兵不算），一个名将都没有的关才用杂兵补
-    // 支线/隐藏关不补：本来就高六级、系数更高，二周目补满九人就是墙（ch20_f2 田虎决战·孙安）
-    if (Lap.now() > 1 && !tier.side && elist.length && elist.length < CFG.teamSize) {
-      // 补的从这一关最弱的名将起：把方腊石宝再复制两份，二周目十六章就是墙（三局停两局）
-      const named = elist.filter(e => (DB.hero(e) || {}).src !== '杂兵').sort((a, c) => DB.hero(a).q - DB.hero(c).q);
-      const pool = named.length ? named : elist;
-      for (let i = 0; elist.length < CFG.teamSize; i++) elist.push(pool[i % pool.length]);
-    }
+    let elist = this.roster(sid);
     if (elist.length && Fate.has('foeMore')) {
       const n = Math.round(Fate.v('foeMore', 0));
       for (let i = 0; i < n; i++) elist.push(elist[Math.floor(rnd() * elist.length)]);
@@ -2801,7 +2831,7 @@ const Guide = {
       return { txt: '银两够十连了', sub: '去酒肆招兵买马', act: 'go', id: 'tavern' };
 
     if (st) return { txt: `下一关：${stName(st.name)}`,
-      sub: `第${st.ch}章 · 推荐 ${Lap.recLv(st.rec_lv || [1, 5])[1]} 级 · 敌 ${(st.enemies || []).length} 人`,
+      sub: `第${st.ch}章 · 推荐 ${Lap.recLv(st.rec_lv || [1, 5])[1]} 级 · 敌 ${Battle.roster(sid).length} 人`,
       act: 'stage', id: nextStage };
     return { txt: '关隘已经打通了', sub: '石碣上的名字，还差几个', act: 'go', id: 'codex' };
   },
@@ -3604,7 +3634,7 @@ VIEWS.stages = () => {
       const plain = !st.is_boss && !st.hidden && !/_f\d/.test(sid);
       const k = plain ? ord++ : -1;
       const open = Stages.unlocked(sid), done = !!G.cleared[sid];
-      const n = (st.enemies || []).length;
+      const n = Battle.roster(sid).length;
       html += `<div class="stage${done ? ' done' : ''}${open ? '' : ' lock'}"
           ${open ? `data-action="stage" data-id="${sid}"` : ''}>
         <div class="no">${st.is_boss ? '王' : st.hidden ? '秘' : /_f\d/.test(sid) ? '支'
@@ -3631,7 +3661,7 @@ VIEWS.stage = () => {
                 : r >= 0.9 ? ['势均力敌', 'mid'] : r >= 0.7 ? ['颇为吃力', 'bad'] : ['恐难取胜', 'bad'];
   const dlg = DB.dialog(sid);
   const tier = Battle.enemyTier(sid);
-  const foes = (st.enemies || []).map(e => DB.hero(e)).filter(Boolean);
+  const foes = Battle.roster(sid).map(e => DB.hero(e)).filter(Boolean);
 
   return `<div class="frame stage-frame">
     ${sceneLayer(st.ch, 'scene-stage')}

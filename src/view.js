@@ -570,7 +570,7 @@ VIEWS.stages = () => {
       const plain = !st.is_boss && !st.hidden && !/_f\d/.test(sid);
       const k = plain ? ord++ : -1;
       const open = Stages.unlocked(sid), done = !!G.cleared[sid];
-      const n = (st.enemies || []).length;
+      const n = Battle.roster(sid).length;
       html += `<div class="stage${done ? ' done' : ''}${open ? '' : ' lock'}"
           ${open ? `data-action="stage" data-id="${sid}"` : ''}>
         <div class="no">${st.is_boss ? '王' : st.hidden ? '秘' : /_f\d/.test(sid) ? '支'
@@ -597,7 +597,7 @@ VIEWS.stage = () => {
                 : r >= 0.9 ? ['势均力敌', 'mid'] : r >= 0.7 ? ['颇为吃力', 'bad'] : ['恐难取胜', 'bad'];
   const dlg = DB.dialog(sid);
   const tier = Battle.enemyTier(sid);
-  const foes = (st.enemies || []).map(e => DB.hero(e)).filter(Boolean);
+  const foes = Battle.roster(sid).map(e => DB.hero(e)).filter(Boolean);
 
   return `<div class="frame stage-frame">
     ${sceneLayer(st.ch, 'scene-stage')}
