@@ -2068,8 +2068,9 @@ const Battle = {
 
   cast(b, u, sk) {
     const mod = u.skillMod;
-    const tagTxt = sk.cat === 'cmd' ? '（指挥）' : '';
-    b.log.push({ c: 'sk', s: `${u.ln} · ${sk.name}${tagTxt}` });
+    // 技能名后面把效果写全：「林冲 · 豹头环眼｜对单体造成200%伤害；30%几率使命中者眩晕1回合」
+    const tagTxt = sk.cat === 'cmd' ? '（指挥）' : sk.cat === 'sure' ? '（必中）' : '';
+    b.log.push({ c: 'sk', s: `${u.ln} · ${sk.name}${tagTxt}｜${SkillText.desc(sk)}` });
     this.ev(b, { k: 'cast', t: u.idx, ally: u.ally, name: sk.name });
     let hit = [];
     for (const f of sk.fx || []) {
