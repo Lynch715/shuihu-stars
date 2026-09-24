@@ -69,6 +69,24 @@ function weaponSvg(hid) {
 const seal = q => `<span class="seal ${QCLS[q]}">${QSEAL[q]}</span>`;
 const stars = n => '★'.repeat(n) + '☆'.repeat(Math.max(0, Lap.maxStar() - n));
 
+/* 群将谱用的小牌：跟布阵的格子一个尺寸、一个版式（三列、立绘 3:4、名字在下），
+   两页来回切时人不会忽大忽小。品阶印、在阵标、伤势标叠在立绘上。 */
+function plateSm(hid) {
+  const t = DB.hero(hid), h = G.heroes[hid];
+  if (!t) return '';
+  const s = h ? Stats.calc(hid) : null;
+  const inTeam = G.team.includes(hid);
+  return `<div class="tslot pl${t.q === 6 ? ' jue' : ''}${Hurt.heavy(hid) ? ' hurt-out' : ''}" data-action="hero" data-id="${hid}">
+    ${hasPortrait(hid) ? porTag('por', hid) : `<div class="por ph">${weaponSvg(hid)}</div>`}
+    ${seal(t.q)}
+    ${inTeam ? '<span class="onfield">阵</span>' : ''}
+    ${hurtTag(hid)}
+    <div class="n">${esc(t.name)}</div>
+    <div class="v">${h ? `Lv.${h.lv} <b>${'★'.repeat(h.star)}</b>` : esc(titleOf(t))}</div>
+    ${s ? `<div class="v">武${s.atk} 血${s.maxHp}</div>` : ''}
+  </div>`;
+}
+
 function plate(hid, extra) {
   const t = DB.hero(hid), h = G.heroes[hid];
   if (!t) return '';
@@ -431,7 +449,7 @@ VIEWS.heroes = () => {
 
   return section('heroes', `群将谱（${ids.length}${ids.length < all ? ` / ${all}` : ''}）`,
     bar + (ids.length
-      ? `<div class="plates">${ids.map(h => plate(h)).join('')}</div>`
+      ? `<div class="plates sm">${ids.map(h => plateSm(h)).join('')}</div>`
       : '<div class="empty">这一档下没人</div>'));
 };
 

@@ -677,6 +677,15 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .log .sk{display:block}
 .log .sk b{display:inline;width:auto;min-width:0;font-family:inherit;font-size:inherit;gap:0}
 .log .st{color:var(--q-tian)}
+
+/* ── 群将谱小牌：与布阵格子同尺寸 ─────────────────────────────────── */
+.plates.sm{grid-template-columns:repeat(3,1fr);gap:8px}
+.tslot.pl .seal{right:6px;top:6px;width:20px;height:20px;line-height:16px;font-size:.74em}
+.tslot.pl .onfield{position:absolute;left:7px;top:7px;z-index:3;font-family:var(--f-title);font-size:.66em;
+  color:var(--cinnabar);border:1.4px solid var(--cinnabar);padding:0 3px;background:rgba(233,226,208,.7)}
+.tslot.pl .hurt{position:absolute;left:6px;bottom:52px;z-index:3}
+.tslot.pl .v b{font-weight:400;color:var(--gold);letter-spacing:.05em;font-size:.9em}
+.tslot.pl.jue{box-shadow:inset 0 0 0 1px var(--paper),inset 0 0 0 2px rgba(168,128,44,.38)}
 </style>
 </head>
 <body>
@@ -3093,6 +3102,24 @@ function weaponSvg(hid) {
 const seal = q => `<span class="seal ${QCLS[q]}">${QSEAL[q]}</span>`;
 const stars = n => '★'.repeat(n) + '☆'.repeat(Math.max(0, Lap.maxStar() - n));
 
+/* 群将谱用的小牌：跟布阵的格子一个尺寸、一个版式（三列、立绘 3:4、名字在下），
+   两页来回切时人不会忽大忽小。品阶印、在阵标、伤势标叠在立绘上。 */
+function plateSm(hid) {
+  const t = DB.hero(hid), h = G.heroes[hid];
+  if (!t) return '';
+  const s = h ? Stats.calc(hid) : null;
+  const inTeam = G.team.includes(hid);
+  return `<div class="tslot pl${t.q === 6 ? ' jue' : ''}${Hurt.heavy(hid) ? ' hurt-out' : ''}" data-action="hero" data-id="${hid}">
+    ${hasPortrait(hid) ? porTag('por', hid) : `<div class="por ph">${weaponSvg(hid)}</div>`}
+    ${seal(t.q)}
+    ${inTeam ? '<span class="onfield">阵</span>' : ''}
+    ${hurtTag(hid)}
+    <div class="n">${esc(t.name)}</div>
+    <div class="v">${h ? `Lv.${h.lv} <b>${'★'.repeat(h.star)}</b>` : esc(titleOf(t))}</div>
+    ${s ? `<div class="v">武${s.atk} 血${s.maxHp}</div>` : ''}
+  </div>`;
+}
+
 function plate(hid, extra) {
   const t = DB.hero(hid), h = G.heroes[hid];
   if (!t) return '';
@@ -3455,7 +3482,7 @@ VIEWS.heroes = () => {
 
   return section('heroes', `群将谱（${ids.length}${ids.length < all ? ` / ${all}` : ''}）`,
     bar + (ids.length
-      ? `<div class="plates">${ids.map(h => plate(h)).join('')}</div>`
+      ? `<div class="plates sm">${ids.map(h => plateSm(h)).join('')}</div>`
       : '<div class="empty">这一档下没人</div>'));
 };
 
