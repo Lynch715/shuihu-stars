@@ -38,7 +38,7 @@ const CFG = {
   /* V10.3.2 后段拉伸：数据里的敌级 3→50，玩家二十二章就满 50 级，之后十来章一直是满级打低级。
      30 级以上的敌级按比例拉到 52：末章敌人略高于玩家上限（55 时 ch30_f2 三局停一局），
      得靠星级和装备去啃 —— 这才是「Boss 卡一下」。周目区间也跟着多 8 级。 */
-  foeStretch: [30, 52],
+  foeStretch: [30, 50],
   /* 周目区间不跟着拉伸：63 对 60 二周目停在 ch20_f2，73 对 70 三周目停在 ch22_boss。
      二三周目本来就有穿甲和星级压着，等级别再超过玩家上限。 */
   lapBand: { 2: [46, 60], 3: [56, 70] },   // 查不到的周目一律取 lapBandMax
@@ -56,8 +56,11 @@ const CFG = {
      1.12→234/310 场，1.18→292 场且三局里有一局停在 136。
      三周目 1.18→139/196 场，1.24 与 1.30 都卡在 ch30_f1，
      玩家练到 60 级就没钱再练，够不着 70。取 1.12 / 1.18。 */
-  lapFoeBy: { 1: 1, 2: 0.94 },
-  lapFoeMax: 1.0,
+  lapFoeBy: { 1: 1, 2: 0.85 },
+  lapFoeMax: 0.86,
+  /* V10.3.4 二三周目大幅抬难度：星级每周目 +2、关卡补满九人、穿甲不低于一成。 */
+  lapStarAdd: 2,
+  lapGearFloor: 0.10,
   /* V10.3 再下调（原 1.00 / 1.06）：技能整套换过之后敌方的绝世将（孙安、邓元觉这些）指挥+护盾+治疗一套齐，
      二周目按 1.00 打，停在 ch20_f2 田虎决战·孙安，伤员 12；0.94 一轮 139 场全过。 */
   /* V10.1 下调（原 1.12 / 1.18）。人只能靠抽之后，一周目带进二周目的阵容
@@ -74,7 +77,7 @@ const CFG = {
   /* V10.3.2 封顶按敌人品质分档：封顶是为了不让吴用、岳飞这种名将 ×6 一回合团灭；
      后段十来章满是 mul 5.4 的小喽啰，一刀切到 3 之后 27–33 章一次重试都没有。
      凡良杂兵底子薄，×5.5 也就是个像样的兵。 */
-  lapMulCap: { 1: 4.5, 2: 4.5, 3: 3.5, 4: 2.5, 5: 2.5, 6: 2.5 },
+  lapMulCap: { 1: 4.5, 2: 4.5, 3: 3.5, 4: 2.0, 5: 2.0, 6: 2.0 },
   /* V10.3.1 一周目也封顶。关卡的 enemy_mul 是在「成长算两遍、五十级血是武的二十倍、一仗打三十回合」
      那套公式下反推出来的，mul 6 靠玩家耗得起才成立。成长只算一次之后一仗只有几回合，
      mul 6 的敌人（武防 ×6）第一回合就把人打空 —— 第四、八、二十二章各卡一两百场。 */
@@ -175,6 +178,9 @@ const CFG = {
      兵符是通用碎片：首通给，任何人都能用，星级这才走得动。 */
   tokenBy: { normal: 0, side: 2, boss: 4, hidden: 6 },
   starCost: { 1: 2, 2: 4, 3: 8, 4: 16, 5: 32, 6: 64 },
+  /* V10.3.4 升星消耗按品质分档：兵符是万能碎片，绝世和凡将升一星花一样多说不过去。
+     名（q4）照旧，往下打折、往上加价；本人碎片也按这个数扣。 */
+  starCostQ: { 1: 0.5, 2: 0.6, 3: 0.8, 4: 1.0, 5: 1.4, 6: 2.0 },
   fragByQ: { 1: 1, 2: 2, 3: 3, 4: 5, 5: 8, 6: 12 },
   fragMelt: 2,            // 满星之后，几片本人碎片折一枚兵符
   /* 专属装备只从 Boss 关掉，概率极低。每次打赢 Boss（含速战）摇一次。 */
@@ -964,12 +970,14 @@ const Battle = {
     return {
       lv: side ? Math.min(lv0, Lap.maxLv() + 1) : lv0,
       // 二周目起敌方也跟着多一星，上限与玩家同档
+      // V10.3.4 二周目起每周目多两星（原来一星）：二周目玩家已是 ★6，敌人才 4 星
       star: Math.min(Lap.maxStar(),
-             (st.enemy_star || (ch > 21 ? 5 : ch > 10 ? 4 : ch > 3 ? 3 : 2)) + (Lap.now() - 1)),
+             (st.enemy_star || (ch > 21 ? 5 : ch > 10 ? 4 : ch > 3 ? 3 : 2)) + CFG.lapStarAdd * (Lap.now() - 1)),
       // mul 按敌人品质封顶，这里给的是「封顶前」的值，calcEnemy 那头按人封
       mul: (st.enemy_mul != null ? st.enemy_mul : 1),
       ease: (Lap.now() <= 1 ? foeEase(ch, side) : 1) * (G.mode === 'chaos' ? CFG.chaosEase : 1),
-      gear: side ? 0 : Lap.foeGear(ch),
+      gear: side ? 0 : Math.max(Lap.foeGear(ch), Lap.now() > 1 ? CFG.lapGearFloor : 0),
+      side,
       ch,
     };
   },
@@ -1017,6 +1025,15 @@ const Battle = {
       .filter(Boolean);
     // 地煞星：敌方每关多一人，从这一关已有的敌人里再抽一个补上
     let elist = (st.enemies || []).slice();
+    // V10.3.4 二周目起补满九人：前中期关卡本来五六个人，玩家九个满配打六个没意思。
+    // 补的是这一关的名将（杂兵不算），一个名将都没有的关才用杂兵补
+    // 支线/隐藏关不补：本来就高六级、系数更高，二周目补满九人就是墙（ch20_f2 田虎决战·孙安）
+    if (Lap.now() > 1 && !tier.side && elist.length && elist.length < CFG.teamSize) {
+      // 补的从这一关最弱的名将起：把方腊石宝再复制两份，二周目十六章就是墙（三局停两局）
+      const named = elist.filter(e => (DB.hero(e) || {}).src !== '杂兵').sort((a, c) => DB.hero(a).q - DB.hero(c).q);
+      const pool = named.length ? named : elist;
+      for (let i = 0; elist.length < CFG.teamSize; i++) elist.push(pool[i % pool.length]);
+    }
     if (elist.length && Fate.has('foeMore')) {
       const n = Math.round(Fate.v('foeMore', 0));
       for (let i = 0; i < n; i++) elist.push(elist[Math.floor(rnd() * elist.length)]);
@@ -1694,11 +1711,17 @@ const Grow = {
   /** 升星账。按钮、群将筛选、首页提示都读这一份，不再各算各的。
    *  先扣本人碎片，不够的用兵符补。
    *  原来还有三种「无主碎片」夹在中间，跟兵符干的是同一件事，V10.1 并进兵符了。 */
+  /** 某人从 star 升到 star+1 要几片：基础表 × 品质系数 */
+  starCostOf(hid, star) {
+    const q = (DB.hero(hid) || {}).q || 1;
+    return Math.max(1, Math.round((CFG.starCost[star] || 99) * (CFG.starCostQ[q] || 1)));
+  },
+
   starNeed(hid) {
     const h = G.heroes[hid];
     if (!h) return null;
     if (h.star >= Lap.maxStar()) return { max: true };
-    const cost = CFG.starCost[h.star] || 99;
+    const cost = this.starCostOf(hid, h.star);
     const own = G.frags[hid] || 0;
     const useOwn = Math.min(own, cost);
     const token = cost - useOwn;
