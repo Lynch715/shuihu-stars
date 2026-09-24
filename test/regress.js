@@ -241,6 +241,19 @@ check('混乱模式：每人四招随机、不重复、写进存档', async b =>
     : [false, JSON.stringify(r)];
 });
 
+check('文官武将血量差距在 1.5–3.5 倍内（50 级同品质）', async b => {
+  const { ctx, page } = await fresh(b);
+  const r = await page.evaluate(() => {
+    const hp = (hid, lv) => { const s = Stats.calcEnemy(hid, lv, 4, 1); return s.maxHp; };
+    const pairs = [['lu_zhishen', 'wu_yong'], ['li_kui', 'an_daoquan'], ['wu_song', 'gongsun_sheng'], ['lin_chong', 'wu_yong']];
+    return pairs.map(([a, c]) => ({ a: DB.hero(a).name, c: DB.hero(c).name, ha: hp(a, 50), hc: hp(c, 50), k: +(hp(a, 50) / hp(c, 50)).toFixed(2) }));
+  });
+  await ctx.close();
+  const bad = r.filter(x => x.k < 1.5 || x.k > 3.5);
+  const txt = r.map(x => `${x.a}${x.ha}/${x.c}${x.hc}=${x.k}×`).join('　');
+  return bad.length ? [false, txt] : [true, txt];
+});
+
 check('发动率与公示一致', async b => {
   const { ctx, page } = await fresh(b);
   const r = await page.evaluate(() => {

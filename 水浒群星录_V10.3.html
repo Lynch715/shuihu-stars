@@ -738,12 +738,16 @@ const CFG = {
      剩下那两局挂在伤员上（卡住时账上还有 7–16k 银两、练级已到 70 级上限、
      伤员 9–22 人），那是伤病系统的账，不是这道系数能救的。 */
   lapMulCap: 2.5,
+  /* V10.3.1 一周目也封顶。关卡的 enemy_mul 是在「成长算两遍、五十级血是武的二十倍、一仗打三十回合」
+     那套公式下反推出来的，mul 6 靠玩家耗得起才成立。成长只算一次之后一仗只有几回合，
+     mul 6 的敌人（武防 ×6）第一回合就把人打空 —— 第四、八、二十二章各卡一两百场。 */
+  mulCap1: 3.0,
   /* V10.1 一周目敌方强度的按章折扣：[章, 系数] 折线。
      原来的难度表是在两个前提下调出来的：关卡一路送人，而且十九件「专属神兵」
      被当成良品宝物白送 —— 第一章就能捡到一件武 +60 的东西。
      这两样都拿掉之后照原表打，一周目要打上千场、末章撞满级墙。
      这张折线是拿 playthrough.js 跑出来的，只动一周目；二周目起人已经攒齐了，照旧。 */
-  foeEase: [[1, 0.68], [8, 0.78], [20, 0.84], [27, 0.78], [33, 0.66]],
+  foeEase: [[1, 0.65], [8, 0.74], [20, 0.80], [27, 0.74], [33, 0.64]],
   /* V10.3 抬了中段：开局多送一个绝世、技能整套换过，照原折线一周目只要 216–235 场，前期几乎不用重试。
      末章反而略放 —— 末章卡的是 50 级上限，抬到 .82 三局里一局停在 ch30_f1。
      现在传统模式 272 / 368 / 373 场，与 V10.1 同一量级；混乱模式 562–907 场，随机技能本来就是赌。 */
@@ -752,7 +756,10 @@ const CFG = {
   chaosEase: 0.85,
   fateReroll: 30,              // 重掷一颗宿星要多少符
 
-  hpMult: 5,              // 体力 → 血量
+  /* V10.3.1 5 → 10，dmgK 4.8 → 3.6：成长只算一次之后高等级的血不再是武的二十倍，
+     一仗只剩两三回合，演出都没得看。两道一起调回「一个人挨七八下才倒」，
+     早期关卡（原来三下就倒）也顺带耐打了些。 */
+  hpMult: 10,             // 体力 → 血量
   lvGrow: 0.015,          // 每级通用成长
   favBonus: 0.20,         // 擅长武器加攻
   cap: { eqPct: 0.30, bondAtk: 0.25, bondHp: 0.25, bondOther: 0.20 },
@@ -768,7 +775,7 @@ const CFG = {
   critMul: 1.5,
   dmgVar: 0.16, agiVar: 0.12,   // 单次伤害与出手顺序的抖动，见 dmg()
   armorK: 0.6,            // 减伤分母系数
-  dmgK: 4.8,              // 全局伤害系数：控制战斗时长，不影响双方强弱对比
+  dmgK: 3.6,              // 全局伤害系数：控制战斗时长，不影响双方强弱对比
   chaosResist: 0.25,      // 每次被混乱后抗性递增
   shieldDur: 3,
 
@@ -1167,8 +1174,8 @@ function makeHero(hid) {
   const h = {
     hid, lv: 1, exp: 0, star: 1,
     hurt: { lv: 0, rest: 0 },
-    base: { atk: t.atk, def: t.def, int: t.int, agi: t.agi, hp: t.hp },
-    base0: { atk: t.atk, def: t.def, int: t.int, agi: t.agi, hp: t.hp },
+    base: { atk: t.atk, def: t.def, int: t.int, agi: t.agi, hp: baseHp(t) },
+    base0: { atk: t.atk, def: t.def, int: t.int, agi: t.agi, hp: baseHp(t) },
     owned: [],
     equipment: { weapon: null, armor: null, helmet: null, mount: null, special: null },
   };
@@ -1232,7 +1239,7 @@ const Lap = {
 
   /** 关卡强度系数按周目折算：一周目原样，之后先削顶再乘微调。 */
   foeMulOf(mul) {
-    const m = this.now() <= 1 ? mul : Math.min(mul, CFG.lapMulCap);
+    const m = Math.min(mul, this.now() <= 1 ? CFG.mulCap1 : CFG.lapMulCap);
     return m * this.foeMul();
   },
 
@@ -1340,12 +1347,21 @@ const GROW_KEYS = ['atk', 'def', 'int', 'agi', 'hp'];
 const RARITY_GROW = { 6: 1.0, 5: 0.92, 4: 0.84, 3: 0.76, 2: 0.68, 1: 0.6 };
 
 /** 单级成长增量。玩家升级与敌人构造共用同一实现，保证敌我同口径。 */
+/* 血量成长率：数据里 gr.hp 武将 0.35–0.50、文官 0.13–0.23，原来乘 0.18 封顶 0.06，
+   武将全撞顶、文官 0.02 —— 五十级下来血差近一倍，再叠上基础血的差距就是四倍。
+   V10.3.1 压进 0.035–0.05 这条窄带：武将还是更肉，但文官不再一碰就倒。 */
+function hpGrow(gr) {
+  const raw = gr != null ? gr : 0.3;
+  return 0.035 + 0.015 * clamp((raw - 0.13) / 0.37, 0, 1);
+}
 function growStep(t, base0, k) {
   const gr = t.gr || {};
-  const g = k === 'hp' ? Math.min(0.06, (gr.hp != null ? gr.hp : 0.3) * 0.18)
-                       : (gr[k] != null ? gr[k] : 0.028);
+  const g = k === 'hp' ? hpGrow(gr.hp) : (gr[k] != null ? gr[k] : 0.028);
   return Math.max(1, Math.round((base0[k] || 10) * g * (RARITY_GROW[t.q] || 0.8)));
 }
+
+/** 基础血下限 100：几个文官 80–90 的底子，加上更矮的成长，五十级还是纸糊的 */
+const baseHp = t => Math.max(100, t.hp || 10);
 
 /** 把模板按等级累积成长，得到该等级的 base。带缓存。 */
 const _grownCache = new Map();
@@ -1355,7 +1371,7 @@ function grownBase(hid, lv) {
   if (hit) return hit;
   const t = DB.hero(hid);
   if (!t) return null;
-  const b0 = { atk: t.atk, def: t.def, int: t.int, agi: t.agi, hp: t.hp };
+  const b0 = { atk: t.atk, def: t.def, int: t.int, agi: t.agi, hp: baseHp(t) };
   const b = Object.assign({}, b0);
   for (let i = 1; i < lv; i++) for (const k of GROW_KEYS) b[k] += growStep(t, b0, k);
   _grownCache.set(key, b);
@@ -1470,13 +1486,15 @@ const Stats = {
     const t = DB.hero(hid);
     if (!h || !t) return null;
     const lv = h.lv || 1, star = h.star || 1, q = t.q || 1;
-    const gr = t.gr || {};
     const mult = (CFG.qmult[q] || 1) * (CFG.starMul[star] || 1) * (1 + (lv - 1) * CFG.lvGrow);
 
+    /* V10.3.1：成长只算一次。base 已经是 growStep 一级一级累加过的，
+       原来这里再乘一道 (1 + gr × (lv−1))，血的 gr 武将 0.4 文官 0.15，五十级就是 ×20 对 ×8，
+       两道叠起来武将血是文官的十几二十倍，文官被碰一下就倒。 */
     const raw = {};
     for (const k of ['atk', 'def', 'int', 'agi', 'hp']) {
-      const b = (h.base && h.base[k]) || t[k] || 10;
-      raw[k] = b * mult * (1 + (gr[k] || 0.02) * (lv - 1));
+      raw[k] = (h.base && h.base[k]) || t[k] || 10;
+      raw[k] *= mult;
     }
 
     // 带伤上阵打折。放在这里而不是战斗里，战力显示才和实战一致。
