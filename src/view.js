@@ -1243,14 +1243,14 @@ const Drag = {
     if (!cell || !$('tgrid') || cell.classList.contains('empty')) return;
     const slot = +cell.dataset.slot;
     if (!(slot >= 0)) return;
-    this.from = slot; this.el = cell; this.armed = false;
+    this.from = slot; this.el = cell; this.armed = false; this.moved = false;
     this.x0 = ev.clientX; this.y0 = ev.clientY;
     clearTimeout(this.timer);
     this.timer = setTimeout(() => {
       this.armed = true;
       cell.classList.add('lifting');
       if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) {} }
-    }, 180);
+    }, 320);
   },
 
   move(ev) {
@@ -1262,6 +1262,7 @@ const Drag = {
       return;
     }
     ev.preventDefault();
+    if (dx * dx + dy * dy > 144) this.moved = true;
     this.el.style.transform = `translate(${dx}px,${dy}px)`;
     this.el.style.zIndex = 20;
     const over = this.under(ev);
@@ -1277,12 +1278,15 @@ const Drag = {
   end(ev) {
     clearTimeout(this.timer);
     if (this.from < 0) return;
-    const armed = this.armed, from = this.from;
+    const armed = this.armed, from = this.from, moved = this.moved, hid = this.el && this.el.dataset.id;
     const target = armed ? this.under(ev) : null;
     this.cancel();
     if (!armed) return;
     this.justDragged = true;
     setTimeout(() => { this.justDragged = false; }, 60);
+    // V10.4：按得稍久但没挪窝，就是一次点按。原来按住超过 180ms 就算「拿起来」，
+    // 手机上正常一点也常常超过这个数，松手后跳不进详情页，得再点一次
+    if (!moved) { if (hid) openHero(hid); return; }
     if (target && +target.dataset.slot >= 0 && +target.dataset.slot !== from) {
       const e = Grow.swapTeam(from, +target.dataset.slot);
       if (e) toast(e);

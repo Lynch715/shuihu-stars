@@ -224,10 +224,13 @@ body{
 /* 五行的「配」键原来撑满整行高，上下边框首尾相接，连成一根竖条。
    按钮收到 32 高，中间就断得开；手指够得着的范围用伪元素补回 44。 */
 .eqrow .act{position:relative;font-family:var(--f-title);font-size:.9em;color:var(--indigo);
-  border:1px solid var(--ink-4);padding:0 12px;cursor:pointer;
-  display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:32px}
-.eqrow .act::before{content:"";position:absolute;left:0;right:0;top:50%;height:44px;
+  border:1px solid var(--ink-4);padding:0 12px;cursor:pointer;touch-action:manipulation;
+  display:inline-flex;align-items:center;justify-content:center;min-width:52px;height:32px;flex:none}
+/* 手指够得着的范围：上下补到 44，左右各多 8 —— 右边贴着屏幕边，左边是说明文字，多给一点不碍事 */
+.eqrow .act::before{content:"";position:absolute;left:-8px;right:-8px;top:50%;height:44px;
   transform:translateY(-50%)}
+/* 按下去要看得见反应，不然手机上分不清是没点中还是点了没生效 */
+.eqrow .act:active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .dbio{font-size:.78em;color:var(--ink-2);line-height:1.95;margin-top:10px;
   border-top:1px solid var(--ink-4);padding-top:8px}
 .dsk{margin-top:8px;border-top:1px solid var(--ink-4);padding-top:7px}

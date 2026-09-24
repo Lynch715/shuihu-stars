@@ -239,10 +239,13 @@ body{
 /* 五行的「配」键原来撑满整行高，上下边框首尾相接，连成一根竖条。
    按钮收到 32 高，中间就断得开；手指够得着的范围用伪元素补回 44。 */
 .eqrow .act{position:relative;font-family:var(--f-title);font-size:.9em;color:var(--indigo);
-  border:1px solid var(--ink-4);padding:0 12px;cursor:pointer;
-  display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:32px}
-.eqrow .act::before{content:"";position:absolute;left:0;right:0;top:50%;height:44px;
+  border:1px solid var(--ink-4);padding:0 12px;cursor:pointer;touch-action:manipulation;
+  display:inline-flex;align-items:center;justify-content:center;min-width:52px;height:32px;flex:none}
+/* 手指够得着的范围：上下补到 44，左右各多 8 —— 右边贴着屏幕边，左边是说明文字，多给一点不碍事 */
+.eqrow .act::before{content:"";position:absolute;left:-8px;right:-8px;top:50%;height:44px;
   transform:translateY(-50%)}
+/* 按下去要看得见反应，不然手机上分不清是没点中还是点了没生效 */
+.eqrow .act:active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
 .dbio{font-size:.78em;color:var(--ink-2);line-height:1.95;margin-top:10px;
   border-top:1px solid var(--ink-4);padding-top:8px}
 .dsk{margin-top:8px;border-top:1px solid var(--ink-4);padding-top:7px}
@@ -4394,14 +4397,14 @@ const Drag = {
     if (!cell || !$('tgrid') || cell.classList.contains('empty')) return;
     const slot = +cell.dataset.slot;
     if (!(slot >= 0)) return;
-    this.from = slot; this.el = cell; this.armed = false;
+    this.from = slot; this.el = cell; this.armed = false; this.moved = false;
     this.x0 = ev.clientX; this.y0 = ev.clientY;
     clearTimeout(this.timer);
     this.timer = setTimeout(() => {
       this.armed = true;
       cell.classList.add('lifting');
       if (navigator.vibrate) { try { navigator.vibrate(12); } catch (e) {} }
-    }, 180);
+    }, 320);
   },
 
   move(ev) {
@@ -4413,6 +4416,7 @@ const Drag = {
       return;
     }
     ev.preventDefault();
+    if (dx * dx + dy * dy > 144) this.moved = true;
     this.el.style.transform = `translate(${dx}px,${dy}px)`;
     this.el.style.zIndex = 20;
     const over = this.under(ev);
@@ -4428,12 +4432,15 @@ const Drag = {
   end(ev) {
     clearTimeout(this.timer);
     if (this.from < 0) return;
-    const armed = this.armed, from = this.from;
+    const armed = this.armed, from = this.from, moved = this.moved, hid = this.el && this.el.dataset.id;
     const target = armed ? this.under(ev) : null;
     this.cancel();
     if (!armed) return;
     this.justDragged = true;
     setTimeout(() => { this.justDragged = false; }, 60);
+    // V10.4：按得稍久但没挪窝，就是一次点按。原来按住超过 180ms 就算「拿起来」，
+    // 手机上正常一点也常常超过这个数，松手后跳不进详情页，得再点一次
+    if (!moved) { if (hid) openHero(hid); return; }
     if (target && +target.dataset.slot >= 0 && +target.dataset.slot !== from) {
       const e = Grow.swapTeam(from, +target.dataset.slot);
       if (e) toast(e);
