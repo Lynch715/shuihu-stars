@@ -178,6 +178,8 @@ const SIM = function (opt) {
   await p.waitForTimeout(700);
   const EASE = process.argv.find(a => a.startsWith('--ease='));
   if (EASE) await p.evaluate(`CFG.foeEase = ${EASE.slice(7)}`);
+  const CFGARG = process.argv.find(a => a.startsWith('--cfg='));      // --cfg='{"foeGear":[[20,0.03],[33,0.1]]}' 临时覆盖任意 CFG 项
+  if (CFGARG) await p.evaluate(`Object.assign(CFG, ${CFGARG.slice(6)})`);
   const rs = await p.evaluate(`(${SIM.toString()})({RUNS:${RUNS},PROFILE:${PROFILE},PULLK:${PULLK},ROSTER:${ROSTER},NOMED:${process.argv.includes('--nomed')},MODE:'${MODE}'})`);
   await br.close();
 
