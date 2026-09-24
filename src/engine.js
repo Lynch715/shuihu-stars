@@ -989,6 +989,7 @@ const Battle = {
       atk: stats.atk, def: stats.def, int: stats.int, agi: stats.agi, crit: stats.crit || 0,
       maxHp: stats.maxHp, hp: stats.maxHp,
       q: stats.q, lv: stats.lv, star: stats.star,
+      tally: { dealt: 0, taken: 0, healed: 0 },   // 输出 / 承伤 / 治疗（含护盾），榜单用
       skills,
       actives: skills.filter(s => s.cat === 'active' || s.cat === 'sure'),
       cmds: skills.filter(s => s.cat === 'cmd'),
@@ -1001,14 +1002,10 @@ const Battle = {
 
   /** 两边撞名时给战报加个标记。ch1_boss 里敌我都有史进、朱武，
    *  不标的话战报上就是「史进 → 史进 受创 120」，没法读。 */
+  /** 战报里的名字带阵营标记：{a|林冲} 是我方、{f|史进} 是敌方，视图 logHtml 拿去上色。
+   *  原来两边撞名才标「（我）」「（敌）」，现在颜色一分，同名也认得出。 */
   tagNames(b) {
-    const dupSide = {};
-    for (const u of b.allies) dupSide[u.name] = (dupSide[u.name] || 0) + 1;
-    for (const u of [...b.allies, ...b.foes]) {
-      // 只有「两边都有这个名字」才标；同一边有两个同名不必标
-      const both = dupSide[u.name] && b.foes.some(f => f.name === u.name);
-      u.ln = both ? `${u.name}（${u.ally ? '我' : '敌'}）` : u.name;
-    }
+    for (const u of [...b.allies, ...b.foes]) u.ln = `{${u.ally ? 'a' : 'f'}|${u.name}}`;
   },
 
   create(sid) {
@@ -1119,6 +1116,8 @@ const Battle = {
     // 硬骨头：一场里第一次挨到致命一击，留一口气
     if (left >= tgt.hp && tgt.tough) { tgt.tough = false; left = tgt.hp - 1; b.log.push({ c: 'ps', s: `${tgt.ln} 硬撑着没倒（被动）` }); }
     tgt.hp = Math.max(0, tgt.hp - left);
+    tgt.tally.taken += absorbed + left;
+    if (src) src.tally.dealt += absorbed + left;
     if (absorbed) b.log.push({ c: 'sh', s: `${tgt.ln} 护盾挡下 ${num(absorbed)}` });
     if (left) b.log.push({ c: 'dm', s: `${src ? src.ln + ' → ' : ''}${tgt.ln} 受创 ${num(left)}` });
     this.ev(b, { k: 'dmg', t: tgt.idx, ally: tgt.ally, v: absorbed + left, absorbed, tag,
@@ -1158,6 +1157,7 @@ const Battle = {
     tgt.hp = Math.min(tgt.maxHp, tgt.hp + amount);
     const got = tgt.hp - before;
     if (got > 0) {
+      if (src) src.tally.healed += got;
       b.log.push({ c: 'he', s: `${tgt.ln} 回复 ${num(got)}` });
       this.ev(b, { k: 'heal', t: tgt.idx, ally: tgt.ally, v: got,
                    s: src ? src.idx : null, sa: src ? src.ally : null });
@@ -1309,7 +1309,7 @@ const Battle = {
         for (const t of tgts) {
           if (!t.alive) continue;
           const add = Math.round(t.maxHp * f.pct * pw);
-          t.shield += add;
+          t.shield += add; u.tally.healed += add;
           t.shieldDur = Math.max(t.shieldDur, CFG.shieldDur);
           b.log.push({ c: 'sh', s: `${t.ln} 护盾 +${add}` });
         }
@@ -1494,6 +1494,13 @@ const Battle = {
     if (!f) { b.over = true; b.win = true; b.result = 'win'; }
     else if (!a) { b.over = true; b.win = false; b.result = 'lose'; }
     return b.over;
+  },
+
+  /** 榜单：我方输出、承伤、治疗各取前三。结算和战报底下都读它。 */
+  board(b) {
+    const top = k => b.allies.filter(u => u.tally[k] > 0).sort((x, y) => y.tally[k] - x.tally[k]).slice(0, 3)
+      .map(u => ({ name: u.name, hid: u.hid, v: u.tally[k] }));
+    return { dealt: top('dealt'), taken: top('taken'), healed: top('healed') };
   },
 
   /** 一次性算完（模拟与快进用） */

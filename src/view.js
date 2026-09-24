@@ -860,6 +860,7 @@ VIEWS.battle = () => {
         <div class="btn main" data-action="settle-go">结　算</div>
       </div></div>` : ''}
     <div class="log${done && UI.logFull ? ' full' : ''}" id="blog">${done ? logHtml(b.log, !UI.logFull) : ''}</div>
+    ${done ? boardHtml(b) : ''}
   </div>`;
 };
 
@@ -875,7 +876,18 @@ function logHtml(all, tail) {
       if (cut.length > 40) break;
     }
   }
-  return cut.map(l => `<div class="${l.c}">${esc(l.s)}</div>`).join('');
+  return cut.map(l => `<div class="${l.c}">${logLine(l.s)}</div>`).join('');
+}
+/* 名字上色：{a|名} 我方、{f|名} 敌方 */
+function logLine(s) {
+  return esc(s).replace(/\{([af])\|([^}]+)\}/g, (m, side, n) => `<b class="ln-${side}">${n}</b>`);
+}
+/* 榜单：输出 / 承伤 / 治疗各前三 */
+function boardHtml(b) {
+  const bd = Battle.board(b);
+  const col = (t, list) => `<div class="bd-col"><i>${t}</i>${list.length ? list.map((x, i) =>
+    `<span class="r${i}"><em>${esc(x.name)}</em><u>${num(x.v)}</u></span>`).join('') : '<span class="none">—</span>'}</div>`;
+  return `<div class="board-mvp">${col('输出', bd.dealt)}${col('承伤', bd.taken)}${col('治疗', bd.healed)}</div>`;
 }
 
 function openBattleLog() {
@@ -883,7 +895,7 @@ function openBattleLog() {
   if (!b) return;
   $('modal').innerHTML = `<div class="sheet">
     <div class="shead">战　报 · ${esc(stName(b.stage.name))}</div>
-    <div class="scroll log full" id="mlog">${logHtml(b.log)}</div>
+    <div class="scroll log full" id="mlog">${logHtml(b.log)}${b.over ? boardHtml(b) : ''}</div>
     <div class="btns"><div class="btn" data-action="modal-close">关　闭</div></div>
   </div>`;
   $('modal').classList.add('on');

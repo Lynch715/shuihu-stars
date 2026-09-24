@@ -643,3 +643,21 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .gc-info .nm i{font-style:normal;font-size:.72em;color:var(--ink-3);margin-left:8px;letter-spacing:.04em}
 .gc-info .dsk{margin-top:6px;padding-top:6px}
 .gc-info .sk{font-size:.78em;line-height:1.7}
+
+/* ── V10.3.3 战报敌我上色 + 榜单 ───────────────────────────────────── */
+.log .ln-a{color:var(--indigo);font-weight:600}
+.log .ln-f{color:var(--cinnabar);font-weight:600}
+.log .dm .ln-a,.log .dm .ln-f{font-weight:600}
+.board-mvp{display:flex;gap:8px;margin-top:8px}
+.bd-col{flex:1;min-width:0;border:1px solid var(--ink-4);background:var(--paper);padding:6px 8px}
+.bd-col i{display:block;font-style:normal;font-family:var(--f-title);font-size:.78em;letter-spacing:.2em;color:var(--ink-3);
+  border-bottom:1px dotted var(--ink-4);padding-bottom:3px;margin-bottom:4px}
+.bd-col span{display:flex;justify-content:space-between;gap:4px;font-size:.8em;line-height:1.8}
+.bd-col span em{font-style:normal;color:var(--ink-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bd-col span u{text-decoration:none;font-variant-numeric:tabular-nums;color:var(--ink-3)}
+.bd-col span.r0 em{color:var(--ink-1);font-weight:600}.bd-col span.r0 u{color:var(--cinnabar)}
+.bd-col .none{color:var(--ink-4)}
+.sheet .board-mvp{margin:8px 0 4px}
+/* 战报里的 .sk 行撞了详情页技能行的 .sk（flex + 5.4em 名字列），名字后面空一大截 */
+.log .sk{display:block}
+.log .sk b{display:inline;width:auto;min-width:0;font-family:inherit;font-size:inherit;gap:0}
