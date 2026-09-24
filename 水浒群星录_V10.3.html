@@ -883,6 +883,8 @@ const CFG = {
   recruitRate: { 1: 0.45, 2: 0.28, 3: 0.15, 4: 0.08, 5: 0.03, 6: 0.01 },
   recruitCost1: 500, recruitCost10: 4500,
   goldExchangeCost: 2,
+  /* V10.3.5 黄金求贤：保底名将，天罡绝世压低（原来是保底天罡、天罡 75% 绝世 25%） */
+  goldRate: { 4: 0.65, 5: 0.27, 6: 0.08 },
   pityTen: 4,             // 十连保底 ≥名
   pityFifty: 5,           // 累计 50 抽保底 ≥天罡
 
@@ -2557,9 +2559,14 @@ const Grow = {
   },
 
   /** 两段式抽卡：先按公示概率抽稀有度，再在该档内等概率抽人。UI 显示即真实概率。 */
-  rollOne(floorQ) {
+  rollOne(floorQ, rates) {
     let q;
-    if (floorQ) {
+    if (rates) {
+      const ks = Object.keys(rates).map(Number).filter(k => DB.poolByQ[k]);
+      const tot = ks.reduce((a, k) => a + rates[k], 0);
+      let r = rnd() * tot; q = ks[0];
+      for (const k of ks) { r -= rates[k]; if (r <= 0) { q = k; break; } }
+    } else if (floorQ) {
       const pool = [], w = [];
       for (let i = floorQ; i <= 6; i++) if (DB.poolByQ[i]) { pool.push(i); w.push(CFG.recruitRate[i]); }
       const tot = w.reduce((a, b) => a + b, 0);
@@ -2595,7 +2602,7 @@ const Grow = {
   goldExchange() {
     if (G.res.gold < CFG.goldExchangeCost) return { err: `需 ${CFG.goldExchangeCost} 黄金` };
     G.res.gold -= CFG.goldExchangeCost;
-    const hid = this.rollOne(CFG.pityFifty);
+    const hid = this.rollOne(0, CFG.goldRate);
     const r = { ...this.gainHero(hid), q: DB.hero(hid).q };
     Save.write();
     return { list: [r] };
@@ -3760,7 +3767,7 @@ VIEWS.tavern = () => {
         十连 · ${CFG.recruitCost10} 银</div>
     </div>
     <div class="btns"><div class="btn ${afford(G.res.gold, CFG.goldExchangeCost)}"
-      data-action="gold">黄金求贤 · ${CFG.goldExchangeCost} 金（保底天罡）</div></div>
+      data-action="gold">黄金求贤 · ${CFG.goldExchangeCost} 金（保底名将 · 天罡 ${Math.round(CFG.goldRate[5] * 100)}% 绝世 ${Math.round(CFG.goldRate[6] * 100)}%）</div></div>
   </div>`;
 };
 

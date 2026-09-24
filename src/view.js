@@ -744,7 +744,7 @@ VIEWS.tavern = () => {
         十连 · ${CFG.recruitCost10} 银</div>
     </div>
     <div class="btns"><div class="btn ${afford(G.res.gold, CFG.goldExchangeCost)}"
-      data-action="gold">黄金求贤 · ${CFG.goldExchangeCost} 金（保底天罡）</div></div>
+      data-action="gold">黄金求贤 · ${CFG.goldExchangeCost} 金（保底名将 · 天罡 ${Math.round(CFG.goldRate[5] * 100)}% 绝世 ${Math.round(CFG.goldRate[6] * 100)}%）</div></div>
   </div>`;
 };
 
