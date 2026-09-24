@@ -683,7 +683,8 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .tslot.pl .seal{right:6px;top:6px;width:20px;height:20px;line-height:16px;font-size:.74em}
 .tslot.pl .onfield{position:absolute;left:7px;top:7px;z-index:3;font-family:var(--f-title);font-size:.66em;
   color:var(--cinnabar);border:1.4px solid var(--cinnabar);padding:0 3px;background:rgba(233,226,208,.7)}
-.tslot.pl .hurt{position:absolute;left:6px;bottom:52px;z-index:3}
+.tslot.pl .hurt{position:absolute;left:6px;top:6px;bottom:auto;z-index:3}
+.tslot.pl .onfield + .hurt{top:30px}   /* 在阵又带伤：伤势标挪到「阵」下面 */
 .tslot.pl .v b{font-weight:400;color:var(--gold);letter-spacing:.05em;font-size:.9em}
 .tslot.pl.jue{box-shadow:inset 0 0 0 1px var(--paper),inset 0 0 0 2px rgba(168,128,44,.38)}
 </style>
