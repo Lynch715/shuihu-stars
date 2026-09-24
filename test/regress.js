@@ -117,8 +117,14 @@ async function fresh(browser) {
   await page.goto(URL);
   await page.waitForTimeout(2600);
   await page.evaluate(SHIM);
+  await page.evaluate(PICK_MODE);
   return { ctx, page, errors };
 }
+
+/* V10.3 起没有存档时先停在选模式那一屏。检查项默认按传统模式走：替玩家点一下。 */
+const PICK_MODE = function () {
+  if (window.UI && window.G && UI.view === 'mode') { initGame('classic'); Save.write(); UI.view = 'main'; render(); }
+};
 
 const CHECKS = [];
 const check = (name, fn) => CHECKS.push({ name, fn });
@@ -182,12 +188,79 @@ check('开局状态正常', async b => {
   return [ok, `起手 ${r.names.join('、')}　银两 ${r.silver}` + (r.valid ? '' : '　← 队伍含无效 ID')];
 });
 
-check('开局角色固定（非随机）', async b => {
-  const a = await fresh(b), c = await fresh(b);
-  const g = p => p.page.evaluate(() => (G.team || []).slice().sort().join(','));
-  const t1 = await g(a), t2 = await g(c);
-  await a.ctx.close(); await c.ctx.close();
-  return t1 === t2 ? [true, t1] : [false, `两次开局不同：[${t1}] vs [${t2}]`];
+check('开局赠将：一绝世一凡将，随机', async b => {
+  const { ctx, page } = await fresh(b);
+  const r = await page.evaluate(() => {
+    const seen = new Set(); let ok = true;
+    for (let i = 0; i < 12; i++) {
+      initGame('classic');
+      const qs = (G.startGift || []).map(h => DB.hero(h).q).sort().join(',');
+      if (qs !== '1,6' || G.team.length !== 2) ok = false;
+      seen.add(G.startGift.join(','));
+    }
+    return { ok, distinct: seen.size, last: G.startGift.map(h => DB.hero(h).name + '(' + DB.hero(h).q + ')').join('、') };
+  });
+  await ctx.close();
+  return (r.ok && r.distinct > 3) ? [true, `十二次开局 ${r.distinct} 种组合，如 ${r.last}`]
+    : [false, `品质不对或不随机：ok=${r.ok} distinct=${r.distinct}`];
+});
+
+check('模式字段：传统 / 混乱写进存档，老存档按传统读', async b => {
+  const { ctx, page } = await fresh(b);
+  const r = await page.evaluate(() => {
+    initGame('chaos'); Save.write();
+    const raw = localStorage.getItem(CFG.saveKey);
+    const chaos = /"mode":"chaos"/.test(raw);
+    const d = JSON.parse(raw); delete d.mode; localStorage.setItem(CFG.saveKey, JSON.stringify(d));
+    const s = Save.read();
+    return { chaos, legacy: s && !s.mode };
+  });
+  await ctx.close();
+  return (r.chaos && r.legacy) ? [true, '混乱模式写入存档；去掉字段后仍能读'] : [false, JSON.stringify(r)];
+});
+
+check('混乱模式：每人四招随机、不重复、写进存档', async b => {
+  const { ctx, page } = await fresh(b);
+  const r = await page.evaluate(() => {
+    initGame('chaos'); G.res.silver = 1e6;
+    Grow.recruit(10);
+    const hs = Object.values(G.heroes);
+    const bad = hs.filter(h => !h.sk || h.sk.length !== 4 || new Set(h.sk).size !== 4 || !h.sk.every(id => DB.skill(id)));
+    const same = hs.filter(h => h.sk.join() === (DB.hero(h.hid).sk || []).join()).length;
+    Save.write();
+    const back = Save.read();
+    const kept = Object.values(back.heroes).every(h => Array.isArray(h.sk) && h.sk.length === 4);
+    // 敌人不受影响
+    const bt = Battle.create('ch1_1');
+    const foeOrig = bt.foes.every(u => u.skills.every((s, i) => s.id === (DB.hero(u.hid).sk || [])[i]));
+    return { n: hs.length, bad: bad.length, same, kept, foeOrig };
+  });
+  await ctx.close();
+  return (r.bad === 0 && r.kept && r.foeOrig && r.same <= 1)
+    ? [true, `${r.n} 人四招齐全，存档保留，敌方原装`]
+    : [false, JSON.stringify(r)];
+});
+
+check('发动率与公示一致', async b => {
+  const { ctx, page } = await fresh(b);
+  const r = await page.evaluate(() => {
+    // 只给一个人一个 45% 的单体攻击技，打一千回合数发动次数
+    const N = 3000; let used = 0, turns = 0;
+    const o = Battle.cast.bind(Battle);
+    Battle.cast = function (b, u, sk) { if (u.ally && sk.id === '__probe') used++; return o(b, u, sk); };
+    const probe = { id: '__probe', slot: 0, name: '探', cat: 'active', rate: 0.45, cd: 0, cur: 0, last: -99,
+                    fx: [{ k: 'dmg', tg: 'single', mult: 0.01 }] };
+    for (let i = 0; i < N / 30; i++) {
+      const bt = Battle.create('ch1_1');
+      for (const u of [...bt.allies, ...bt.foes]) { u.maxHp = u.hp = 1e9; u.skills = []; u.actives = []; u.cmds = []; }
+      bt.allies[0].actives = [Object.assign({}, probe)];
+      for (let g = 0; g < 30 && !bt.over; g++) { Battle.runRound(bt); turns++; }
+    }
+    return { rate: used / turns, turns };
+  });
+  await ctx.close();
+  return Math.abs(r.rate - 0.45) < 0.04 ? [true, `公示 45%，实测 ${(r.rate * 100).toFixed(1)}%（${r.turns} 回合）`]
+    : [false, `公示 45%，实测 ${(r.rate * 100).toFixed(1)}%`];
 });
 
 /* ── 战斗 ────────────────────────────────────────────────────────── */
@@ -434,7 +507,7 @@ check('刷新后银两不被重置', async b => {
   const ctx = await b.newContext({ viewport: { width: 430, height: 900 } });
   const page = await ctx.newPage();
   await page.goto(URL); await page.waitForTimeout(2600);
-  await page.evaluate(SHIM);
+  await page.evaluate(SHIM); await page.evaluate(PICK_MODE);
   await page.evaluate(() => { G.res.silver = 8888; __api.save(); });
   await page.reload(); await page.waitForTimeout(2800);
   const after = await page.evaluate(() => G && G.res && G.res.silver);

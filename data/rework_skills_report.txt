@@ -1,0 +1,4 @@
+在用 1011 删 216
+类别 {'active': 542, 'cmd': 203, 'sure': 149, 'passive': 117}
+形状 {'buff_active': 15, 'heal': 26, 'chaos': 33, 'cmd_buff': 138, 'plain': 103, 'p_follow': 7, 'shield_self': 81, 'bleed': 64, 'cmd_int': 14, 'bleed_row': 32, 'poison': 3, 'poison_row': 2, 'p_dodge': 19, 'p_stat': 31, 'p_counter': 19, 'aoe': 23, 'disarm': 5, 'vuln': 8, 'burn': 8, 'burn_all': 3, 'stun': 9, 'bleed_col': 38, 'steal': 21, 'vuln_col': 3, 'silence': 16, 'vuln_row': 1, 'stun_all': 1, 'stun_row': 6, 'burn_row': 1, 'burn_col': 1}
+越档 0

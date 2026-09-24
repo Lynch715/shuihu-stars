@@ -12,16 +12,17 @@ const HTML = process.argv[2], RUNS = +(process.argv[3] || 1);
 const PROFILE = process.argv.includes('--profile');
 const ROSTER = +((process.argv.find(a => a.startsWith('--roster=')) || '--roster=12').slice(9));
 const PULLK = +((process.argv.find(a => a.startsWith('--pull=')) || '--pull=1.2').slice(7));   // 摸底跑：压低难度，只为采集养成曲线
+const MODE = (process.argv.find(a => a.startsWith('--mode=')) || '--mode=classic').slice(7);   // V10.3：classic / chaos
 
 const SIM = function (opt) {
-  const { RUNS, PROFILE, PULLK, ROSTER, NOMED } = opt;
+  const { RUNS, PROFILE, PULLK, ROSTER, NOMED, MODE } = opt;
   const runs = [];
   // 摸底跑用真实难度，但死磕到底 —— 打不过就多练几级再来，
   // 要的是「一路打过去手里会攒下什么」，不是「第一次就能不能过」。
   // 压低难度摸出来的曲线是假的：清关快、重试少、银两富余，
   // 调参器照着它调，真实局到第十章就撞墙。
   for (let run = 0; run < RUNS; run++) {
-    initGame();
+    initGame(MODE);
     const order = [];
     for (const ch of DB.chapters) for (const sid of DB.byChapter[ch]) order.push(sid);
 
@@ -157,6 +158,7 @@ const SIM = function (opt) {
         break;
       }
     }
+    st.gift = (G.startGift || []).map(h => DB.hero(h).name + '(' + DB.hero(h).q + ')').join('、');
     st.cleared = Object.keys(G.cleared).length;
     st.total = order.length;
     if (PROFILE) {
@@ -176,11 +178,11 @@ const SIM = function (opt) {
   await p.waitForTimeout(700);
   const EASE = process.argv.find(a => a.startsWith('--ease='));
   if (EASE) await p.evaluate(`CFG.foeEase = ${EASE.slice(7)}`);
-  const rs = await p.evaluate(`(${SIM.toString()})({RUNS:${RUNS},PROFILE:${PROFILE},PULLK:${PULLK},ROSTER:${ROSTER},NOMED:${process.argv.includes('--nomed')}})`);
+  const rs = await p.evaluate(`(${SIM.toString()})({RUNS:${RUNS},PROFILE:${PROFILE},PULLK:${PULLK},ROSTER:${ROSTER},NOMED:${process.argv.includes('--nomed')},MODE:'${MODE}'})`);
   await br.close();
 
   rs.forEach((r, i) => {
-    console.log(`\n第 ${i + 1} 局　通关 ${r.cleared}/${r.total}　战斗 ${r.battles} 场`);
+    console.log(`\n第 ${i + 1} 局　通关 ${r.cleared}/${r.total}　战斗 ${r.battles} 场${r.gift ? '　开局 ' + r.gift : ''}`);
     console.log(`  银两：关卡收入 ${r.earnSilver}　操练 ${r.spendLv}　抽卡 ${r.spendGacha}（${r.pulls} 抽）　治伤 ${r.spendCure || 0}`);
     console.log('  章　推荐级　实际级　星　队伍　拥有　装备　养伤　银两　抽数　累计战斗');
     for (const m of r.marks)

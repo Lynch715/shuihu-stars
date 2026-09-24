@@ -607,3 +607,39 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .bend .btns{margin-top:10px}
 .board.done .cell{transition:opacity .3s}
 @keyframes fade-in{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ── V10.3 技能类别标签、新印记、模式选择、入伙卡 ─────────────────── */
+.sk b{width:auto;min-width:5.4em;display:flex;align-items:center;gap:5px;flex-wrap:wrap}
+.sktag{font-family:var(--f-body);font-style:normal;font-size:.68em;letter-spacing:.04em;line-height:1.5;
+  padding:0 5px;border:1px solid currentColor;border-radius:2px;white-space:nowrap}
+.sktag.c-act{color:var(--cinnabar)}.sktag.c-sure{color:var(--q-ming)}
+.sktag.c-cmd{color:var(--indigo)}.sktag.c-pas{color:var(--ink-3)}
+.sk.lock .sktag{color:var(--ink-4)}
+.sk-note{font-size:.74em;color:var(--ink-3);margin-top:4px;letter-spacing:.04em}
+.log .ps{color:var(--ink-3);font-style:italic}
+.float.miss{color:var(--indigo);font-size:.8em}
+
+.modepick{position:fixed;inset:0;z-index:60;background:var(--paper);overflow:hidden;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 28px;animation:cardin .5s ease-out}
+.modepick>*:not(.scene-full){position:relative;z-index:1}
+.mp-t{font-family:var(--f-title);font-size:2.1em;letter-spacing:.3em;color:var(--ink-1)}
+.mp-s{font-size:.8em;color:var(--ink-3);letter-spacing:.14em;margin:6px 0 26px}
+.mp-card{width:100%;max-width:340px;border:1px solid var(--ink-3);background:var(--paper);padding:14px 16px;
+  margin-bottom:12px;cursor:pointer;box-shadow:2px 2px 0 var(--ink-4)}
+.mp-card:active{transform:translate(1px,1px);box-shadow:1px 1px 0 var(--ink-4)}
+.mp-card b{display:block;font-family:var(--f-title);font-weight:400;font-size:1.3em;letter-spacing:.3em;color:var(--ink-1)}
+.mp-card.chaos b{color:var(--cinnabar)}
+.mp-card span{display:block;font-size:.84em;line-height:1.8;color:var(--ink-2);margin-top:4px}
+
+.giftcard{padding:8px 0 20px;animation:cardin .5s ease-out}
+.gc-t{font-family:var(--f-title);font-size:1.8em;letter-spacing:.3em;text-align:center;color:var(--ink-1)}
+.gc-s{font-size:.8em;color:var(--ink-3);letter-spacing:.12em;text-align:center;margin:4px 0 16px}
+.gc-row{display:flex;gap:12px;border:1px solid var(--ink-4);background:var(--paper);padding:10px;margin-bottom:10px}
+.gc-face{flex:none;width:72px}
+.gc-face .por{width:72px;height:96px;object-fit:cover;display:block}
+.gc-face .weap{display:block;width:72px;height:96px;border:1px solid var(--ink-4);padding:14px;box-sizing:border-box}
+.gc-info{flex:1;min-width:0}
+.gc-info .nm{font-family:var(--f-title);font-size:1.15em;letter-spacing:.1em;color:var(--ink-1)}
+.gc-info .nm i{font-style:normal;font-size:.72em;color:var(--ink-3);margin-left:8px;letter-spacing:.04em}
+.gc-info .dsk{margin-top:6px;padding-top:6px}
+.gc-info .sk{font-size:.78em;line-height:1.7}

@@ -26,8 +26,10 @@ import hashlib, json, os, sys, glob, re
 ROOT = os.path.dirname(os.path.abspath(__file__))
 def p(*a): return os.path.join(ROOT, *a)
 
-OUT = p('水浒群星录_V10.2.html')
-VERSION = 'V10.2'
+OUT = p('水浒群星录_V10.3.html')
+VERSION = 'V10.3'
+# --noassets：不带图构建（模拟与回归在没有 assets/ 的机器上跑时用），产物只用于测试
+NOASSETS = '--noassets' in sys.argv
 
 def read(path):
     with open(path, encoding='utf-8') as f: return f.read()
@@ -68,7 +70,7 @@ for f in sorted(glob.glob(p('assets', 'scenes', 'web', '*.webp'))):
     if sid not in SCENE_IDS:
         print('!! 未登记的场景 ID：', sid); sys.exit(1)
     scenes[sid] = ref(f)
-if set(scenes) != SCENE_IDS:
+if set(scenes) != SCENE_IDS and not NOASSETS:
     print('!! 场景图缺失：', '、'.join(sorted(SCENE_IDS - set(scenes)))); sys.exit(1)
 
 # 校验：立绘的 hid 必须在数据里

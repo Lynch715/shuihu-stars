@@ -181,7 +181,7 @@ function startCrawl() {
   // 片名停住后自己进主界面，不用非点一下
   clearTimeout(Play.introTimer);
   Play.introTimer = setTimeout(() => {
-    if (UI.view === 'intro') { G.seenIntro = true; Save.write(); UI.view = 'main'; render(); }
+    if (UI.view === 'intro') afterIntro();
   }, (sec + 3) * 1000);
 }
 
@@ -203,6 +203,46 @@ VIEWS.intro = () => {
     <div class="crawl-skip">轻触跳过</div>
   </div>`;
 };
+
+/* 开局选模式。只在没有存档时出一屏（和重开一局之后）。选定就写进存档，一局之内不能改。 */
+VIEWS.mode = () => `<div class="modepick">
+    ${sceneLayer(1, 'scene-full')}
+    <div class="mp-t">聚　义</div>
+    <div class="mp-s">这一局怎么走</div>
+    <div class="mp-card" data-action="mode-pick" data-id="classic">
+      <b>传　统</b>
+      <span>人人本事按图鉴来，林冲使枪、吴用用计。</span>
+    </div>
+    <div class="mp-card chaos" data-action="mode-pick" data-id="chaos">
+      <b>混　乱</b>
+      <span>每个人入伙那一刻随机摇四招，谁也不知道自己会什么。开局送的两个也一样。</span>
+    </div>
+  </div>`;
+
+/* 入伙卡：开篇字幕走完，把开局随机送的两个人亮出来 —— 不然玩家不知道自己多了谁 */
+VIEWS.gift = () => {
+  const ids = (G.startGift || []).filter(h => G.heroes[h]);
+  return `<div class="giftcard">
+    <div class="gc-t">投　奔</div>
+    <div class="gc-s">${G.mode === 'chaos' ? '混乱模式 · ' : ''}两位好汉先来入伙</div>
+    ${ids.map(hid => { const t = DB.hero(hid), h = G.heroes[hid];
+      return `<div class="gc-row">
+        <div class="gc-face">${hasPortrait(hid) ? porTag('por', hid) : `<div class="weap">${weaponSvg(hid)}</div>`}</div>
+        <div class="gc-info">
+          <div class="nm">${seal(t.q)} ${esc(t.name)}<i>${esc(titleOf(t))}</i></div>
+          <div class="dsk">${skRowsHtml(hid, h)}</div>
+        </div>
+      </div>`; }).join('')}
+    <div class="btns"><div class="btn main" data-action="gift-done">去聚义厅</div></div>
+  </div>`;
+};
+
+/* 开篇走完之后去哪：头一回要先看入伙卡 */
+function afterIntro() {
+  G.seenIntro = true;
+  if (G.startGift && !G.giftShown) { G.giftShown = true; Save.write(); UI.view = 'gift'; render(); return; }
+  Save.write(); UI.view = 'main'; render();
+}
 
 /* 章首题词：进一章的头一关时出一张，看过就不再出 */
 VIEWS.chapcard = () => {
@@ -240,7 +280,7 @@ VIEWS.main = () => {
   return `
   <div class="hero-banner">
     <div class="bt">水浒群星录</div>
-    <div class="bs">九人对阵 · 星宿聚义</div>
+    <div class="bs">九人对阵 · 星宿聚义 · ${G.mode === 'chaos' ? '混乱' : '传统'}</div>
   </div>
   <div class="stat3">
     <div><b>${Object.keys(G.heroes).length}</b><i>已收将</i></div>
@@ -395,6 +435,21 @@ VIEWS.heroes = () => {
       : '<div class="empty">这一档下没人</div>'));
 };
 
+/* 技能四行：类别标签 + 从字段拼出来的描述。没解锁的只给名字和解锁星级。
+   混乱模式下读的是这个人自己那套（h.sk），不是图鉴。 */
+const SK_CLS = { active: 'c-act', sure: 'c-sure', cmd: 'c-cmd', passive: 'c-pas' };
+function skTag(sk) { return `<em class="sktag ${SK_CLS[sk.cat] || ''}">${esc(SkillText.cat(sk))}</em>`; }
+function skRowsHtml(hid, h) {
+  const ids = skillIdsOf(hid, h);
+  const own = h ? h.owned : ids;
+  return ids.map((id, i) => {
+    const sk = DB.skill(id); if (!sk) return '';
+    const has = own.includes(id);
+    return `<div class="sk${has ? '' : ' lock'}">
+      <b>${skTag(sk)}${esc(sk.name)}</b><span>${has ? esc(sk.desc) : `★${i + 1} 解锁`}</span></div>`;
+  }).join('') + (h && h.sk ? '<div class="sk-note">混乱模式 · 这四招是入伙时随机得来的</div>' : '');
+}
+
 VIEWS.hero = () => {
   const hid = UI.sel, t = DB.hero(hid), h = G.heroes[hid];
   if (!t || !h) return '<div class="empty">查无此人</div>';
@@ -409,12 +464,7 @@ VIEWS.hero = () => {
   const multi = L.length > 1;
   const bondOn = Object.entries(bd).filter(([, v]) => v > 0);
 
-  const skRows = (t.sk || []).map((id, i) => {
-    const sk = DB.skill(id); if (!sk) return '';
-    const own = h.owned.includes(id);
-    return `<div class="sk${own ? '' : ' lock'}">
-      <b>${esc(sk.name)}</b><span>${own ? esc(sk.desc) : `★${i + 1} 解锁`}</span></div>`;
-  }).join('');
+  const skRows = skRowsHtml(hid, h);
 
   const eqRows = SLOTS.map(slot => {
     const e = DB.equip(h.equipment[slot]);
@@ -729,7 +779,7 @@ VIEWS.codex = () => {
   // 开篇说「名字收齐那天，石碣会从地里起出来」—— 这一页就是那块碑
   let html = `<div class="stele">
     <div class="st-t">石　碣</div>
-    <div class="st-s">伏魔殿下掘出，字先刻好，人后来到</div>
+    <div class="st-s">伏魔殿下掘出，字先刻好，人后来到${G.mode === 'chaos' ? '<br>本局混乱模式：人人的本事都是入伙时随机得来的' : ''}</div>
     <div class="st-n"><b>${own}</b> / ${all.length}</div>
   </div>`;
   for (const [src, ids] of Object.entries(bySrc)) {
@@ -752,7 +802,8 @@ VIEWS.codex = () => {
 /* 状态印记。格子上看不出谁被眩、谁被夺了武，玩家就不知道战况为什么翻。
    控制类（眩乱）与持续伤害（血灼毒）永远显示；增减益在九人阵里让位给空间。*/
 const ST_MARK = {
-  stun:  ['眩', 'ctl'], chaos: ['乱', 'ctl'],
+  stun:  ['眩', 'ctl'], chaos: ['乱', 'ctl'], silence: ['沉', 'ctl'], disarm: ['缚', 'ctl'],
+  taunt: ['嘲', 'bf up'], vuln: ['伤', 'dot'], dodge: ['闪', 'bf up'],
   bleed: ['血', 'dot'], burn:  ['灼', 'dot'], poison: ['毒', 'dot'],
 };
 function stHtml(u) {
@@ -761,9 +812,9 @@ function stHtml(u) {
   for (const k of Object.keys(ST_MARK))
     if (u.status[k]) h += `<i class="sm ${ST_MARK[k][1]}">${ST_MARK[k][0]}</i>`;
   for (const k of ['atk', 'def', 'int', 'agi']) {
-    const v = u.status['buff_' + k];
-    if (!v || !v.val) continue;
-    h += `<i class="sm bf ${v.val > 0 ? 'up' : 'dn'}">${STAT_NAME[k]}${v.val > 0 ? '▲' : '▼'}</i>`;
+    const v = u.status['buff_' + k], d = u.status['debuff_' + k];
+    if (v && v.val > 0) h += `<i class="sm bf up">${STAT_NAME[k]}▲</i>`;
+    if (d && d.val > 0) h += `<i class="sm bf dn">${STAT_NAME[k]}▼</i>`;
   }
   return h;
 }
@@ -1004,6 +1055,16 @@ const Play = {
       } else if (e.k === 'die') {
         flash(el, 'fell', Math.max(hold, 700));
         el.classList.add('dead');
+      } else if (e.k === 'miss') {
+        const f = document.createElement('div');
+        f.className = 'float miss'; f.textContent = '闪';
+        fx.appendChild(f);
+        setTimeout(() => f.remove(), hold);
+      } else if (e.k === 'st') {
+        flash(el, 'hit', Math.min(hold, 300));
+        const u = (e.ally ? b.allies : b.foes)[e.t];
+        const st = el.querySelector('.st');
+        if (u && st) st.innerHTML = stHtml(u);
       }
     }
     if (li) this.log(b, li);
@@ -1225,8 +1286,9 @@ document.addEventListener('click', ev => {
       else { UI.stage = id; UI.view = 'stage'; }
       render(); break;
     }
-    case 'intro-skip': clearTimeout(Play.introTimer);
-      G.seenIntro = true; Save.write(); UI.view = 'main'; render(); break;
+    case 'intro-skip': clearTimeout(Play.introTimer); afterIntro(); break;
+    case 'mode-pick': initGame(id); Save.write(); UI.view = 'intro'; render(); startCrawl(); break;
+    case 'gift-done': go('main'); break;
     case 'replay-intro': UI.view = 'intro'; render(); startCrawl(); break;
     case 'epilogue': UI.view = 'epilogue'; render(); break;
     case 'epi-done': G.seenEpi = true; Save.write(); go('main'); break;
@@ -1336,7 +1398,7 @@ document.addEventListener('click', ev => {
     }
     case 'reset':
       ask('重开一局', '这一局的将、银两、通关进度会全部清掉，回不来。', '清掉，重来', () => {
-        Save.wipe(); initGame(); Save.write(); go('main'); toast('重开了');
+        Save.wipe(); UI.view = 'mode'; render(); toast('重开了，选个模式');
       });
       break;
     case 'ask-yes': { const fn = askYes; askYes = null; closeModal(); if (fn) fn(); break; }
@@ -1378,20 +1440,23 @@ function boot() {
       speed: s.speed || 'normal', seenIntro: !!s.seenIntro, seenCh: s.seenCh || {}, seenEpi: !!s.seenEpi,
       // 老存档没有这三个字段，按一周目读，一切照旧
       lap: s.lap || 1, fates: s.fates || [], everCleared: s.everCleared || {},
+      // V10.3：模式与开局赠将。老存档按传统读，没有入伙卡可看
+      mode: s.mode === 'chaos' ? 'chaos' : 'classic', startGift: s.startGift || null, giftShown: !!(s.giftShown || !s.startGift),
     });
     for (const h of Object.values(G.heroes)) {
       const t = DB.hero(h.hid) || {};
       h.base0 ||= { atk: t.atk, def: t.def, int: t.int, agi: t.agi, hp: t.hp };
       h.equipment ||= { weapon: null, armor: null, helmet: null, mount: null, special: null };
-      h.owned ||= (t.sk || []).slice(0, 1);
+      h.owned ||= skillIdsOf(h.hid, h).slice(0, 1);
     }
     if (!G.team.length) G.team = Object.keys(G.heroes).slice(0, 2);
     Save.migrate(); Save.write();
+    if (!G.seenIntro) { UI.view = 'intro'; render(); startCrawl(); }
+    else render();
   } else {
-    initGame(); Save.write();
+    // 没有存档：先选模式，选完再开局
+    UI.view = 'mode'; render();
   }
-  if (!G.seenIntro) { UI.view = 'intro'; render(); startCrawl(); }
-  else render();
   window.addEventListener('beforeunload', () => Save.write());
 }
 
