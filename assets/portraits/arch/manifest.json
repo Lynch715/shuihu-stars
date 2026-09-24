@@ -1,62 +1,67 @@
 {
  "arch_civ_lit": {
   "portrait": "arch_civ_lit.webp",
-  "bytes": 6996,
+  "bytes": 6918,
   "bust": "arch_civ_lit~b.webp"
  },
  "arch_civ_mkt": {
   "portrait": "arch_civ_mkt.webp",
-  "bytes": 11260,
+  "bytes": 11262,
   "bust": "arch_civ_mkt~b.webp"
  },
  "arch_elder": {
   "portrait": "arch_elder.webp",
-  "bytes": 13442,
+  "bytes": 13474,
   "bust": "arch_elder~b.webp"
  },
  "arch_gen_dao": {
   "portrait": "arch_gen_dao.webp",
-  "bytes": 23384,
+  "bytes": 23832,
   "bust": "arch_gen_dao~b.webp"
  },
  "arch_gen_fu": {
   "portrait": "arch_gen_fu.webp",
-  "bytes": 13366,
+  "bytes": 13252,
   "bust": "arch_gen_fu~b.webp"
  },
  "arch_gen_jian": {
   "portrait": "arch_gen_jian.webp",
-  "bytes": 7964,
+  "bytes": 7990,
   "bust": "arch_gen_jian~b.webp"
  },
  "arch_gen_qiang": {
   "portrait": "arch_gen_qiang.webp",
-  "bytes": 15980,
+  "bytes": 15910,
   "bust": "arch_gen_qiang~b.webp"
  },
  "arch_liao": {
   "portrait": "arch_liao.webp",
-  "bytes": 27638,
+  "bytes": 27800,
   "bust": "arch_liao~b.webp"
  },
  "arch_monk": {
   "portrait": "arch_monk.webp",
-  "bytes": 11626,
+  "bytes": 11604,
   "bust": "arch_monk~b.webp"
  },
  "arch_sol_dao": {
   "portrait": "arch_sol_dao.webp",
-  "bytes": 19516,
+  "bytes": 19390,
   "bust": "arch_sol_dao~b.webp"
  },
  "arch_sol_qiang": {
   "portrait": "arch_sol_qiang.webp",
-  "bytes": 15858,
+  "bytes": 16002,
   "bust": "arch_sol_qiang~b.webp"
+ },
+ "arch_taoist": {
+  "portrait": "arch_taoist.webp",
+  "bytes": 20156,
+  "bust": "arch_taoist~b.webp"
  },
  "arch_woman": {
   "portrait": "arch_woman.webp",
-  "bytes": 9936,
+  "bytes": 9682,
   "bust": "arch_woman~b.webp"
  }
 }

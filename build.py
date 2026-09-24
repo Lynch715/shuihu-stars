@@ -26,8 +26,8 @@ import hashlib, json, os, sys, glob, re
 ROOT = os.path.dirname(os.path.abspath(__file__))
 def p(*a): return os.path.join(ROOT, *a)
 
-OUT = p('水浒群星录_V10.3.html')
-VERSION = 'V10.3'
+OUT = p('水浒群星录_V10.4.html')
+VERSION = 'V10.4'
 # --noassets：不带图构建（模拟与回归在没有 assets/ 的机器上跑时用），产物只用于测试
 NOASSETS = '--noassets' in sys.argv
 

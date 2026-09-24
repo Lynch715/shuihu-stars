@@ -68,6 +68,8 @@ function weaponSvg(hid) {
 
 const seal = q => `<span class="seal ${QCLS[q]}">${QSEAL[q]}</span>`;
 const stars = n => '★'.repeat(n) + '☆'.repeat(Math.max(0, Lap.maxStar() - n));
+/* V10.4 品阶框：绝世朱红双线、天罡紫、名将赭石，猛以下照旧墨线。返回带前导空格的类名 */
+const qf = q => q >= 4 ? ` qf${q}` : '';
 
 /* 群将谱用的小牌：跟布阵的格子一个尺寸、一个版式（三列、立绘 3:4、名字在下），
    两页来回切时人不会忽大忽小。品阶印、在阵标、伤势标叠在立绘上。 */
@@ -76,7 +78,7 @@ function plateSm(hid) {
   if (!t) return '';
   const s = h ? Stats.calc(hid) : null;
   const inTeam = G.team.includes(hid);
-  return `<div class="tslot pl${t.q === 6 ? ' jue' : ''}${Hurt.heavy(hid) ? ' hurt-out' : ''}" data-action="hero" data-id="${hid}">
+  return `<div class="tslot pl${qf(t.q)}${Hurt.heavy(hid) ? ' hurt-out' : ''}" data-action="hero" data-id="${hid}">
     ${hasPortrait(hid) ? porTag('por', hid) : `<div class="por ph">${weaponSvg(hid)}</div>`}
     ${seal(t.q)}
     ${inTeam ? '<span class="onfield">阵</span>' : ''}
@@ -93,7 +95,7 @@ function plate(hid, extra) {
   const s = h ? Stats.calc(hid) : null;
   const has = hasPortrait(hid);
   const inTeam = G.team.includes(hid);
-  return `<div class="plate${has ? ' has' : ''}${t.q === 6 ? ' jue' : ''}" data-action="hero" data-id="${hid}">
+  return `<div class="plate${has ? ' has' : ''}${qf(t.q)}" data-action="hero" data-id="${hid}">
     ${has ? porTag('por', hid) : `<div class="weap">${weaponSvg(hid)}</div>`}
     ${seal(t.q)}
     ${hurtTag(hid)}
@@ -245,7 +247,7 @@ VIEWS.gift = () => {
     <div class="gc-s">${G.mode === 'chaos' ? '混乱模式 · ' : ''}两位好汉先来入伙</div>
     ${ids.map(hid => { const t = DB.hero(hid), h = G.heroes[hid];
       return `<div class="gc-row">
-        <div class="gc-face">${hasPortrait(hid) ? porTag('por', hid) : `<div class="weap">${weaponSvg(hid)}</div>`}</div>
+        <div class="gc-face${qf(t.q)}">${hasPortrait(hid) ? porTag('por', hid) : `<div class="weap">${weaponSvg(hid)}</div>`}</div>
         <div class="gc-info">
           <div class="nm">${seal(t.q)} ${esc(t.name)}<i>${esc(titleOf(t))}</i></div>
           <div class="dsk">${skRowsHtml(hid, h)}</div>
@@ -430,8 +432,21 @@ const OB_NAME = { atk: '武', def: '防', int: '智', agi: '捷', hp: '血', cri
 function obTxt(e) {
   if (!e.exclusive || !e.ownerBonus) return '';
   const who = DB.hero(e.exclusive);
-  return `${who ? who.name : ''}用时 ` + Object.entries(e.ownerBonus)
-    .filter(([, v]) => v).map(([k, v]) => `${OB_NAME[k] || k}+${Math.round(v * 100)}%`).join(' ');
+  const stat = Object.entries(e.ownerBonus)
+    .filter(([, v]) => v).map(([k, v]) => `${OB_NAME[k] || k}+${Math.round(v * 100)}%`);
+  // V10.4 专属特效跟在属性后面，写法同技能被动
+  const fx = (e.fx || []).map(f => SkillText.fx(f));
+  return `${who ? who.name : ''}用时 ` + [stat.join(' '), ...fx].filter(Boolean).join('；');
+}
+/** 绝世三件套一行：「套装·逼上梁山 2/3｜效果」，没齐灰显 */
+function setRowHtml(hid, meta) {
+  const set = meta && meta.set;
+  if (!set) return '';
+  const names = set.items.map(id => { const e = DB.equip(id); return e ? e.name : id; }).join('、');
+  return `<div class="setrow${meta.setOn ? ' on' : ''}">
+    <b>套装 · ${esc(set.name)} <i>${meta.setHave}/${set.items.length}</i></b>
+    <span>${esc(set.fx.map(f => SkillText.fx(f)).join('；'))}</span>
+    <span class="setn">${esc(names)}</span></div>`;
 }
 
 VIEWS.heroes = () => {
@@ -505,8 +520,8 @@ VIEWS.hero = () => {
       <span class="hstep" data-action="hero-step" data-id="1">${esc(DB.hero(L[(pos + 1) % L.length]).name)} ›</span>
     </div>` : ''}
     <div class="dtop">
-      ${hasPortrait(hid) ? porTag('dpor', hid)
-        : `<div class="dpor ph">${weaponSvg(hid)}</div>`}
+      ${hasPortrait(hid) ? porTag('dpor' + qf(t.q), hid)
+        : `<div class="dpor ph${qf(t.q)}">${weaponSvg(hid)}</div>`}
       <div class="dside">
         ${seal(t.q)}
         <div class="dnm">${esc(t.name)}</div>
@@ -542,7 +557,7 @@ VIEWS.hero = () => {
            data-action="${G.team.includes(hid) ? 'unteam' : 'team'}" data-id="${hid}">
         ${G.team.includes(hid) ? '下阵' : (Hurt.heavy(hid) ? '伤重' : '上阵')}</div>
     </div>
-    <div class="eqbox">${eqRows}</div>
+    <div class="eqbox">${eqRows}${setRowHtml(hid, s.meta)}</div>
     <div class="dbio">${esc(t.bio || '')}</div>
     <div class="dsk">${skRows}</div>
     <div class="btns"><div class="btn" data-action="go" data-id="${back}">返　回</div></div>
@@ -626,7 +641,7 @@ VIEWS.team = () => {
     const hid = G.team[i];
     if (hid) {
       const t = DB.hero(hid), s = Stats.calc(hid);
-      slots.push(`<div class="tslot${Hurt.heavy(hid) ? ' hurt-out' : ''}" data-action="hero" data-id="${hid}"
+      slots.push(`<div class="tslot${qf(t.q)}${Hurt.heavy(hid) ? ' hurt-out' : ''}" data-action="hero" data-id="${hid}"
         data-slot="${i}">
         ${hasPortrait(hid) ? porTag('por', hid)
                            : `<div class="por ph">${weaponSvg(hid)}</div>`}
@@ -777,7 +792,7 @@ VIEWS.recruitResult = () => {
     `<div class="frame tight">${list.map(r => {
       const t = DB.hero(r.hid);
       return `<div class="rcrow${t.q >= 5 ? ' hi' : ''}" data-action="hero" data-id="${r.hid}">
-        <span class="face">${hasPortrait(r.hid) ? porTag('por', r.hid)
+        <span class="face${qf(t.q)}">${hasPortrait(r.hid) ? porTag('por', r.hid)
                                                  : `<span class="weap">${weaponSvg(r.hid)}</span>`}</span>
         <b class="${QCLS[t.q]}">${esc(t.name)}</b>
         <span class="ti">${esc(titleOf(t))}</span>
@@ -845,7 +860,7 @@ function cellHtml(u, n) {
   const pct = clamp(u.hp / u.maxHp * 100, 0, 100);
   const por = hasPortrait(u.hid);
   return `<div class="cell${u.ally ? '' : ' foe'}${dead ? ' dead' : ''}" id="c${u.ally ? 'a' : 'f'}${u.idx}">
-    ${por ? porTag('por', u.hid) : `<div class="por ph">${weaponSvg(u.hid)}</div>`}
+    ${por ? porTag('por' + qf(u.q), u.hid) : `<div class="por ph${qf(u.q)}">${weaponSvg(u.hid)}</div>`}
     <div class="st">${stHtml(u)}</div>
     <div class="cn">${esc(u.name)}</div>
     <div class="hpbar"><em style="width:${pct}%"></em><b style="width:${shPct(u)}%"></b></div>

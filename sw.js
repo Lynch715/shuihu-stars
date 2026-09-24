@@ -2,7 +2,7 @@
    代码（html/js/manifest）网络优先：联网打开永远是新版，断网才用缓存。
    图片缓存优先 + 后台更新：秒开、省流量。
    改版时把 VER 往上加一，旧缓存会被清掉。 */
-const VER = 'qxl-v10.3-13';
+const VER = 'qxl-v10.4-2';
 const SHELL = ['./', './index.html', './site.webmanifest', './favicon.ico',
                './icon/icon-192.png', './icon/icon-512.png'];
 

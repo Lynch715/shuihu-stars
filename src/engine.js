@@ -114,6 +114,8 @@ const CFG = {
   lvGrow: 0.015,          // 每级通用成长
   favBonus: 0.20,         // 擅长武器加攻
   cap: { eqPct: 0.30, bondAtk: 0.25, bondHp: 0.25, bondOther: 0.20 },
+  /* V10.4 被动汇总封顶：绝世三件套 + 技能被动叠起来不许成墙 */
+  pasCap: { cut: 0.35, dodge: 0.30, skrate: 0.25, pierce: 0.40 },
 
   /* 暴击跟着捷走。原来挂在魅上，魅又不在详情页上显示 —— 玩家看到一个
      「魅」不知道干什么用，V10.1 把魅整个删了，暴击交给捷。
@@ -291,6 +293,9 @@ const SkillText = {
       case 'pimmune':  return `免疫${(f.st || []).map(x => ST_NAME[x] || x).join('、')}`;
       case 'pfirst':   return `首回合必定先手`;
       case 'ptough':   return `致命一击后保留 1 点血（一场一次）`;
+      case 'pskrate':  return `主动技发动率+${pc(f.val)}`;
+      case 'ppierce':  return `无视${pc(f.pct)}防御`;
+      case 'pcmd':     return `指挥技效果+${pc(f.pct)}`;
       default: return f.k;
     }
   },
@@ -324,6 +329,7 @@ const DB = (() => {
       exclusive: e.exclusive || null,
       // 专属加成：只有本人穿才有。键是 atk/def/int/agi/hp/crit/all
       ownerBonus: e.exclusive ? (e.owner_bonus || { atk: 0.25 }) : null,
+      fx: e.fx || [],          // V10.4 专属特效：本人穿才生效，写法同技能被动
     };
   }
 
@@ -427,6 +433,10 @@ const DB = (() => {
     exclusivePool: (RAW.EXCLUSIVE_POOL || []).filter(k => equip[k] && equip[k].exclusive),
     /** 专属去重时删掉的装备 → 留下来的那件。读旧存档时用 */
     equipRemap: RAW.equip_remap || {},
+    /** V10.4 同一人拆成两个的并掉了（贺统军 → 贺重宝、于玉珏 → 于玉麟）。读旧存档时用 */
+    heroRemap: RAW.hero_remap || {},
+    /** V10.4 绝世三件套：hid → { name, items:[兵,甲,骑], fx } */
+    excSet: hid => (RAW.exc_sets || {})[hid] || null,
   };
 })();
 
@@ -464,6 +474,34 @@ const Save = {
    *   · 武将身上的魅删掉
    *   · 已经满星的人，碎片按 2:1 折兵符 */
   migrate() {
+    // V10.4 并掉的人：没有新的就整个挪过去；两个都有，旧的那个折成新人的碎片
+    for (const [old, to] of Object.entries(DB.heroRemap)) {
+      if (!DB.hero(to)) continue;
+      const oh = G.heroes[old];
+      if (oh) {
+        if (!G.heroes[to]) {
+          // 按新人的底子重建，等级、星级、装备、伤势照旧；混乱模式的随机技能也照旧
+          const h = makeHero(to);
+          h.lv = oh.lv || 1; h.exp = oh.exp || 0; h.star = oh.star || 1;
+          if (h.lv > 1) h.base = Object.assign({}, grownBase(to, h.lv));
+          h.equipment = oh.equipment || h.equipment; h.hurt = oh.hurt || h.hurt;
+          if (oh.sk) { h.sk = oh.sk; h.owned = oh.owned; }
+          else h.owned = (DB.hero(to).sk || []).slice(0, Math.min(h.star, 4));
+          G.heroes[to] = h;
+        }
+        else {
+          G.frags[to] = (G.frags[to] || 0) + (CFG.fragByQ[DB.hero(to).q] || 1) * (oh.star || 1);
+          for (const s of SLOTS) {            // 旧的身上的装备放回行囊
+            const id = oh.equipment && oh.equipment[s];
+            if (id) G.items['eq_' + id] = (G.items['eq_' + id] || 0) + 1;
+          }
+        }
+        delete G.heroes[old];
+      }
+      if (G.frags[old]) { G.frags[to] = (G.frags[to] || 0) + G.frags[old]; delete G.frags[old]; }
+      if (Array.isArray(G.team)) G.team = [...new Set(G.team.map(h => h === old ? to : h))];
+      if (Array.isArray(G.startGift)) G.startGift = G.startGift.map(h => h === old ? to : h);
+    }
     for (const [k, v] of [['frag', 1], ['frag2', 3], ['frag3', 5]]) {
       if (G.items[k]) { G.res.token = (G.res.token || 0) + G.items[k] * v; delete G.items[k]; }
     }
@@ -772,13 +810,19 @@ function skillIdsOf(hid, h) { return (h && h.sk) || (DB.hero(hid) || {}).sk || [
 
 /** 被动汇总：一组技能里的被动折成一张表。属性层的（pstat / pcrit）进 Stats.calc，
  *  战斗层的（反击、追击、减伤……）由 Battle 在钩子里读。 */
-function passivesOf(ids) {
+function passivesOf(ids, extra) {
   const p = { stat: { atk: 0, def: 0, int: 0, agi: 0, hp: 0 }, crit: 0, critDmg: 0, dmg: 0, cut: 0, dodge: 0,
-              counter: null, follow: null, onhit: [], regen: 0, low: [], shield: 0, immune: [], first: false, tough: false };
+              counter: null, follow: null, onhit: [], regen: 0, low: [], shield: 0, immune: [], first: false, tough: false,
+              skrate: 0, pierce: 0, cmd: 0 };
+  // 技能被动 + V10.4 专属装备特效（extra：本人穿着的专属与套装，已在 Stats.gear 里挑好）
+  const lists = [];
   for (const id of ids || []) {
     const s = DB.skill(id);
-    if (!s || s.cat !== 'passive') continue;
-    for (const f of s.fx) {
+    if (s && s.cat === 'passive') lists.push(s.fx);
+  }
+  if (extra && extra.length) lists.push(extra);
+  for (const fxs of lists) {
+    for (const f of fxs) {
       switch (f.k) {
         case 'pstat':    p.stat[f.stat] = (p.stat[f.stat] || 0) + f.pct; break;
         case 'pcrit':    p.crit += f.val; break;
@@ -795,9 +839,15 @@ function passivesOf(ids) {
         case 'pimmune':  p.immune.push(...(f.st || [])); break;
         case 'pfirst':   p.first = true; break;
         case 'ptough':   p.tough = true; break;
+        case 'pskrate':  p.skrate += f.val; break;
+        case 'ppierce':  p.pierce += f.pct; break;
+        case 'pcmd':     p.cmd += f.pct; break;
       }
     }
   }
+  const cp = CFG.pasCap;
+  p.cut = Math.min(p.cut, cp.cut); p.dodge = Math.min(p.dodge, cp.dodge);
+  p.skrate = Math.min(p.skrate, cp.skrate); p.pierce = Math.min(p.pierce, cp.pierce);
   return p;
 }
 /** 暴击率（未计宿星）。详情页和战斗共用 */
@@ -832,6 +882,7 @@ const Stats = {
     // 专属加成按件上写的来。原来只认武力，天王宝塔写着血防，给的却是武 +25%
     const exc = { atk: 0, def: 0, int: 0, agi: 0, hp: 0, crit: 0 };
     let apt = false, excOn = null, list = [];
+    const excList = [], fx = [];                        // V10.4：一人可穿多件专属
     for (const slot of SLOTS) {
       const e = DB.equip(h.equipment && h.equipment[slot]);
       if (!e) continue;
@@ -840,12 +891,19 @@ const Stats = {
       for (const k in pct) pct[k] += e.pct[k] || 0;
       if (e.weaponType && fav && e.weaponType === fav) apt = true;
       if (e.exclusive === hid && e.ownerBonus) {        // 非本人穿：只拿面板
-        excOn = e;
+        excOn = excOn || e;
+        excList.push(e);
+        if (e.fx.length) fx.push(...e.fx);
         const ob = e.ownerBonus;
         for (const k of Object.keys(exc)) exc[k] += (ob[k] || 0) + (k !== 'crit' ? (ob.all || 0) : 0);
       }
     }
-    return { flat, pct, apt, exc, excOn, list };
+    // 绝世三件套：三件都是本人的、都穿着，套装效果才生效
+    const set = DB.excSet(hid);
+    const setHave = set ? set.items.filter(id => excList.some(e => e.id === id)).length : 0;
+    const setOn = !!set && setHave === set.items.length;
+    if (setOn) fx.push(...set.fx);
+    return { flat, pct, apt, exc, excOn, excList, fx, set, setHave, setOn, list };
   },
 
   /**
@@ -904,14 +962,15 @@ const Stats = {
     if (g.exc.hp) hp *= 1 + g.exc.hp;
     hp *= 1 + clamp(bd.hp, 0, CFG.cap.bondHp);
     // 被动技能的属性加成放在最后一乘：升星解锁了才算，敌人按星级切技能
-    const pas = passivesOf((opt && opt.skills) || h.owned || []);
+    const pas = passivesOf((opt && opt.skills) || h.owned || [], g.fx);
     for (const k of ['atk', 'def', 'int', 'agi']) if (pas.stat[k]) out[k] = Math.max(1, Math.round(out[k] * (1 + pas.stat[k])));
     if (pas.stat.hp) hp *= 1 + pas.stat.hp;
     out.maxHp = Math.max(1, Math.round(hp * CFG.hpMult));
     out.crit = (g.exc.crit || 0) + pas.crit;   // 专属与被动给的暴击，直接加在暴击率上
     out.pas = pas;
     out.q = q; out.lv = lv; out.star = star;
-    out.meta = { apt: g.apt, exc: g.excOn, bond: bd, gear: g.list };
+    out.meta = { apt: g.apt, exc: g.excOn, excList: g.excList, set: g.set, setHave: g.setHave, setOn: g.setOn,
+                 bond: bd, gear: g.list };
     return out;
   },
 
@@ -1125,6 +1184,7 @@ const Battle = {
    *  大数定律会把每一场抹成同一场：胜率对强度是一道断崖（1.00 → 0.00），
    *  中间那段「险胜」根本不存在，Boss 只有碾压和被碾压两种样子。*/
   dmg(atkV, defV, base, mod, critRate, src) {
+    if (src && src.pas.pierce) defV *= 1 - src.pas.pierce;     // V10.4 专属：无视防御
     const armor = Math.max(defV * CFG.armorK, 1);
     let d = base * (atkV / (atkV + armor)) * mod * CFG.dmgK;
     d *= 1 + (Math.random() * 2 - 1) * CFG.dmgVar;
@@ -1403,7 +1463,8 @@ const Battle = {
   },
 
   cast(b, u, sk) {
-    const mod = u.skillMod;
+    // V10.4 专属：指挥技加成
+    const mod = u.skillMod * (sk.cat === 'cmd' && u.pas.cmd ? 1 + u.pas.cmd : 1);
     // 技能名后面把效果写全：「林冲 · 豹头环眼｜对单体造成200%伤害；30%几率使命中者眩晕1回合」
     const tagTxt = sk.cat === 'cmd' ? '（指挥）' : sk.cat === 'sure' ? '（必中）' : '';
     b.log.push({ c: 'sk', s: `${u.ln} · ${sk.name}${tagTxt}｜${SkillText.desc(sk)}` });
@@ -1469,7 +1530,7 @@ const Battle = {
     }
     for (const s of u.actives) {
       if (s.cat !== 'active') continue;
-      if (chance(s.rate) && this.usable(b, u, s)) return s;
+      if (chance(s.rate + (u.pas.skrate || 0)) && this.usable(b, u, s)) return s;
     }
     return null;
   },

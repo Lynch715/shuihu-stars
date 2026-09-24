@@ -177,9 +177,8 @@ body{
 .plate .weap svg{width:100%;height:100%}
 .plate.has::after{content:"";position:absolute;left:0;right:0;bottom:0;height:56%;
   background:linear-gradient(180deg,rgba(233,226,208,0),rgba(233,226,208,.72) 42%,rgba(233,226,208,.95) 72%,var(--paper))}
-.plate.jue{box-shadow:inset 0 0 0 1px var(--paper),inset 0 0 0 3px rgba(168,128,44,.38)}
 .plate .onfield{position:absolute;left:8px;top:8px;z-index:3;font-family:var(--f-title);font-size:.68em;
-  color:var(--cinnabar);border:1.4px solid var(--cinnabar);padding:0 3px;background:rgba(233,226,208,.7)}
+  color:var(--ink);border:1.4px solid var(--ink);padding:0 3px;background:rgba(233,226,208,.7)}
 .pinfo{position:relative;z-index:2;padding:0 9px 8px}
 .pinfo .nm{font-family:var(--f-title);font-size:1.4em;letter-spacing:.06em;line-height:1.2}
 .pinfo .ti{font-size:.71em;color:var(--ink-3);margin-top:1px}
@@ -590,6 +589,14 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
   font-variant-numeric:tabular-nums}
 .eqs em,.opt span em{font-style:normal;color:var(--cinnabar);display:block}
 .opt span em.mine{font-weight:600}
+/* V10.4 绝世三件套 */
+.setrow{margin-top:6px;padding:6px 8px;border-top:1px dashed var(--ink-4);font-size:.8em;line-height:1.5;color:var(--ink-4)}
+.setrow b{display:block;font-weight:400;font-family:var(--f-title);font-size:1.05em}
+.setrow b i{font-style:normal;font-size:.85em;margin-left:4px}
+.setrow span{display:block}
+.setrow .setn{font-size:.9em}
+.setrow.on{color:var(--ink-2)}
+.setrow.on b{color:var(--cinnabar)}
 .itrow .eqs{flex:1 1 0}
 .itrow:has(.eqs) .who{margin-left:0;padding-right:0;flex:none;max-width:5.5em;text-align:right}
 .itrow:has(.eqs) .n{flex:none}
@@ -667,8 +674,27 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .plates.sm{grid-template-columns:repeat(3,1fr);gap:8px}
 .tslot.pl .seal{right:6px;top:6px;width:20px;height:20px;line-height:16px;font-size:.74em}
 .tslot.pl .onfield{position:absolute;left:7px;top:7px;z-index:3;font-family:var(--f-title);font-size:.66em;
-  color:var(--cinnabar);border:1.4px solid var(--cinnabar);padding:0 3px;background:rgba(233,226,208,.7)}
+  color:var(--ink);border:1.4px solid var(--ink);padding:0 3px;background:rgba(233,226,208,.7)}
 .tslot.pl .hurt{position:absolute;left:6px;top:6px;bottom:auto;z-index:3}
 .tslot.pl .onfield + .hurt{top:30px}   /* 在阵又带伤：伤势标挪到「阵」下面 */
 .tslot.pl .v b{font-weight:400;color:var(--gold);letter-spacing:.05em;font-size:.9em}
-.tslot.pl.jue{box-shadow:inset 0 0 0 1px var(--paper),inset 0 0 0 2px rgba(168,128,44,.38)}
+
+
+/* ── V10.4 品阶框 ─────────────────────────────────────────────────────
+   装裱的路子：外框品阶色，绝世再衬一道金线、天罡衬一道淡紫线。
+   内衬用 outline + 负 offset 画在立绘上面（inset box-shadow 会被图盖住）。
+   只有名将以上上色，猛良凡照旧墨线 —— 六档全上色反而谁都不显眼。
+   战阵格子只给立绘描一道细线：格子挨打时整框闪朱红，敌方血条也是朱红，
+   绝世再套朱框就分不清是品阶还是在挨打；最小一档 46px 也放不下双线。 */
+.plate.qf6,.tslot.qf6,.dpor.qf6,.gc-face.qf6 .por,.gc-face.qf6 .weap{
+  border:2px solid var(--q-jue);outline:1px solid var(--gold);outline-offset:-5px}
+.plate.qf5,.tslot.qf5,.dpor.qf5,.gc-face.qf5 .por,.gc-face.qf5 .weap{
+  border:2px solid var(--q-tian);outline:1px solid rgba(107,69,112,.45);outline-offset:-5px}
+.plate.qf4,.tslot.qf4,.dpor.qf4,.gc-face.qf4 .por,.gc-face.qf4 .weap{border:1.5px solid var(--q-ming)}
+.tslot.qf6,.tslot.qf5{outline-offset:-4px}
+.rcrow .face.qf6{border:1.5px solid var(--q-jue)}
+.rcrow .face.qf5{border:1.5px solid var(--q-tian)}
+.rcrow .face.qf4{border:1.5px solid var(--q-ming)}
+.cell .por.qf6{border-color:var(--q-jue)}
+.cell .por.qf5{border-color:var(--q-tian)}
+.cell .por.qf4{border-color:var(--q-ming)}
