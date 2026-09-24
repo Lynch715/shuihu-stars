@@ -661,3 +661,4 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 /* 战报里的 .sk 行撞了详情页技能行的 .sk（flex + 5.4em 名字列），名字后面空一大截 */
 .log .sk{display:block}
 .log .sk b{display:inline;width:auto;min-width:0;font-family:inherit;font-size:inherit;gap:0}
+.log .st{color:var(--q-tian)}

@@ -676,6 +676,7 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 /* 战报里的 .sk 行撞了详情页技能行的 .sk（flex + 5.4em 名字列），名字后面空一大截 */
 .log .sk{display:block}
 .log .sk b{display:inline;width:auto;min-width:0;font-family:inherit;font-size:inherit;gap:0}
+.log .st{color:var(--q-tian)}
 </style>
 </head>
 <body>
@@ -1812,7 +1813,8 @@ const Battle = {
     tgt.tally.taken += absorbed + left;
     if (src) src.tally.dealt += absorbed + left;
     if (absorbed) b.log.push({ c: 'sh', s: `${tgt.ln} 护盾挡下 ${num(absorbed)}` });
-    if (left) b.log.push({ c: 'dm', s: `${src ? src.ln + ' → ' : ''}${tgt.ln} 受创 ${num(left)}` });
+    const dot = { bleed: '流血', burn: '灼烧', poison: '中毒', counter: '反击', follow: '追击', drain: '吸血' }[tag];
+    if (left) b.log.push({ c: 'dm', s: `${src ? src.ln + ' → ' : ''}${tgt.ln}${dot ? `（${dot}）` : ''} 受创 ${num(left)}${tag === 'crit' ? '　暴击' : ''}` });
     this.ev(b, { k: 'dmg', t: tgt.idx, ally: tgt.ally, v: absorbed + left, absorbed, tag,
                  s: src ? src.idx : null, sa: src ? src.ally : null });
     if (tgt.hp <= 0 && tgt.alive) {
@@ -1949,7 +1951,13 @@ const Battle = {
     const cur = t.status[f.st];
     t.status[f.st] = { dur: Math.max(dur, cur ? cur.dur : 0), val: Math.max(val, cur ? cur.val : 0) };
     if (f.st === 'chaos') t.chaosHit++;
-    b.log.push({ c: 'in', s: `${t.ln} ${ST_NAME[f.st] || f.st}${dur > 1 ? `（${dur}回合）` : ''}` });
+    // 写清楚这个状态到底干了什么，玩家不用去翻说明
+    const what = {
+      stun: '下回合动不了', silence: '放不出技能', disarm: '不能普攻', chaos: '敌我不分',
+      taunt: '把敌人的攻击引到自己身上', vuln: `受到的伤害 +${pc(f.val || 0.2)}`, dodge: `闪避 +${pc(f.val || 0.2)}`,
+      bleed: `每回合掉血 ${num(val)}`, burn: `每回合灼伤 ${num(val)}`, poison: `每回合中毒 ${num(val)}`,
+    }[f.st] || '';
+    b.log.push({ c: 'st', s: `${t.ln} 【${ST_NAME[f.st] || f.st}】${what}${dur > 1 ? `，${dur} 回合` : ''}` });
     this.ev(b, { k: 'st', t: t.idx, ally: t.ally, st: f.st });
   },
 
@@ -1989,7 +1997,10 @@ const Battle = {
           if (live.length === 1) b.log.push({ c: 'sk', s: `${t.ln} ${STAT_NAME[f.stat] || f.stat}${sign}${add}（${f.dur || 2}回合）` });
           this.ev(b, { k: 'st', t: t.idx, ally: t.ally, st: f.k });
         }
-        if (live.length > 1) b.log.push({ c: 'sk', s: `${TG_NAME[f.tg] || ''} ${STAT_NAME[f.stat] || f.stat}${sign}${pc(f.pct * mod)}（${f.dur || 2}回合）` });
+        if (live.length > 1) {
+          const mine = f.k === 'buff' ? u.ally : !u.ally;     // 增益给自己人，减益给对面
+          b.log.push({ c: 'sk', s: `{${mine ? 'a' : 'f'}|${mine ? '我方' : '敌方'}${TG_NAME[f.tg] || ''}} ${STAT_NAME[f.stat] || f.stat}${sign}${pc(f.pct * mod)}（${f.dur || 2}回合）` });
+        }
         return tgts;
       }
       case 'heal':
@@ -2081,6 +2092,8 @@ const Battle = {
     for (const k of Object.keys(u.status)) {
       const s = u.status[k];
       if (k === 'bleed' || k === 'burn' || k === 'poison') { this.hurt(b, u, s.val, null, k); if (!u.alive) return; }
+      else if (s.dur === 1 && ['stun', 'silence', 'disarm', 'chaos', 'taunt', 'vuln', 'dodge'].includes(k) && k !== 'stun' && k !== 'chaos')
+        b.log.push({ c: 'in', s: `${u.ln} 的${ST_NAME[k]}消退` });
       s.dur--;
       if (s.dur <= 0) delete u.status[k];
     }
