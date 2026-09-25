@@ -150,7 +150,7 @@ const NAV = [
   ['tavern', '酒肆'], ['items', '行囊'], ['bonds', '羁绊'], ['codex', '图鉴'],
 ];
 /* 子页面亮哪个导航格 */
-const NAV_OF = { hero: null, stage: 'stages', chapcard: 'stages', recruitResult: 'tavern',
+const NAV_OF = { hero: null, stage: 'stages', chapcard: 'stages', recruitResult: 'tavern', forgeResult: 'tavern',
   battle: 'stages', result: 'stages' };
 
 function renderTop() {
@@ -675,9 +675,11 @@ VIEWS.team = () => {
      }</div>
      <div class="btns tight2">
        <div class="btn main" data-action="auto-team">一键上阵</div>
+       <div class="btn" data-action="auto-equip">一键装备</div>
+       <div class="btn" data-action="strip-team">一键卸装</div>
        <div class="btn" data-action="go" data-id="heroes">去挑人</div>
      </div>
-     <div class="tip">按住格子拖动可以换位。前三个站第一排，单挑先打前排。</div>` +
+     <div class="tip">按住格子拖动可以换位。前三个站第一排，单挑先打前排。一键装备只动阵上九人、只从行囊里拿。</div>` +
     section('teambond', `已激活羁绊（${bonds.length}）`,
     (bonds.length ? `<div class="frame tight">${bonds.map(({ b, have, tier }) =>
       `<div class="bondrow"><b>${esc(b.name)}</b>
@@ -778,7 +780,44 @@ VIEWS.tavern = () => {
     </div>
     <div class="btns"><div class="btn ${afford(G.res.gold, CFG.goldExchangeCost)}"
       data-action="gold">黄金求贤 · ${CFG.goldExchangeCost} 金（保底名将 · 天罡 ${Math.round(CFG.goldRate[5] * 100)}% 绝世 ${Math.round(CFG.goldRate[6] * 100)}%）</div></div>
+  </div>` + forgeHtml();
+};
+
+/* V10.5 铁匠铺：抽装备。概率按眼下的池子重算显示，封顶跟着进度走 */
+function forgeHtml() {
+  const cap = Grow.forgeCap();
+  const rates = Grow.forgeRates(cap);
+  const fmt = r => { const v = r * 100; return v >= 1 ? v.toFixed(0) : v.toFixed(1); };
+  const row = Object.entries(rates).sort((a, b) => b[0] - a[0])
+    .map(([q, r]) => q === '7' ? `<span class="q-jue">专属 ${fmt(r)}%</span>`
+                              : `<span class="${QCLS[q]}">${QTXT[q]} ${fmt(r)}%</span>`).join('');
+  const capTxt = cap >= 7 ? '眼下什么都打得出来，专属也在里头' : `眼下最高可打造：${QTXT[cap]}（推进关隘会往上开）`;
+  return sectionTitle('铁匠铺') + `<div class="frame">
+    <div class="rates">${row}</div>
+    <div class="note">先定品阶，再在该品阶里等概率取一件，五个槽位都在池里。<b>显示的就是真实概率。</b><br>
+      十连保底一件 ≥猛，累计 40 抽保底一件 ≥天罡。抽到重复的就是多一件，谁都能穿。<br>
+      ${capTxt}。专属神兵照旧主要从 Boss 手上来，这里只是碰运气。</div>
+    <div class="btns">
+      <div class="btn ${afford(G.res.silver, CFG.forgeCost1)}" data-action="forge" data-id="1">打一件 · ${CFG.forgeCost1} 银</div>
+      <div class="btn ${afford(G.res.silver, CFG.forgeCost10)}" data-action="forge" data-id="10">打十件 · ${CFG.forgeCost10} 银</div>
+    </div>
   </div>`;
+}
+
+VIEWS.forgeResult = () => {
+  const list = UI.forge || [];
+  const fresh = list.filter(r => !r.had).length;
+  return sectionTitle('铁匠铺所得', `<span class="tp">新得 ${fresh} · 又一件 ${list.length - fresh}</span>`) +
+    `<div class="frame tight">${list.map(r => {
+      const e = DB.equip(r.eid);
+      return `<div class="itrow${e.q >= 5 ? ' on' : ''}">
+        <b class="${QCLS[e.q]}">${esc(e.name)}</b>
+        <span class="s">${SLOT_NAME[e.slot] || e.slot}${e.exclusive ? ' · 专属' : ''}</span>
+        <span class="eqs">${esc(eqTxt(e))}${e.exclusive ? `<em>${esc(DB.hero(e.exclusive).name)} · ${esc(obTxt(e))}</em>` : ''}</span>
+        <span class="n">${r.had ? '又一件' : '新得'}</span></div>`;
+    }).join('')}</div>
+  <div class="btns"><div class="btn main" data-action="go" data-id="tavern">再　来</div>
+    <div class="btn" data-action="go" data-id="team">去布阵</div></div>`;
 };
 
 /* 十连结果原来铺十张大人物牌。两百多人共用十二张范式底图，别处还能靠
@@ -837,13 +876,13 @@ VIEWS.codex = () => {
 const ST_MARK = {
   stun:  ['眩', 'ctl'], chaos: ['乱', 'ctl'], silence: ['沉', 'ctl'], disarm: ['缚', 'ctl'],
   taunt: ['嘲', 'bf up'], vuln: ['伤', 'dot'], dodge: ['闪', 'bf up'],
-  bleed: ['血', 'dot'], burn:  ['灼', 'dot'], poison: ['毒', 'dot'],
+  bleed: ['血', 'dot'], burn:  ['灼', 'dot'], poison: ['毒', 'dot'], wind: ['风', 'dot'],
 };
 function stHtml(u) {
   if (!u.alive) return '';
   let h = '';
   for (const k of Object.keys(ST_MARK))
-    if (u.status[k]) h += `<i class="sm ${ST_MARK[k][1]}">${ST_MARK[k][0]}</i>`;
+    if (u.status[k]) h += `<i class="sm ${ST_MARK[k][1]}">${ST_MARK[k][0]}${k === 'poison' && u.status[k].n > 1 ? u.status[k].n : ''}</i>`;
   for (const k of ['atk', 'def', 'int', 'agi']) {
     const v = u.status['buff_' + k], d = u.status['debuff_' + k];
     if (v && v.val > 0) h += `<i class="sm bf up">${STAT_NAME[k]}▲</i>`;
@@ -1450,6 +1489,21 @@ document.addEventListener('click', ev => {
       const r = Grow.goldExchange();
       if (r.err) { toast(r.err); break; }
       UI.recruit = r.list; UI.view = 'recruitResult'; render(); break;
+    }
+    case 'forge': {
+      const r = Grow.forge(+id);
+      if (r.err) { toast(r.err); break; }
+      UI.forge = r.list; UI.view = 'forgeResult'; render(); break;
+    }
+    case 'auto-equip': {
+      const r = Grow.autoEquip();
+      toast(r.err ? r.err : r.put ? `配了 ${r.put} 件，换下 ${r.swapped} 件` : '行囊里没有更好的');
+      render(); break;
+    }
+    case 'strip-team': {
+      const r = Grow.stripTeam();
+      toast(r.n ? `卸下 ${r.n} 件，都回行囊了` : '身上本来就是空的');
+      render(); break;
     }
     case 'reset':
       ask('重开一局', '这一局的将、银两、通关进度会全部清掉，回不来。', '清掉，重来', () => {
