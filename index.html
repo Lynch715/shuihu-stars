@@ -3673,7 +3673,8 @@ VIEWS.main = () => {
     ${G.seenEpi ? '<div class="btn" data-action="epilogue">重看尾声</div>' : ''}
     ${window.Pwa && Pwa.available() ? '<div class="btn" data-action="pwa-offer">装到桌面</div>' : ''}
     <div class="btn warn" data-action="reset">重开一局</div>
-  </div>`;
+  </div>
+  <div class="contact" data-action="copy-wx">有 bug、有想法，加微信说一声：<b>lynchrrr</b><i>点一下复制</i></div>`;
 };
 
 /* 宿星条。二周目才有，三颗一直摆在主界面上 —— 这一周目是什么手感，
@@ -4837,6 +4838,13 @@ document.addEventListener('click', ev => {
       const r = Grow.forge(+id);
       if (r.err) { toast(r.err); break; }
       UI.forge = r.list; UI.view = 'forgeResult'; render(); break;
+    }
+    case 'copy-wx': {
+      const wx = 'lynchrrr';
+      const done = () => toast('微信号复制好了：' + wx);
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(wx).then(done, () => toast('微信号：' + wx));
+      else toast('微信号：' + wx);
+      break;
     }
     case 'auto-equip': {
       const r = Grow.autoEquip();
