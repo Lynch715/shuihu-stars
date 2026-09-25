@@ -176,6 +176,13 @@ skills['gss2']['fx'] = [{'k': 'status', 'tg': 'all', 'st': 'wind', 'dur': 2},
 add_fx('fan_rui_s2', {'k': 'status', 'tg': 'all', 'st': 'wind', 'dur': 2})   # 樊瑞 天魔乱舞
 add_fx('qdq2', {'k': 'status', 'tg': 'all', 'st': 'wind', 'dur': 1})          # 乔道清 妖雾弥漫
 
+# ── 3.5  治疗翻倍：智×0.8 五十级一发一千出头，对着两万的血条是 5%。
+# 按 rework_skills 的尺子，全军 0.8 该值 2.4 下普攻（每人半下），实测只有四分之一下。乘 2 拉回尺子上。
+for sid, sk in skills.items():
+    for f in sk['fx']:
+        if f.get('k') == 'heal' and f.get('mult') and not f.get('_v105'):
+            f['mult'] = round(f['mult'] * 2, 1); f['_v105'] = 1
+
 # ── 4  铁匠铺补货：6 件通用兵器 ─────────────────────────────────────
 NEW_W = {
   'w105_1': {'n': '镔铁雪花刀', 'q': '天罡', 'weapon_type': '刀', 'desc': '镔铁百炼，刃纹如雪'},

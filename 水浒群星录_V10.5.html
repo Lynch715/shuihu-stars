@@ -1020,7 +1020,7 @@ const SkillText = {
     const dur = f.dur ? `${f.dur}回合` : '';
     switch (f.k) {
       case 'dmg': {
-        let s = `对${tg}造成${pc(f.mult)}${f.src === 'int' ? '法术' : ''}伤害`;
+        let s = `对${tg}造成${pc(f.mult)}${f.src === 'int' ? '智力' : ''}伤害`;
         if (f.exec) s += `，目标血量低于${pc(f.exec.at)}时伤害×${f.exec.mul}`;
         if (f.drain) s += `，${f.drain >= 1 ? '' : pc(f.drain)}伤害转为自身回复`;
         if (f.pierce) s += `，无视${pc(f.pierce)}防御`;
@@ -1040,7 +1040,7 @@ const SkillText = {
       }
       case 'buff':   return `${tg}${STAT_NAME[f.stat] || f.stat}+${pc(f.pct)}${dur ? '，持续' + dur : ''}`;
       case 'debuff': return `${tg}${STAT_NAME[f.stat] || f.stat}−${pc(f.pct)}${dur ? '，持续' + dur : ''}`;
-      case 'heal':   return f.pct ? `${tg}回复${pc(f.pct)}血量` : `为${tg}回复法术值×${f.mult}的血量`;
+      case 'heal':   return f.pct ? `${tg}回复${pc(f.pct)}血量` : `为${tg}回复智×${f.mult}的血量`;
       case 'shield': return `${tg}获得${pc(f.pct)}血量的护盾`;
       case 'steal':  return `夺取${tg}${pc(f.pct)}的${STAT_NAME[f.stat] || f.stat}${dur}`;
       case 'cleanse':return `解除${tg}的负面状态`;
