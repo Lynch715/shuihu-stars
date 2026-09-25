@@ -352,6 +352,9 @@ body{
 .tslot.over{box-shadow:0 0 0 2px var(--gold) inset}
 .btns.tight2{margin-top:9px;gap:7px}
 .tip{font-size:.7em;color:var(--ink-3);line-height:1.9;margin-top:7px}
+.contact{margin:26px 0 8px;text-align:center;font-size:.76em;color:var(--ink-3);line-height:1.8;cursor:pointer}
+.contact b{font-family:var(--f-title);font-weight:400;color:var(--ink-2);letter-spacing:.06em;border-bottom:1px dashed var(--ink-4);padding:0 2px}
+.contact i{display:block;font-style:normal;font-size:.86em;color:var(--ink-4)}
 
 /* 行囊里在用的那一行 */
 .itrow .who{font-size:.76em;color:var(--indigo);margin-left:auto;padding-right:8px}
