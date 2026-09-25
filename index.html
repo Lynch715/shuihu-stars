@@ -4215,8 +4215,54 @@ VIEWS.codex = () => {
           ${has ? `data-action="hero" data-id="${k}"` : ''}>${esc(nm)}</span>`;
       }).join('') + '</div>');
   }
-  return html;
+  return html + excCodexHtml();
 };
+
+/* V10.5 专属神兵图鉴：按主人分行，件名做成小牌，拿到的上色、没拿到的灰。点一件看面板与效果。 */
+function ownedEq() {
+  const set = new Set(Object.keys(G.items).filter(k => k.startsWith('eq_') && G.items[k] > 0).map(k => k.slice(3)));
+  for (const h of Object.values(G.heroes)) for (const sl of SLOTS) if (h.equipment[sl]) set.add(h.equipment[sl]);
+  return set;
+}
+function excCodexHtml() {
+  const by = {};
+  for (const id of DB.equipIds()) { const e = DB.equip(id); if (e && e.exclusive && DB.hero(e.exclusive)) (by[e.exclusive] ||= []).push(e); }
+  const have = ownedEq();
+  const owners = Object.keys(by).sort((a, b) => DB.hero(b).q - DB.hero(a).q || by[b].length - by[a].length);
+  const total = owners.reduce((n, h) => n + by[h].length, 0);
+  const got = owners.reduce((n, h) => n + by[h].filter(e => have.has(e.id)).length, 0);
+  return section('cx:exc', `专属神兵 ${got}/${total}`,
+    `<div class="frame tight">${owners.map(hid => {
+      const t = DB.hero(hid);
+      const list = by[hid].slice().sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot));
+      const set = DB.excSet(hid), setN = set ? set.items.filter(id => have.has(id)).length : 0;
+      return `<div class="exrow">
+        <b class="${QCLS[t.q]}"${G.heroes[hid] ? ` data-action="hero" data-id="${hid}"` : ''}>${esc(t.name)}</b>
+        <span class="pcs">${list.map(e => `<i class="${have.has(e.id) ? QCLS[e.q] : 'no'}" data-action="eq-info" data-id="${e.id}">${esc(e.name)}</i>`).join('')}</span>
+        ${set ? `<em class="${setN === set.items.length ? 'on' : ''}">套 ${setN}/${set.items.length}</em>` : ''}
+      </div>`;
+    }).join('')}</div>`);
+}
+function openEquipInfo(eid) {
+  const e = DB.equip(eid);
+  if (!e) return;
+  const who = e.exclusive ? DB.hero(e.exclusive) : null;
+  const set = who ? DB.excSet(e.exclusive) : null;
+  const have = ownedEq();
+  const n = G.items['eq_' + eid] || 0;
+  const worn = Object.keys(G.heroes).filter(h => SLOTS.some(sl => G.heroes[h].equipment[sl] === eid));
+  $('modal').innerHTML = `<div class="sheet">
+    <div class="shead"><span class="${QCLS[e.q]}">${esc(e.name)}</span>　<small>${QTXT[e.q]} · ${SLOT_NAME[e.slot] || e.slot}${e.weaponType ? ' · ' + esc(e.weaponType) : ''}</small></div>
+    <div class="sbody">
+      <div>${esc(eqTxt(e)) || '—'}</div>
+      ${e.exclusive ? `<div class="mine">${esc(obTxt(e))}</div>` : ''}
+      ${set ? `<div class="dim">套装 · ${esc(set.name)}（${set.items.filter(id => have.has(id)).length}/${set.items.length}）：${esc(set.fx.map(f => SkillText.fx(f)).join('；'))}</div>` : ''}
+      <div class="dim">${worn.length ? worn.map(h => DB.hero(h).name).join('、') + ' 在用' : n ? `行囊里 ×${n}` : e.exclusive ? '还没拿到。Boss 关 3% 掉，铁匠铺也能碰运气' : '还没拿到'}</div>
+    </div>
+    <div class="btns"><div class="btn" data-action="modal-close">关　闭</div></div>
+  </div>`;
+  $('modal').classList.add('on');
+}
 
 /* ── 战斗视图与演出 ───────────────────────────────────────────────────── */
 
@@ -4844,6 +4890,7 @@ document.addEventListener('click', ev => {
       if (r.err) { toast(r.err); break; }
       UI.forge = r.list; UI.view = 'forgeResult'; render(); break;
     }
+    case 'eq-info': openEquipInfo(id); break;
     case 'copy-wx': {
       const wx = 'lynchrrr';
       const done = () => toast('微信号复制好了：' + wx);
