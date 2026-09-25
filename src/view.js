@@ -770,9 +770,6 @@ VIEWS.tavern = () => {
     .map(([q, r]) => `<span class="${QCLS[q]}">${QTXT[q]} ${(r * 100).toFixed(0)}%</span>`).join('');
   return sectionTitle('酒肆招贤') + `<div class="frame">
     <div class="rates">${rate}</div>
-    <div class="note">先按上列概率定品阶，再在该品阶内等概率取人。<b>显示的就是真实概率。</b><br>
-      十连保底至少一名「名」，累计 50 抽保底一名「天罡」。<br>
-      关卡不送人，武将只在这里招。招到重复的给碎片，满星之后碎片 ${CFG.fragMelt} 片折一枚兵符。</div>
     <div class="btns">
       <div class="btn ${afford(G.res.silver, CFG.recruitCost1)}" data-action="recruit" data-id="1">
         单抽 · ${CFG.recruitCost1} 银</div>
@@ -792,12 +789,8 @@ function forgeHtml() {
   const row = Object.entries(rates).sort((a, b) => b[0] - a[0])
     .map(([q, r]) => q === '7' ? `<span class="q-jue">专属 ${fmt(r)}%</span>`
                               : `<span class="${QCLS[q]}">${QTXT[q]} ${fmt(r)}%</span>`).join('');
-  const capTxt = cap >= 7 ? '眼下什么都打得出来，专属也在里头' : `眼下最高可打造：${QTXT[cap]}（推进关隘会往上开）`;
-  return sectionTitle('铁匠铺') + `<div class="frame">
+  return sectionTitle('铁匠铺', cap >= 7 ? '' : `<span class="tp">眼下最高 ${QTXT[cap]}</span>`) + `<div class="frame">
     <div class="rates">${row}</div>
-    <div class="note">先定品阶，再在该品阶里等概率取一件，五个槽位都在池里。<b>显示的就是真实概率。</b><br>
-      十连保底一件 ≥猛，累计 40 抽保底一件 ≥天罡。抽到重复的就是多一件，谁都能穿。<br>
-      ${capTxt}。专属神兵照旧主要从 Boss 手上来，这里只是碰运气。</div>
     <div class="btns">
       <div class="btn ${afford(G.res.silver, CFG.forgeCost1)}" data-action="forge" data-id="1">打一件 · ${CFG.forgeCost1} 银</div>
       <div class="btn ${afford(G.res.silver, CFG.forgeCost10)}" data-action="forge" data-id="10">打十件 · ${CFG.forgeCost10} 银</div>

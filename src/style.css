@@ -332,6 +332,18 @@ body{
   padding-left:9px}
 .note b{color:var(--ink-2);font-weight:400}
 
+/* 图鉴 · 专属神兵 */
+.exrow{display:flex;align-items:center;gap:8px;border-bottom:1px solid var(--ink-4);padding:6px 0;font-size:.8em}
+.exrow:last-child{border-bottom:none}
+.exrow b{font-weight:400;font-family:var(--f-title);font-size:1.06em;flex:none;min-width:3.2em}
+.exrow .pcs{flex:1;display:flex;flex-wrap:wrap;gap:4px}
+.exrow .pcs i{font-style:normal;font-family:var(--f-title);font-size:.9em;border:1px solid currentColor;padding:1px 5px;white-space:nowrap}
+.exrow .pcs i.no{color:var(--ink-4)}
+.exrow em{font-style:normal;flex:none;font-size:.86em;color:var(--ink-4)}
+.exrow em.on{color:var(--gold)}
+.sbody .mine{color:var(--ink-2);margin-top:6px}
+.sbody .dim{color:var(--ink-3);margin-top:6px;font-size:.9em}
+
 /* 图鉴 */
 /* 名字两字三字宽度不一，flex 排下来右边缘参差，一块碑排成了碎石。
    固定六列，每格等宽，名字长的自己缩 */
