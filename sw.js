@@ -2,7 +2,7 @@
    代码（html/js/manifest）网络优先：联网打开永远是新版，断网才用缓存。
    图片缓存优先 + 后台更新：秒开、省流量。
    改版时把 VER 往上加一，旧缓存会被清掉。 */
-const VER = 'qxl-v10.4-3';
+const VER = 'qxl-v10.4-4';
 const SHELL = ['./', './index.html', './site.webmanifest', './favicon.ico',
                './icon/icon-192.png', './icon/icon-512.png'];
 
@@ -41,11 +41,13 @@ self.addEventListener('fetch', e => {
   const u = new URL(req.url);
   if (u.origin !== location.origin) return;
 
+  /* 图片地址都带 ?v=内容哈希，换了图地址就变，缓存里有就一定是对的，不用再去网上核对。
+     原来命中缓存也要后台再拉一遍：每次重画页面，满屏立绘各发一个请求，网差时全堵在路上。 */
   if (isImg(u)) {
     e.respondWith(caches.open(VER).then(async c => {
       const hit = await c.match(req);
-      const net = fetch(req).then(r => { if (r.ok) c.put(req, r.clone()); return r; }).catch(() => hit);
-      return hit || net;
+      if (hit) return hit;
+      return fetch(req).then(r => { if (r.ok) c.put(req, r.clone()); return r; });
     }));
     return;
   }

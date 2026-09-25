@@ -1221,13 +1221,19 @@ function openUsePick(key) {
 
 /* ── 渲染入口 ─────────────────────────────────────────────────────────── */
 
+/* 换了页面（或换了人）才回到顶上；同一页里的操作（配、卸、操练、升星……）重画后留在原处。
+   原来每次都 scrollTo(0,0)：详情页往下翻到装备栏点「卸」，页面一下跳回顶上，
+   手指下面换成了别的按钮，看着像没点中，接着再点就点到别处去了。 */
 function render() {
   renderTop();
+  const key = UI.view + '|' + (UI.sel || '');
+  const y = key === render.key ? window.scrollY : 0;
   const fn = VIEWS[UI.view] || VIEWS.main;
   $('content').innerHTML = fn();
-  window.scrollTo(0, 0);
+  window.scrollTo(0, y);
+  render.key = key;
 }
-function go(v) { UI.view = v; UI.sel = null; render(); }
+function go(v) { UI.view = v; UI.sel = null; render.key = null; render(); }
 
 /* ── 事件委托（全局唯一） ─────────────────────────────────────────────── */
 

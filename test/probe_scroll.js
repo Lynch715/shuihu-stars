@@ -1,0 +1,26 @@
+const { chromium, devices } = require('playwright');
+const path = require('path');
+(async () => {
+  const br = await chromium.launch();
+  const ctx = await br.newContext({ ...devices['iPhone 13'] });
+  const pg = await ctx.newPage();
+  await pg.goto('file://' + path.resolve(process.argv[2])); await pg.waitForTimeout(300);
+  await pg.evaluate(() => { initGame('classic'); G.giftShown = true;
+    for (const h of ['lin_chong','yue_fei']) Grow.gainHero(h); G.team = ['lin_chong','yue_fei'];
+    G.items.eq_w5 = 1; Grow.equip('lin_chong','weapon','w5'); UI.view = 'team'; render(); });
+  const bb = await (await pg.$('.tslot[data-id="lin_chong"]')).boundingBox();
+  await pg.touchscreen.tap(bb.x + bb.width / 2, bb.y + 40); await pg.waitForTimeout(200);
+  console.log('enter hero scrollY', await pg.evaluate(() => scrollY));
+  await pg.evaluate(() => document.querySelector('.eqbox').scrollIntoView()); await pg.waitForTimeout(100);
+  const y0 = await pg.evaluate(() => scrollY);
+  const a = await (await pg.$('.eqrow .act')).boundingBox();
+  await pg.touchscreen.tap(a.x + a.width / 2, a.y + a.height / 2); await pg.waitForTimeout(200);
+  console.log('before', y0, 'after 卸', await pg.evaluate(() => scrollY + ' w=' + G.heroes.lin_chong.equipment.weapon));
+  const a2 = await (await pg.$('.eqrow .act')).boundingBox();
+  await pg.touchscreen.tap(a2.x + a2.width / 2, a2.y + a2.height / 2); await pg.waitForTimeout(200);
+  const o = await (await pg.$('.opt')).boundingBox(); await pg.touchscreen.tap(o.x + 30, o.y + o.height / 2); await pg.waitForTimeout(200);
+  console.log('after 配', await pg.evaluate(() => scrollY + ' w=' + G.heroes.lin_chong.equipment.weapon));
+  await pg.evaluate(() => stepHero(1)); await pg.waitForTimeout(100);
+  console.log('换人后', await pg.evaluate(() => scrollY + ' ' + UI.sel));
+  await br.close();
+})();
