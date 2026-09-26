@@ -726,3 +726,8 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 /* V10.6 榜单分我方、敌方 */
 .bd-side{font-family:var(--f-title);font-size:.72em;letter-spacing:.3em;color:var(--ink-3);margin:10px 0 -4px}
 .bd-side.foes{color:var(--cinnabar)}
+
+/* V10.6 装备百分比合计与上限 */
+.eqpct{font-size:.74em;color:var(--ink-3);padding:4px 0 2px;border-top:1px dashed var(--line, rgba(0,0,0,.12));margin-top:4px}
+.eqpct em{font-style:normal;color:var(--red, #a33)}
+.eqpct i{font-style:normal;float:right;color:var(--ink-4)}

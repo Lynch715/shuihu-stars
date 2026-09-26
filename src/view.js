@@ -446,6 +446,13 @@ function obTxt(e) {
   const fx = (e.fx || []).map(f => SkillText.fx(f));
   return `${who ? who.name : ''}用时 ` + [stat.join(' '), ...fx].filter(Boolean).join('；');
 }
+/** V10.6 装备百分比合计与上限：每项单独封顶 CFG.cap.eqPct */
+function eqPctHtml(meta) {
+  const p = (meta && meta.pct) || {}, cap = CFG.cap.eqPct;
+  const nm = { atk: '武', int: '智', def: '防', hp: '血' };
+  const on = ['atk', 'int', 'def', 'hp'].filter(k => p[k] > 0);
+  return `<div class="eqpct">装备百分比 ${on.length ? on.map(k => `${nm[k]} +${Math.round(p[k] * 100)}%${p[k] > cap ? `<em>（按 ${Math.round(cap * 100)}% 计）</em>` : ''}`).join('　') : '无'}<i>每项上限 ${Math.round(cap * 100)}%</i></div>`;
+}
 /** 绝世三件套一行：「套装·逼上梁山 2/3｜效果」，没齐灰显 */
 function setRowHtml(hid, meta) {
   const set = meta && meta.set;
@@ -565,7 +572,7 @@ VIEWS.hero = () => {
            data-action="${G.team.includes(hid) ? 'unteam' : 'team'}" data-id="${hid}">
         ${G.team.includes(hid) ? '下阵' : (Hurt.heavy(hid) ? '伤重' : '上阵')}</div>
     </div>
-    <div class="eqbox">${eqRows}${setRowHtml(hid, s.meta)}</div>
+    <div class="eqbox">${eqRows}${setRowHtml(hid, s.meta)}${eqPctHtml(s.meta)}</div>
     <div class="dbio">${esc(t.bio || '')}</div>
     <div class="dsk">${skRows}</div>
     <div class="btns"><div class="btn" data-action="go" data-id="${back}">返　回</div></div>
@@ -932,8 +939,8 @@ function stHtml(u) {
   for (const k of Object.keys(ST_MARK))
     if (u.status[k]) h += `<i class="sm ${ST_MARK[k][1]}">${ST_MARK[k][0]}${k === 'poison' && u.status[k].n > 1 ? u.status[k].n : ''}</i>`;
   for (const k of ['atk', 'def', 'int', 'agi']) {
-    const v = u.status['buff_' + k], d = u.status['debuff_' + k];
-    if (v && v.val > 0) h += `<i class="sm bf up">${STAT_NAME[k]}▲</i>`;
+    const v = u.status['buff_' + k], d = u.status['debuff_' + k], lo = u.status['low_' + k];
+    if ((v && v.val > 0) || (lo && lo.val > 0)) h += `<i class="sm bf up">${STAT_NAME[k]}▲</i>`;
     if (d && d.val > 0) h += `<i class="sm bf dn">${STAT_NAME[k]}▼</i>`;
   }
   return h;

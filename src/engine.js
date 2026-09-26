@@ -117,7 +117,7 @@ const CFG = {
   hpMult: 10,             // 体力 → 血量
   lvGrow: 0.015,          // 每级通用成长
   favBonus: 0.20,         // 擅长武器加攻
-  cap: { eqPct: 0.30, bondAtk: 0.25, bondHp: 0.25, bondOther: 0.20 },
+  cap: { eqPct: 0.50, bondAtk: 0.25, bondHp: 0.25, bondOther: 0.20 },
   /* V10.4 被动汇总封顶：绝世三件套 + 技能被动叠起来不许成墙 */
   pasCap: { cut: 0.35, dodge: 0.30, skrate: 0.25, pierce: 0.40, heal: 0.40, ctrl: 0.20, buff: 0.35, dot: 1.0 },
 
@@ -264,72 +264,81 @@ const $ = id => document.getElementById(id);
 
 const ST_NAME = { stun: '眩晕', silence: '沉默', disarm: '缴械', chaos: '混乱', taunt: '嘲讽',
                   vuln: '易伤', bleed: '流血', burn: '灼烧', poison: '中毒', dodge: '闪避', wind: '狂风' };
-const TG_NAME = { single: '单体', row: '横排', col: '竖列', all: '敌方全体', back: '敌方后排', front: '敌方前排',
-                  weakest: '血最少的敌人', strongest: '武最高的敌人', smartest: '智最高的敌人',
-                  rand2: '随机两个敌人', rand3: '随机三个敌人',
-                  self: '自身', mates: '全军', lowest: '血最少的队友', frontm: '我方前排', colm: '同列队友', hit: '命中者' };
+const TG_NAME = { single: '敌方单体', row: '敌方一横排', col: '敌方一竖列', all: '敌方全体', back: '敌方后排', front: '敌方前排',
+                  weakest: '当前生命最低的敌人', strongest: '武力最高的敌人', smartest: '智力最高的敌人',
+                  rand2: '随机两名敌人', rand3: '随机三名敌人',
+                  self: '自身', mates: '我方全体', lowest: '当前生命最低的友方', frontm: '我方前排', colm: '同列友方', hit: '被命中者' };
 const pc = x => Math.round(x * 100) + '%';
+/** 群体目标的阵营标签：TG_NAME 是施术者视角，战报里按实际阵营写「我方 / 敌方」并上色 */
+const sideLabel = (tg, mine) => { const nm = (TG_NAME[tg] || '').replace(/^[敌我]方/, ''); return `{${mine ? 'a' : 'f'}|${mine ? '我方' : '敌方'}${nm}}`; };
+/* 状态的规则说明：技能描述和战报共用这一份，措辞只写效果，不写形容。 */
+const ST_RULE = {
+  stun: '无法行动', silence: '无法施放主动技与必中技', disarm: '无法普攻', chaos: '行动时随机攻击一名友方',
+  taunt: '敌方单体攻击优先指向自身', vuln: '受到的伤害提高',
+  bleed: `每回合损失最大生命的 ${pc(CFG.bleedPct)}`, burn: '每回合受到灼烧伤害', poison: '每回合按层数损失当前生命',
+  dodge: '有几率闪避单体攻击', wind: '受到的灼烧伤害提高，灼烧向同排蔓延',
+};
 
 const SkillText = {
   cat(sk) {
     return sk.cat === 'passive' ? '被动' : sk.cat === 'cmd' ? '指挥'
-         : sk.cat === 'sure' ? `必中·冷却${sk.cd || 2}` : `主动 ${pc(sk.rate == null ? 0.5 : sk.rate)}`;
+         : sk.cat === 'sure' ? `必中·冷却${sk.cd || 2}回合` : `主动·发动率 ${pc(sk.rate == null ? 0.5 : sk.rate)}`;
   },
   fx(f) {
     const tg = TG_NAME[f.tg] || f.tg || '';
-    const dur = f.dur ? `${f.dur}回合` : '';
+    const dur = f.dur ? `，持续 ${f.dur} 回合` : '';
     switch (f.k) {
       case 'dmg': {
-        let s = f.src === 'gap' ? `对${tg}造成智力差伤害（施术者智力减目标智力）×${pc(f.mult)}，无视防御`
-              : `对${tg}造成${pc(f.mult)}${f.src === 'int' ? '智力' : ''}伤害`;
-        if (f.exec) s += `，目标血量低于${pc(f.exec.at)}时伤害×${f.exec.mul}`;
-        if (f.drain) s += `，${f.drain >= 1 ? '' : pc(f.drain)}伤害转为自身回复`;
-        if (f.pierce) s += `，无视${pc(f.pierce)}防御`;
-        if (f.vsCtrl) s += `，对被控制（眩晕、混乱、沉默）的目标伤害+${pc(f.vsCtrl)}`;
+        let s = f.src === 'gap' ? `对${tg}造成智力差伤害（施术者智力 − 目标智力）× ${pc(f.mult)}，无视防御`
+              : `对${tg}造成${f.src === 'int' ? '智力' : '武力'} ${pc(f.mult)} 的伤害`;
+        if (f.exec) s += `；目标生命低于 ${pc(f.exec.at)} 时伤害 ×${f.exec.mul}`;
+        if (f.drain) s += `；造成伤害的 ${pc(f.drain)} 转为自身生命`;
+        if (f.pierce) s += `；无视目标 ${pc(f.pierce)} 防御`;
+        if (f.vsCtrl) s += `；目标处于【眩晕】【混乱】【沉默】时伤害 +${pc(f.vsCtrl)}`;
         return s;
       }
       case 'status': {
         const n = ST_NAME[f.st] || f.st;
-        const ch = f.chance != null && f.chance < 1 ? `${pc(f.chance)}几率` : '';
-        if (f.st === 'vuln') return `${ch}使${tg}易伤（受伤+${pc(f.val || 0.2)}）${dur}`;
-        if (f.st === 'dodge') return `${tg}获得${pc(f.val || 0.2)}闪避${dur}`;
-        if (f.st === 'taunt') return `${tg}嘲讽敌方${dur}`;
-        if (f.st === 'wind') return `${tg}陷入狂风${dur}（灼烧 +${pc(CFG.windBurn - 1)} 并向同排蔓延）`;
-        if (f.st === 'bleed') return `${ch}使${tg}流血${dur}（每回合失 ${pc(CFG.bleedPct)} 最大生命，无视护盾）`;
-        if (f.st === 'poison') return `${ch}使${tg}中毒${f.layers > 1 ? ` ${f.layers} 层` : ''}${dur}（每层每回合失 ${pc(CFG.poisonPct)} 当前生命，无视护盾）`;
-        if (f.st === 'burn') return `${ch}使${tg}灼烧${dur}（每回合受施术者攻击值 ${pc(CFG.burnK)} 的伤害）`;
-        return `${ch}使${tg}${n}${dur}`;
+        const ch = f.chance != null && f.chance < 1 ? `${pc(f.chance)} 几率` : '';
+        if (f.st === 'vuln') return `${ch}使${tg}陷入【易伤】（受到的伤害 +${pc(f.val || 0.2)}）${dur}`;
+        if (f.st === 'dodge') return `${tg}获得【闪避】（${pc(f.val || 0.2)} 几率闪避单体攻击）${dur}`;
+        if (f.st === 'taunt') return `${tg}获得【嘲讽】（敌方单体攻击优先指向自身）${dur}`;
+        if (f.st === 'wind') return `使${tg}陷入【狂风】（受到的灼烧伤害 +${pc(CFG.windBurn - 1)}，灼烧向同排蔓延）${dur}`;
+        if (f.st === 'bleed') return `${ch}使${tg}陷入【流血】（每回合损失最大生命的 ${pc(CFG.bleedPct)}，真实伤害，无视护盾）${dur}`;
+        if (f.st === 'poison') return `${ch}使${tg}陷入【中毒】${f.layers > 1 ? ` ${f.layers} 层` : ''}（每层每回合损失当前生命的 ${pc(CFG.poisonPct)}，真实伤害，无视护盾）${dur}`;
+        if (f.st === 'burn') return `${ch}使${tg}陷入【灼烧】（每回合受到施术者攻击 ${pc(CFG.burnK)} 的伤害）${dur}`;
+        return `${ch}使${tg}陷入【${n}】（${ST_RULE[f.st] || ''}）${dur}`;
       }
-      case 'buff':   return `${tg}${STAT_NAME[f.stat] || f.stat}+${pc(f.pct)}${dur ? '，持续' + dur : ''}`;
-      case 'debuff': return `${tg}${STAT_NAME[f.stat] || f.stat}−${pc(f.pct)}${dur ? '，持续' + dur : ''}`;
-      case 'heal':   return f.pct ? `${tg}回复${pc(f.pct)}血量` : `为${tg}回复智×${+(f.mult * CFG.healK).toFixed(2)}的血量`;
-      case 'shield': return `${tg}获得${pc(f.pct)}血量的护盾`;
-      case 'steal':  return `夺取${tg}${pc(f.pct)}的${STAT_NAME[f.stat] || f.stat}${dur}`;
+      case 'buff':   return `${tg}${STAT_NAME[f.stat] || f.stat} +${pc(f.pct)}${dur}（同属性增益不叠加，取最高值）`;
+      case 'debuff': return `${tg}${STAT_NAME[f.stat] || f.stat} −${pc(f.pct)}${dur}（同属性削弱不叠加，取最高值）`;
+      case 'heal':   return f.pct ? `${tg}回复最大生命的 ${pc(f.pct)}` : `为${tg}回复生命，数值为智力 ×${+(f.mult * CFG.healK).toFixed(2)}`;
+      case 'shield': return `${tg}获得护盾，数值为最大生命的 ${pc(f.pct)}，持续 ${CFG.shieldDur} 回合（护盾可叠加）`;
+      case 'steal':  return `夺取${tg} ${pc(f.pct)} 的${STAT_NAME[f.stat] || f.stat}${dur}（自身所得等于目标实际减少值）`;
       case 'cleanse':return `解除${tg}的负面状态`;
-      case 'dispel': return `驱散${tg}的增益与护盾`;
+      case 'dispel': return `驱散${tg}的增益状态与护盾`;
       // 被动
-      case 'pstat':  return `${STAT_NAME[f.stat] || f.stat}+${pc(f.pct)}`;
-      case 'pcrit':  return `暴击率+${pc(f.val)}`;
-      case 'pcritdmg': return `暴击伤害+${pc(f.val)}`;
-      case 'pdmg':   return `造成的伤害+${pc(f.pct)}`;
-      case 'pcut':   return `受到的伤害−${pc(f.pct)}`;
-      case 'pdodge': return `${pc(f.chance)}几率闪避单体攻击`;
-      case 'pcounter': return `受击后${pc(f.chance)}几率反击（${pc(f.mult)}伤害）`;
-      case 'pfollow':  return `普攻后${pc(f.chance)}几率追击（${pc(f.mult)}伤害）`;
-      case 'ponhit':   return `普攻${pc(f.chance)}几率使目标${ST_NAME[f.st] || f.st}${f.layers > 1 ? ` ${f.layers} 层` : ''}${dur}`;
-      case 'pregen':   return `每回合回复${pc(f.pct)}血量`;
-      case 'plow':     return `血量低于${pc(f.at)}时${STAT_NAME[f.stat] || f.stat}+${pc(f.pct)}`;
-      case 'pshield':  return `开局获得${pc(f.pct)}血量的护盾`;
-      case 'pimmune':  return `免疫${(f.st || []).map(x => ST_NAME[x] || x).join('、')}`;
-      case 'pfirst':   return `首回合必定先手`;
-      case 'ptough':   return `致命一击后保留 1 点血（一场一次）`;
-      case 'pskrate':  return `主动技发动率+${pc(f.val)}`;
-      case 'ppierce':  return `无视${pc(f.pct)}防御`;
-      case 'pcmd':     return `指挥技效果+${pc(f.pct)}`;
-      case 'pheal':    return `施放的治疗+${pc(f.pct)}`;
-      case 'pctrl':    return `眩晕、混乱、沉默的命中几率+${pc(f.val)}`;
-      case 'pbuff':    return `施放的增益与护盾+${pc(f.pct)}`;
-      case 'pdot':     return `施加的流血、中毒伤害+${pc(f.pct)}`;
+      case 'pstat':  return `${STAT_NAME[f.stat] || f.stat} +${pc(f.pct)}`;
+      case 'pcrit':  return `暴击率 +${pc(f.val)}`;
+      case 'pcritdmg': return `暴击伤害 +${pc(f.val)}`;
+      case 'pdmg':   return `造成的伤害 +${pc(f.pct)}`;
+      case 'pcut':   return `受到的伤害 −${pc(f.pct)}`;
+      case 'pdodge': return `${pc(f.chance)} 几率闪避单体攻击`;
+      case 'pcounter': return `受到攻击后 ${pc(f.chance)} 几率反击，伤害为武力 ${pc(f.mult)}`;
+      case 'pfollow':  return `普攻后 ${pc(f.chance)} 几率追击，伤害为武力 ${pc(f.mult)}`;
+      case 'ponhit':   return `普攻命中后 ${pc(f.chance)} 几率使目标陷入【${ST_NAME[f.st] || f.st}】${f.layers > 1 ? ` ${f.layers} 层` : ''}${dur}`;
+      case 'pregen':   return `每回合回复最大生命的 ${pc(f.pct)}`;
+      case 'plow':     return `生命低于 ${pc(f.at)} 时${STAT_NAME[f.stat] || f.stat} +${pc(f.pct)}，至战斗结束（每场一次）`;
+      case 'pshield':  return `开战时获得护盾，数值为最大生命的 ${pc(f.pct)}`;
+      case 'pimmune':  return `免疫${(f.st || []).map(x => '【' + (ST_NAME[x] || x) + '】').join('')}`;
+      case 'pfirst':   return `第 1 回合必定最先行动`;
+      case 'ptough':   return `受到致命伤害时保留 1 点生命（每场一次）`;
+      case 'pskrate':  return `主动技发动率 +${pc(f.val)}`;
+      case 'ppierce':  return `攻击无视目标 ${pc(f.pct)} 防御`;
+      case 'pcmd':     return `指挥技效果 +${pc(f.pct)}`;
+      case 'pheal':    return `施放的治疗量 +${pc(f.pct)}`;
+      case 'pctrl':    return `施加【眩晕】【混乱】【沉默】的几率 +${pc(f.val)}`;
+      case 'pbuff':    return `施放的增益与护盾数值 +${pc(f.pct)}`;
+      case 'pdot':     return `施加的【流血】【中毒】伤害 +${pc(f.pct)}`;
       default: return f.k;
     }
   },
@@ -859,11 +868,11 @@ const CTRL_ST = ['stun', 'chaos', 'silence', 'disarm'];
 /** V10.6 Boss 关阵势。关卡数据里 theme 字段指到这里；效果只挂在敌方身上，叠在 Boss ×1.5 之上。
  *  普攻附带状态（ponhit）会先后掷两次几率，这里填的是开过平方的数，实际命中 = 平方 */
 const THEMES = {
-  shield: { name: '铁壁', tip: '敌方全体开局带三成血量的护盾，不会消散，每三回合再加一成。' },
-  dot:    { name: '毒刃', tip: '敌方普攻带毒带血，他们上的毒和流血伤害翻倍。' },
-  chaos:  { name: '迷阵', tip: '一开阵我方就有人发昏，敌方普攻三成几率让人混乱，控制更容易中。' },
-  blade:  { name: '刀山', tip: '敌方全是武将，武力加两成、暴击加一成。' },
-  wen:    { name: '谋臣', tip: '敌方以文官为主，智加三成半、技能更常放。' },
+  shield: { name: '铁壁', tip: '敌方全体开战时获得护盾，数值为最大生命的 30%，持续整场；此后每 3 回合再获得最大生命 10% 的护盾。' },
+  dot:    { name: '毒刃', tip: '敌方普攻命中后 80% 几率施加【中毒】2 层、45% 几率施加【流血】，各持续 2 回合；敌方施加的【中毒】【流血】伤害 ×2。' },
+  chaos:  { name: '迷阵', tip: '开战时我方随机 3 人各有 60% 几率陷入【混乱】1 回合；敌方普攻命中后 30% 几率施加【混乱】1 回合；敌方施加【眩晕】【混乱】【沉默】的几率 +20%。【混乱】命中几率另受双方智力比影响。' },
+  blade:  { name: '刀山', tip: '敌方全为武将：武力 +20%，暴击率 +10%。' },
+  wen:    { name: '谋臣', tip: '敌方以文官为主：智力 +35%，主动技发动率 +15%。' },
 };
 /** 阵势对敌方面板的加成（战力估算与开打共用） */
 function themeStats(s, th) {
@@ -877,10 +886,10 @@ function themeUnit(u, th) {
   const p = u.pas = Object.assign({}, u.pas, { onhit: (u.pas.onhit || []).slice() });
   if (th === 'shield') { u.shield += Math.round(u.maxHp * 0.3); u.shieldDur = 99; }
   if (th === 'dot') {
-    p.onhit.push({ k: 'ponhit', st: 'poison', chance: 0.89, dur: 2, layers: 2 }, { k: 'ponhit', st: 'bleed', chance: 0.67, dur: 2 });
+    p.onhit.push({ k: 'ponhit', st: 'poison', chance: 0.8, dur: 2, layers: 2, from: '阵势·毒刃' }, { k: 'ponhit', st: 'bleed', chance: 0.45, dur: 2, from: '阵势·毒刃' });
     p.dot = (p.dot || 0) + 1.0;
   }
-  if (th === 'chaos') { p.onhit.push({ k: 'ponhit', st: 'chaos', chance: 0.55, dur: 1 }); p.ctrl = (p.ctrl || 0) + 0.20; }
+  if (th === 'chaos') { p.onhit.push({ k: 'ponhit', st: 'chaos', chance: 0.3, dur: 1, from: '阵势·迷阵' }); p.ctrl = (p.ctrl || 0) + 0.20; }
   if (th === 'blade') u.crit = (u.crit || 0) + 0.10;
   if (th === 'wen') p.skrate = (p.skrate || 0) + 0.15;
 }
@@ -905,7 +914,7 @@ function passivesOf(ids, extra) {
   const lists = [];
   for (const id of ids || []) {
     const s = DB.skill(id);
-    if (s && s.cat === 'passive') lists.push(s.fx);
+    if (s && s.cat === 'passive') lists.push(s.fx.map(f => f.from ? f : Object.assign({}, f, { from: `技能·${s.name}` })));
   }
   if (extra && extra.length) lists.push(extra);
   for (const fxs of lists) {
@@ -917,15 +926,15 @@ function passivesOf(ids, extra) {
         case 'pdmg':     p.dmg += f.pct; break;
         case 'pcut':     p.cut += f.pct; break;
         case 'pdodge':   p.dodge += f.chance; break;
-        case 'pcounter': p.counter = p.counter && p.counter.chance > f.chance ? p.counter : { chance: f.chance, mult: f.mult }; break;
-        case 'pfollow':  p.follow = p.follow && p.follow.chance > f.chance ? p.follow : { chance: f.chance, mult: f.mult }; break;
+        case 'pcounter': p.counter = p.counter && p.counter.chance > f.chance ? p.counter : { chance: f.chance, mult: f.mult, from: f.from }; break;
+        case 'pfollow':  p.follow = p.follow && p.follow.chance > f.chance ? p.follow : { chance: f.chance, mult: f.mult, from: f.from }; break;
         case 'ponhit':   p.onhit.push(f); break;
         case 'pregen':   p.regen += f.pct; break;
         case 'plow':     p.low.push(f); break;
         case 'pshield':  p.shield += f.pct; break;
         case 'pimmune':  p.immune.push(...(f.st || [])); break;
-        case 'pfirst':   p.first = true; break;
-        case 'ptough':   p.tough = true; break;
+        case 'pfirst':   p.first = true; p.firstFrom = p.firstFrom || f.from; break;
+        case 'ptough':   p.tough = true; p.toughFrom = p.toughFrom || f.from; break;
         case 'pskrate':  p.skrate += f.val; break;
         case 'ppierce':  p.pierce += f.pct; break;
         case 'pcmd':     p.cmd += f.pct; break;
@@ -965,12 +974,27 @@ const Stats = {
     return out;
   },
 
+  /** 生效中的羁绊明细（战报整备段用）：[{ name, attr, pct, have, need }] */
+  bondList(hid, team) {
+    const out = [], idx = DB.bondsOf[hid];
+    if (!idx || !team || !team.includes(hid) || Fate.has('noBond')) return out;
+    const inTeam = new Set(team);
+    for (const i of idx) {
+      const b = DB.bonds[i];
+      const have = (b.members || []).filter(m => inTeam.has(m)).length;
+      let rate = 0;
+      for (const t of (b.tiers || [])) if (have >= t.need) rate = Math.max(rate, t.rate);
+      if (rate) out.push({ name: b.name, attr: b.attr || 'atk', pct: (b.val || 0) / 100 * rate, have, total: (b.members || []).length });
+    }
+    return out;
+  },
+
   /** 装备汇总 */
   gear(h, hid) {
     const t = DB.hero(hid) || {};
     const fav = t.fav_weapon || '';
     const flat = { atk: 0, def: 0, int: 0, agi: 0, hp: 0 };
-    const pct = { atk: 0, def: 0, hp: 0 };
+    const pct = { atk: 0, def: 0, hp: 0, int: 0 };   // V10.6 修：原来没有 int，文官装备上的智% 一直没算进去
     // 专属加成按件上写的来。原来只认武力，天王宝塔写着血防，给的却是武 +25%
     const exc = { atk: 0, def: 0, int: 0, agi: 0, hp: 0, crit: 0 };
     let apt = false, excOn = null, list = [];
@@ -985,7 +1009,7 @@ const Stats = {
       if (e.exclusive === hid && e.ownerBonus) {        // 非本人穿：只拿面板
         excOn = excOn || e;
         excList.push(e);
-        if (e.fx.length) fx.push(...e.fx);
+        if (e.fx.length) fx.push(...e.fx.map(f => Object.assign({}, f, { from: `装备·${e.name}` })));
         const ob = e.ownerBonus;
         for (const k of Object.keys(exc)) exc[k] += (ob[k] || 0) + (k !== 'crit' ? (ob.all || 0) : 0);
       }
@@ -994,7 +1018,7 @@ const Stats = {
     const set = DB.excSet(hid);
     const setHave = set ? set.items.filter(id => excList.some(e => e.id === id)).length : 0;
     const setOn = !!set && setHave === set.items.length;
-    if (setOn) fx.push(...set.fx);
+    if (setOn) fx.push(...set.fx.map(f => Object.assign({}, f, { from: `套装·${set.name || '绝世三件套'}` })));
     return { flat, pct, apt, exc, excOn, excList, fx, set, setHave, setOn, list };
   },
 
@@ -1073,7 +1097,7 @@ const Stats = {
     out.pas = pas;
     out.q = q; out.lv = lv; out.star = star;
     out.meta = { apt: g.apt, exc: g.excOn, excList: g.excList, set: g.set, setHave: g.setHave, setOn: g.setOn,
-                 bond: bd, gear: g.list };
+                 bond: bd, gear: g.list, pct: g.pct, excBonus: g.exc, fav: t.fav_weapon || '' };
     return out;
   },
 
@@ -1222,7 +1246,7 @@ const Battle = {
       actives: skills.filter(s => s.cat === 'active' || s.cat === 'sure'),
       cmds: skills.filter(s => s.cat === 'cmd'),
       pas, skillMod: CFG.starSk[stats.star] || 1,
-      shield: 0, shieldDur: 0, status: {}, chaosHit: 0, alive: true, tough: pas.tough, lowDone: {},
+      shield: 0, shieldDur: 0, status: {}, chaosHit: 0, alive: true, tough: pas.tough, toughFrom: pas.toughFrom, lowDone: {},
     };
     if (pas.shield > 0) { u.shield = Math.round(u.maxHp * pas.shield); u.shieldDur = 99; }
     return u;
@@ -1273,7 +1297,7 @@ const Battle = {
     if (st.is_boss && foes.length) {
       const boss = foes.reduce((a, u) => (u.q > a.q || (u.q === a.q && u.maxHp > a.maxHp)) ? u : a);
       boss.pas = Object.assign({}, boss.pas, { cut: (boss.pas.cut || 0) + 0.1 });
-      boss.tough = true; boss.isBoss = true;
+      boss.tough = true; boss.isBoss = true; boss.toughFrom = boss.toughFrom || '本关首领';
     }
     // 地灵星的另一头：神医不在册，全队血薄一截
     if (Fate.has('needDoc') && !G.heroes[CFG.doctorId]) {
@@ -1284,21 +1308,71 @@ const Battle = {
     }
     const b = { sid, stage: st, allies, foes, round: 0, over: false, win: null, log: [], events: [], theme: st.theme || null };
     this.tagNames(b);
+    this.gearLog(b);
     if (b.theme && THEMES[b.theme]) {
       b.log.push({ c: 'in', s: `阵势 · ${THEMES[b.theme].name}：${THEMES[b.theme].tip}` });
       // V10.6 每个敌将挂了什么，逐个写出来
-      for (const u of foes) {
+      const th0 = b.theme;
+      if (th0 === 'dot' || th0 === 'chaos') b.log.push({ c: 'ps', s: `　敌方全体 ${foes.length} 人均获得上述效果` });
+      else for (const u of foes) {
         const th = b.theme, p = u.pre || {};
-        const txt = th === 'blade' ? `武 ${num(p.atk)}→${num(u.atk)}，暴击 +10%`
-                  : th === 'wen' ? `智 ${num(p.int)}→${num(u.int)}，主动技发动率 +15%`
-                  : th === 'shield' ? `护盾 +${num(u.shield)}（不会消散）`
-                  : th === 'dot' ? '普攻八成上两层毒、四成半上流血，毒与流血伤害翻倍'
-                  : '普攻三成几率致乱，控制命中 +20%';
+        const txt = th === 'blade' ? `武 ${num(p.atk)}→${num(u.atk)}（+20%），暴击率 +10%`
+                  : th === 'wen' ? `智 ${num(p.int)}→${num(u.int)}（+35%），主动技发动率 +15%`
+                  : th === 'shield' ? `护盾 +${num(u.shield)}（最大生命 ${num(u.maxHp)} 的 30%，持续整场）`
+                  : th === 'dot' ? '普攻命中后 80% 几率【中毒】2 层、45% 几率【流血】；【中毒】【流血】伤害 ×2'
+                  : '普攻命中后 30% 几率【混乱】1 回合；控制几率 +20%';
         b.log.push({ c: 'ps', s: `　${u.ln} ${THEMES[th].name}：${txt}` });
       }
     }
-    for (const u of foes) if (u.isBoss) b.log.push({ c: 'ps', s: `${u.ln} 坐镇本关：受到的伤害 −10%，致命一击留一口气` });
+    for (const u of foes) if (u.isBoss) b.log.push({ c: 'ps', s: `${u.ln} 为本关首领：受到的伤害 −10%，获得【保命】（受到致命伤害时保留 1 点生命，每场一次）` });
     return b;
+  },
+
+  /** V10.6 开战前的「整备」段：每名我方武将装备前后的属性、每件装备的加成、专属与套装、羁绊。
+   *  战斗中被动触发时再写「来源」，两头对得上。 */
+  gearLog(b) {
+    if (!b.allies.length) return;
+    const K = ['atk', 'int', 'def', 'agi', 'hp'];
+    const NM = k => k === 'hp' ? '血' : STAT_NAME[k] || k;
+    const P = x => `${+(x * 100).toFixed(1)}%`;
+    const ob = o => Object.keys(o || {}).filter(k => o[k]).map(k => k === 'all' ? `全属性 +${P(o[k])}` : k === 'crit' ? `暴击率 +${P(o[k])}` : `${NM(k)} +${P(o[k])}`);
+    b.log.push({ c: 'in', s: `【整备】装备、羁绊加成明细（装备百分比每项上限 ${pc(CFG.cap.eqPct)}；羁绊上限：武/智 ${pc(CFG.cap.bondAtk)}，血 ${pc(CFG.cap.bondHp)}，其余 ${pc(CFG.cap.bondOther)}）` });
+    for (const u of b.allies) {
+      const h = G.heroes[u.hid], t = DB.hero(u.hid);
+      if (!h || !t) continue;
+      const s1 = Stats.calc(u.hid), s0 = Stats.calc(u.hid, { hero: Object.assign({}, h, { equipment: {} }) });
+      if (!s1 || !s0) continue;
+      const m = s1.meta;
+      const diff = K.map(k => { const a = k === 'hp' ? s0.maxHp : s0[k], c = k === 'hp' ? s1.maxHp : s1[k];
+        return c !== a ? `${NM(k)} ${num(a)}→${num(c)}（${c > a ? '+' : '−'}${num(Math.abs(c - a))}）` : null; }).filter(Boolean);
+      if (!m.gear.length) { b.log.push({ c: 'ps', s: `${u.ln} 未穿戴装备` }); }
+      else b.log.push({ c: 'ps', s: `${u.ln} 装备前→装备后：${diff.join('；') || '无变化'}` });
+      for (const e of m.gear) {
+        const parts = [];
+        for (const k of K) if (e.flat[k]) parts.push(`${NM(k)} +${num(e.flat[k])}`);
+        for (const k of ['atk', 'int', 'def', 'hp']) if (e.pct[k]) parts.push(`${NM(k)} +${P(e.pct[k])}`);
+        let line = `　${SLOT_NAME[e.slot] || ''}·${e.name}：${parts.join('、') || '无属性'}`;
+        if (e.exclusive) {
+          if (e.exclusive === u.hid) {
+            line += `；专属（本人穿戴）：${ob(e.ownerBonus).join('、')}`;
+            if (e.fx && e.fx.length) line += `；特效：${e.fx.map(f => SkillText.fx(f)).join('；')}`;
+          } else line += `；专属归属 ${(DB.hero(e.exclusive) || {}).name || e.exclusive}，本人穿戴无专属加成与特效`;
+        }
+        if (e.slot === 'weapon' && e.weaponType) line += `；兵器类型：${e.weaponType}`;
+        b.log.push({ c: 'ps', s: line });
+      }
+      if (m.apt) b.log.push({ c: 'ps', s: `　擅长兵器（${m.fav}）：武 +${pc(CFG.favBonus)}${roleOf(t) !== 'wu' ? `，智 +${pc(CFG.favBonus)}` : ''}` });
+      else if (m.fav && m.gear.some(e => e.slot === 'weapon')) b.log.push({ c: 'ps', s: `　擅长兵器为「${m.fav}」，当前兵器不符，无加成` });
+      const pp = ['atk', 'int', 'def', 'hp'].filter(k => m.pct[k]).map(k => `${NM(k)} +${P(m.pct[k])}${m.pct[k] > CFG.cap.eqPct ? `（超出上限，按 ${pc(CFG.cap.eqPct)} 计）` : ''}`);
+      if (pp.length) b.log.push({ c: 'ps', s: `　装备百分比合计：${pp.join('、')}${roleOf(t) !== 'wu' && m.pct.atk ? `；武% 同时作用于智` : ''}` });
+      if (m.set) {
+        const need = m.set.items.length;
+        b.log.push({ c: 'ps', s: m.setOn ? `　套装·${m.set.name} ${m.setHave}/${need} 已生效：${m.set.fx.map(f => SkillText.fx(f)).join('；')}`
+                                         : `　套装·${m.set.name} ${m.setHave}/${need} 未生效（需 ${need} 件专属全部穿戴）` });
+      }
+      const bl = Stats.bondList(u.hid, G.team);
+      if (bl.length) b.log.push({ c: 'ps', s: `　羁绊：${bl.map(x => `${x.name}（在阵 ${x.have}/${x.total} 人，${NM(x.attr)} +${P(x.pct)}）`).join('；')}` });
+    }
   },
 
   /** 发一条事件，并记下此刻战报写到第几行 —— 播放时战报跟着画面走，
@@ -1317,6 +1391,8 @@ const Battle = {
     if (s) v += s.val;
     const d = u.status['debuff_' + k];
     if (d) v -= d.val;
+    const lo = u.status['low_' + k];      // V10.6 残血加成单独一格：不参与增益比大小，不被驱散，不到期
+    if (lo) v += lo.val;
     return Math.max(1, Math.round(v));
   },
 
@@ -1348,7 +1424,7 @@ const Battle = {
   dodged(b, tgt) {
     const p = (tgt.status.dodge ? tgt.status.dodge.val : 0) + (tgt.pas.dodge || 0);
     if (p > 0 && chance(Math.min(0.6, p))) {
-      b.log.push({ c: 'in', s: `${tgt.ln} 闪过了` });
+      b.log.push({ c: 'in', s: `${tgt.ln} 【闪避】本次攻击` });
       this.ev(b, { k: 'miss', t: tgt.idx, ally: tgt.ally });
       return true;
     }
@@ -1356,7 +1432,10 @@ const Battle = {
   },
 
   /** 统一扣血出口：护盾、易伤、被动减伤在所有伤害路径生效 */
-  hurt(b, tgt, amount, src, tag) {
+  /** kind：伤害来源 —— basic 普攻 / skill 技能 / counter 反击 / follow 追击 / chaos 混乱误伤 / bleed burn poison 持续伤害。
+   *  tag 只管暴击（视图拿 tag === 'crit' 做飘字与闪光）。 */
+  hurt(b, tgt, amount, src, tag, kind, from) {
+    if (!kind) kind = ['bleed', 'burn', 'poison'].includes(tag) ? tag : 'skill';
     // 地伏星：自己人前排扛得住些，后排更脆。row 是 0/1/2，0 就是前排。
     if (tgt.ally && Fate.has('frontCut')) {
       amount = amount * (tgt.row === 0 ? Fate.v('frontCut', 1) : Fate.v('backUp', 1));
@@ -1369,19 +1448,33 @@ const Battle = {
     amount = Math.max(1, Math.round(amount));
     let left = amount, absorbed = 0;
     // V10.6 流血、中毒是真实伤害：不吃防御减伤（上面 src 为空已经跳过），也不被护盾挡
-    const trueDmg = tag === 'bleed' || tag === 'poison';
+    const trueDmg = kind === 'bleed' || kind === 'poison';
+    const hp0 = tgt.hp;
     if (tgt.shield > 0 && !trueDmg) {
       absorbed = Math.min(tgt.shield, left);
       tgt.shield -= absorbed; left -= absorbed;
     }
     // 硬骨头：一场里第一次挨到致命一击，留一口气
-    if (left >= tgt.hp && tgt.tough) { tgt.tough = false; left = tgt.hp - 1; b.log.push({ c: 'ps', s: `${tgt.ln} 硬撑着没倒（被动）` }); }
+    let saved = false;
+    if (left >= tgt.hp && tgt.tough) { tgt.tough = false; left = tgt.hp - 1; saved = true; }
     tgt.hp = Math.max(0, tgt.hp - left);
     tgt.tally.taken += absorbed + left;
     if (src) src.tally.dealt += absorbed + left;
-    if (absorbed) b.log.push({ c: 'sh', s: `${tgt.ln} 护盾挡下 ${num(absorbed)}` });
-    const dot = { bleed: '流血', burn: '灼烧', poison: '中毒', counter: '反击', follow: '追击', drain: '吸血' }[tag];
-    if (left) b.log.push({ c: 'dm', s: `${src ? src.ln + ' → ' : ''}${tgt.ln}${dot ? `（${dot}）` : ''} 受创 ${num(left)}${tag === 'crit' ? '　暴击' : ''}` });
+    // V10.6 战报按来源分：普攻 / 技能 / 反击 / 追击 / 误伤 / 持续伤害，数值写全
+    const total = absorbed + left;
+    const head = kind === 'basic' ? `${src.ln} 普攻 ${tgt.ln}`
+               : kind === 'counter' ? `${src.ln} 反击 ${tgt.ln}`
+               : kind === 'follow' ? `${src.ln} 追击 ${tgt.ln}`
+               : kind === 'chaos' ? `${src.ln} 误伤 ${tgt.ln}`
+               : ST_NAME[kind] ? `${tgt.ln} 受【${ST_NAME[kind]}】`
+               : src ? `${src.ln} → ${tgt.ln}` : tgt.ln;
+    const notes = [];
+    if (tag === 'crit') notes.push('暴击');
+    if (absorbed) notes.push(left ? `护盾吸收 ${num(absorbed)}，扣除生命 ${num(left)}` : '全部由护盾吸收');
+    if (from) notes.push(`来源：${from}`);
+    if (total) b.log.push({ c: absorbed && !left ? 'sh' : 'dm',
+      s: `${head}：伤害 ${num(total)}${notes.length ? `（${notes.join('；')}）` : ''}${left ? `　生命 ${num(hp0)}→${num(tgt.hp)}` : ''}${absorbed ? `　护盾余 ${num(tgt.shield)}` : ''}` });
+    if (saved) b.log.push({ c: 'ps', s: `${tgt.ln} 触发【保命】：承受致命伤害，生命保留 1 点（来源：${tgt.toughFrom || '被动'}）` });
     this.ev(b, { k: 'dmg', t: tgt.idx, ally: tgt.ally, v: absorbed + left, absorbed, tag,
                  s: src ? src.idx : null, sa: src ? src.ally : null });
     if (tgt.hp <= 0 && tgt.alive) {
@@ -1392,10 +1485,9 @@ const Battle = {
       this.lowCheck(b, tgt);
       // 反击：挨了打还站着，有几率还一手。反击不再触发反击。
       const c = tgt.pas.counter;
-      if (c && src.alive && !tgt.status.stun && !tgt.status.chaos && tag !== 'counter' && chance(c.chance)) {
-        b.log.push({ c: 'ps', s: `${tgt.ln} 反击（被动）` });
+      if (c && src.alive && !tgt.status.stun && !tgt.status.chaos && kind !== 'counter' && chance(c.chance)) {
         const d = this.dmg(this.eff(tgt, 'atk'), this.eff(src, 'def'), this.eff(tgt, 'atk') * c.mult, 1, this.critOf(tgt), tgt);
-        this.hurt(b, src, d.v, tgt, 'counter');
+        this.hurt(b, src, d.v, tgt, d.crit ? 'crit' : '', 'counter', c.from);
       }
     }
     return left;
@@ -1408,10 +1500,11 @@ const Battle = {
       if (u.lowDone[key] || u.hp / u.maxHp >= f.at) continue;
       u.lowDone[key] = 1;
       const add = Math.round((u[f.stat] || 10) * f.pct);
-      const cur = u.status['buff_' + f.stat];
       const before = this.eff(u, f.stat);
-      u.status['buff_' + f.stat] = { dur: 99, val: (cur ? cur.val : 0) + add };
-      b.log.push({ c: 'ps', s: `${u.ln} 濒危奋起，${STAT_NAME[f.stat]} ${num(before)}→${num(this.eff(u, f.stat))}（+${num(add)}，被动）` });
+      // V10.6 修：原来并进 buff_ 且 dur 设 99，会把已有的限时增益变成永久，之后的增益还会把它顶掉
+      const cur = u.status['low_' + f.stat];
+      u.status['low_' + f.stat] = { dur: 999, val: (cur ? cur.val : 0) + add };
+      b.log.push({ c: 'ps', s: `${u.ln} 触发【残血】：生命低于 ${pc(f.at)}，${STAT_NAME[f.stat]} ${num(before)}→${num(this.eff(u, f.stat))}（+${num(add)}，持续至战斗结束，不可驱散）（来源：${f.from || '被动'}）` });
     }
   },
 
@@ -1422,7 +1515,7 @@ const Battle = {
     const got = tgt.hp - before;
     if (got > 0) {
       if (src) src.tally.healed += got;
-      b.log.push({ c: 'he', s: `${tgt.ln} 回复 ${num(got)}（${num(before)}→${num(tgt.hp)} / ${num(tgt.maxHp)}）` });
+      b.log.push({ c: 'he', s: `${tgt.ln} 回复生命 ${num(got)}：生命 ${num(before)}→${num(tgt.hp)}（上限 ${num(tgt.maxHp)}）` });
       this.ev(b, { k: 'heal', t: tgt.idx, ally: tgt.ally, v: got,
                    s: src ? src.idx : null, sa: src ? src.ally : null });
     }
@@ -1500,9 +1593,10 @@ const Battle = {
   },
 
   /** 上状态。免疫的状态不上；混乱按双方智力比与抗性折算命中。 */
-  putStatus(b, u, t, f, quiet) {
+  putStatus(b, u, t, f, quiet, from) {
     if (!t.alive) return;
-    if (t.pas.immune.includes(f.st)) { b.log.push({ c: 'in', s: `${t.ln} 不受${ST_NAME[f.st] || f.st}` }); return; }
+    const fromTxt = from ? `（来源：${from}）` : '';
+    if (t.pas.immune.includes(f.st)) { b.log.push({ c: 'in', s: `${t.ln} 免疫【${ST_NAME[f.st] || f.st}】` }); return; }
     let p = f.chance == null ? 1 : f.chance;
     // V10.6 pctrl：自己上的眩晕、混乱、沉默更容易中，封顶 95%
     if (u && u.pas && u.pas.ctrl && u.ally !== t.ally && ['stun', 'chaos', 'silence'].includes(f.st)) p = Math.min(0.95, p + u.pas.ctrl);
@@ -1512,7 +1606,8 @@ const Battle = {
       p = p * ratio * Math.pow(1 - CFG.chaosResist, t.chaosHit);
     }
     if (!chance(p)) {
-      if (f.chance == null || f.chance >= 0.8 || f.st === 'chaos') b.log.push({ c: 'in', s: `${t.ln} 稳住了心神` });
+      // 普攻附带的低几率状态没中不写，免得每次普攻都多一行
+      if (f.chance == null || f.chance >= 0.8 || f.st === 'chaos') b.log.push({ c: 'in', s: `${t.ln} 抵抗【${ST_NAME[f.st] || f.st}】（命中几率 ${pc(Math.min(1, p))}）` });
       return;
     }
     const dur = f.dur || 1;
@@ -1527,14 +1622,17 @@ const Battle = {
     t.status[f.st] = { dur: Math.max(dur, cur ? cur.dur : 0), val: Math.max(val, cur ? cur.val : 0), n, mul };
     if (f.st === 'chaos') t.chaosHit++;
     // 写清楚这个状态到底干了什么，玩家不用去翻说明
+    const pm = mul && mul > 1 ? `，伤害 ×${+mul.toFixed(2)}` : '';
     const what = {
-      stun: '下回合动不了', silence: '放不出技能', disarm: '不能普攻', chaos: '敌我不分',
-      taunt: '把敌人的攻击引到自己身上', vuln: `受到的伤害 +${pc(f.val || 0.2)}`, dodge: `闪避 +${pc(f.val || 0.2)}`,
-      bleed: `每回合失 ${pc(CFG.bleedPct)} 最大生命`, burn: `每回合灼伤 ${num(val)}`,
-      poison: `每回合失 ${pc(CFG.poisonPct * n)} 当前生命`, wind: '灼烧加重，火势蔓延',
+      stun: '无法行动', silence: '无法施放主动技与必中技', disarm: '无法普攻', chaos: '行动时随机攻击一名友方',
+      taunt: '敌方单体攻击优先指向自身', vuln: `受到的伤害 +${pc(f.val || 0.2)}`, dodge: `${pc(f.val || 0.2)} 几率闪避单体攻击`,
+      bleed: `每回合损失最大生命的 ${pc(CFG.bleedPct)}，真实伤害${pm}`, burn: `每回合受到 ${num(val)} 点伤害`,
+      poison: `每回合损失当前生命的 ${pc(CFG.poisonPct * n)}，真实伤害${pm}`, wind: `受到的灼烧伤害 +${pc(CFG.windBurn - 1)}，灼烧向同排蔓延`,
     }[f.st] || '';
-    const tag = f.st === 'poison' ? `中毒 ×${n}` : ST_NAME[f.st] || f.st;
-    if (!quiet) b.log.push({ c: 'st', s: `${t.ln} 【${tag}】${what}${dur > 1 ? `，${dur} 回合` : ''}` });
+    const tag = f.st === 'poison' ? `中毒 ${n} 层` : ST_NAME[f.st] || f.st;
+    const T = t.status[f.st].dur;
+    const gain = f.st === 'dodge' || f.st === 'taunt';
+    if (!quiet) b.log.push({ c: 'st', s: `${t.ln} ${gain ? '获得' : '陷入'}【${tag}】：${what}，持续 ${T} 回合${cur && cur.dur >= dur ? '（持续回合不叠加，取较长者）' : ''}${fromTxt}` });
     this.ev(b, { k: 'st', t: t.idx, ally: t.ally, st: f.st });
   },
 
@@ -1559,7 +1657,7 @@ const Battle = {
           if (f.vsCtrl && (t.status.stun || t.status.chaos || t.status.silence)) base *= 1 + f.vsCtrl;
           const defV = gap ? 0 : this.eff(t, 'def') * (1 - (f.pierce || 0));
           const d = this.dmg(atkV, defV, base, pw, this.critOf(u), u);
-          const real = this.hurt(b, t, d.v, u, d.crit ? 'crit' : '');
+          const real = this.hurt(b, t, d.v, u, d.crit ? 'crit' : '', 'skill');
           if (f.drain && real > 0 && u.alive) this.heal(b, u, Math.round(real * (f.drain >= 1 ? 1 : f.drain)), u);
           hit.push(t);
         }
@@ -1574,8 +1672,7 @@ const Battle = {
         for (const t of tgts) this.putStatus(b, u, t, f.base != null ? f : { ...f, base }, group);
         if (group) {
           const mine = f.st === 'dodge' || f.st === 'taunt' ? u.ally : !u.ally;
-          const nm = TG_NAME[f.tg] || '';
-          b.log.push({ c: 'st', s: `{${mine ? 'a' : 'f'}|${/^[敌我]方/.test(nm) ? nm : (mine ? '我方' : '敌方') + nm}} 【${ST_NAME[f.st] || f.st}】${f.st === 'wind' ? '灼烧加重，火势蔓延' : ''}${(f.dur || 1) > 1 ? `，${f.dur} 回合` : ''}` });
+          b.log.push({ c: 'st', s: `${sideLabel(f.tg, mine)} ${f.st === 'dodge' || f.st === 'taunt' ? '获得' : '陷入'}【${ST_NAME[f.st] || f.st}】：${ST_RULE[f.st] || ''}，持续 ${f.dur || 1} 回合` });
         }
         return tgts;
       }
@@ -1587,21 +1684,21 @@ const Battle = {
         const live = tgts.filter(t => t.alive);
         if (live.length > 1) {
           const mine = f.k === 'buff' ? u.ally : !u.ally;     // 增益给自己人，减益给对面
-          const tn = TG_NAME[f.tg] || '';
-          b.log.push({ c: 'sk', s: `{${mine ? 'a' : 'f'}|${/^[敌我]方/.test(tn) ? tn : (mine ? '我方' : '敌方') + tn}} ${nm}${sign}${pc(f.pct * mod)}（${dur}回合）` });
+          b.log.push({ c: 'sk', s: `${sideLabel(f.tg, mine)} ${nm} ${sign}${pc(f.pct * mod)}，持续 ${dur} 回合` });
         }
+        const kn = f.k === 'buff' ? '增益' : '削弱', skip = [];
         for (const t of live) {
           const bm = f.k === 'buff' && u.pas && u.pas.buff ? 1 + u.pas.buff : 1;   // V10.6 pbuff
           const add = Math.round((t[f.stat] || 10) * f.pct * mod * bm);
           const cur = t.status[key];
           const before = this.eff(t, f.stat);
           t.status[key] = { dur, val: Math.max(add, cur ? cur.val : 0) };
-          if (cur && cur.val >= add)
-            b.log.push({ c: 'sk', s: `　${t.ln} ${nm}${sign}${add} 不叠加（已有${sign}${cur.val}，回合数刷新为 ${dur}）` });
+          if (cur && cur.val >= add) skip.push(`${t.ln} ${sign}${num(add)}（现有 ${sign}${num(cur.val)}）`);
           else
-            b.log.push({ c: 'sk', s: `　${t.ln} ${nm} ${num(before)}→${num(this.eff(t, f.stat))}（${sign}${add}${cur ? `，顶掉原来的${sign}${cur.val}` : ''}，${dur}回合）` });
+            b.log.push({ c: 'sk', s: `　${t.ln} ${nm} ${num(before)}→${num(this.eff(t, f.stat))}（${cur ? `${kn} ${sign}${num(cur.val)}→${sign}${num(add)}，覆盖原值` : `${sign}${num(add)}`}），持续 ${dur} 回合` });
           this.ev(b, { k: 'st', t: t.idx, ally: t.ally, st: f.k });
         }
+        if (skip.length) b.log.push({ c: 'sk', s: `　未生效（同属性${kn}不叠加，已有${kn}不低于本次，仅持续回合刷新为 ${dur}）：${skip.join('、')}` });
         return tgts;
       }
       case 'heal':
@@ -1618,7 +1715,7 @@ const Battle = {
           const add = Math.round(t.maxHp * f.pct * pw * (u.pas && u.pas.buff ? 1 + u.pas.buff : 1) * troopOf(u));   // V10.6 pbuff、兵力
           t.shield += add; u.tally.healed += add;
           t.shieldDur = Math.max(t.shieldDur, CFG.shieldDur);
-          b.log.push({ c: 'sh', s: `${t.ln} 护盾 +${num(add)}（现有 ${num(t.shield)}）` });
+          b.log.push({ c: 'sh', s: `${t.ln} 获得护盾 +${num(add)}：护盾 ${num(t.shield - add)}→${num(t.shield)}（护盾可叠加）` });
         }
         return tgts;
       case 'steal':
@@ -1627,10 +1724,15 @@ const Battle = {
           const v = Math.round((t[f.stat] || 10) * f.pct * mod);
           const dur = f.dur || 2, nm = STAT_NAME[f.stat] || f.stat;
           const t0 = this.eff(t, f.stat), u0 = this.eff(u, f.stat);
-          t.status['debuff_' + f.stat] = { dur, val: Math.max(v, t.status['debuff_' + f.stat]?.val || 0) };
-          u.status['buff_' + f.stat] = { dur, val: (u.status['buff_' + f.stat]?.val || 0) + v };
-          const t1 = this.eff(t, f.stat);
-          b.log.push({ c: 'sk', s: `${u.ln} 夺 ${t.ln} ${nm} ${num(v)}：${t.ln} ${num(t0)}→${num(t1)}${t1 === t0 ? '（已有更大的削弱，不再多扣）' : ''}，${u.ln} ${num(u0)}→${num(this.eff(u, f.stat))}（${dur}回合）` });
+          // V10.6 夺取：目标的削弱照「同属性取最高」，自己只拿目标实际少掉的那部分（原来目标不掉、自己照样加）
+          const dOld = t.status['debuff_' + f.stat]?.val || 0;
+          t.status['debuff_' + f.stat] = { dur: Math.max(dur, t.status['debuff_' + f.stat]?.dur || 0), val: Math.max(v, dOld) };
+          const t1 = this.eff(t, f.stat), got = Math.max(0, t0 - t1);
+          const bOld = u.status['buff_' + f.stat];
+          if (got > 0 && (!bOld || bOld.val < got)) u.status['buff_' + f.stat] = { dur, val: got };
+          else if (got > 0) bOld.dur = Math.max(bOld.dur, dur);
+          const u1 = this.eff(u, f.stat);
+          b.log.push({ c: 'sk', s: `${u.ln} 夺取 ${t.ln} ${nm} ${num(v)}：${t.ln} ${num(t0)}→${num(t1)}（−${num(got)}${got < v ? `；已有削弱 −${num(dOld)}，同属性削弱取最高值` : ''}）；${u.ln} ${num(u0)}→${num(u1)}（${u1 > u0 ? `+${num(u1 - u0)}` : `未生效：同属性已有更高增益 +${num(bOld ? bOld.val : 0)}`}${bOld && u1 > u0 ? `，覆盖原增益 +${num(bOld.val)}` : ''}；所得不超过目标实际减少值），持续 ${dur} 回合` });
         }
         return tgts;
       case 'cleanse':
@@ -1639,7 +1741,7 @@ const Battle = {
           const what = bad.map(k => k.startsWith('debuff_') ? `${STAT_NAME[k.slice(7)] || k.slice(7)}−${num(t.status[k].val)}`
                                    : k === 'poison' ? `中毒×${t.status[k].n || 1}` : (ST_NAME[k] || k));
           for (const k of bad) delete t.status[k];
-          if (bad.length) b.log.push({ c: 'he', s: `${t.ln} 解除：${what.join('、')}` });
+          if (bad.length) b.log.push({ c: 'he', s: `${t.ln} 负面状态被解除：${what.join('、')}` });
         }
         return tgts;
       case 'dispel':
@@ -1651,7 +1753,7 @@ const Battle = {
           const hadShield = t.shield > 0, sh = t.shield;
           if (hadShield) { t.shield = 0; t.shieldDur = 0; what.push(`护盾 ${num(sh)}`); }
           if (good.length || hadShield) {
-            b.log.push({ c: 'in', s: `${t.ln} 被驱散：${what.join('、')}` });
+            b.log.push({ c: 'in', s: `${t.ln} 增益状态被驱散：${what.join('、')}` });
             this.ev(b, { k: 'st', t: t.idx, ally: t.ally, st: 'dispel' });
           }
         }
@@ -1685,24 +1787,24 @@ const Battle = {
     // V10.6 法术普攻：智（乘法术系数）比武高的人，普攻按 智×法术系数×intBasic 打。敌我同口径
     const pa = Math.max(this.eff(u, 'atk'), this.magic(u) * CFG.intBasic);
     const d = this.dmg(pa, this.eff(t, 'def'), pa, 1, this.critOf(u), u);
-    this.hurt(b, t, d.v, u, d.crit ? 'crit' : '');
+    this.hurt(b, t, d.v, u, d.crit ? 'crit' : '', 'basic');
     if (!t.alive || !u.alive) return;
-    for (const f of u.pas.onhit) if (chance(f.chance)) this.putStatus(b, u, t, { ...f, base: this.eff(u, 'atk') });
+    // V10.6 普攻附带状态只掷一次骰：几率交给 putStatus 判定（原来这里先掷一次，实际几率是 chance²）
+    for (const f of u.pas.onhit) this.putStatus(b, u, t, { ...f, base: this.eff(u, 'atk') }, false, f.from);
     const fo = u.pas.follow;
     if (fo && t.alive && chance(fo.chance)) {
-      b.log.push({ c: 'ps', s: `${u.ln} 追击（被动）` });
       const d2 = this.dmg(pa, this.eff(t, 'def'), pa * fo.mult, 1, this.critOf(u), u);
-      this.hurt(b, t, d2.v, u, 'follow');
+      this.hurt(b, t, d2.v, u, d2.crit ? 'crit' : '', 'follow', fo.from);
     }
   },
 
   chaosAct(b, u) {
     const mates = this.living(this.side(b, u)).filter(x => x !== u);
-    b.log.push({ c: 'in', s: `${u.ln} 混乱，向自己人挥刀` });
+    b.log.push({ c: 'in', s: `${u.ln} 处于【混乱】，本次行动攻击友方` });
     if (!mates.length) return;
     const t = pick(mates);
     const d = this.dmg(this.eff(u, 'atk'), this.eff(t, 'def'), this.eff(u, 'atk') * 0.8, 1, this.critOf(u), u);
-    this.hurt(b, t, d.v, u, '');
+    this.hurt(b, t, d.v, u, d.crit ? 'crit' : '', 'chaos');
   },
 
   /** V10.6 控制状态出手后才走一格：中了一回合眩晕就是实打实停一回合 */
@@ -1711,7 +1813,7 @@ const Battle = {
       const s = u.status[k]; if (!s) continue;
       if (--s.dur <= 0) {
         delete u.status[k];
-        if (k === 'silence' || k === 'disarm') b.log.push({ c: 'in', s: `${u.ln} 的${ST_NAME[k]}消退` });
+        if (k === 'silence' || k === 'disarm') b.log.push({ c: 'in', s: `${u.ln} 的【${ST_NAME[k]}】结束` });
       }
     }
   },
@@ -1724,7 +1826,7 @@ const Battle = {
         let v = k === 'bleed' ? u.maxHp * CFG.bleedPct * (s.mul || 1)
               : k === 'poison' ? u.hp * CFG.poisonPct * (s.n || 1) * (s.mul || 1)
               : s.val * (u.status.wind ? CFG.windBurn : 1);
-        this.hurt(b, u, Math.max(1, Math.round(v)), null, k);
+        this.hurt(b, u, Math.max(1, Math.round(v)), null, '', k);
         if (!u.alive) return;
         // 狂风助火：着火的人把火带给同排还没着的一个人
         if (k === 'burn' && u.status.wind) {
@@ -1732,7 +1834,7 @@ const Battle = {
           if (near.length) {
             const t = pick(near);
             t.status.burn = { dur: 1, val: s.val, n: 0 };
-            b.log.push({ c: 'st', s: `火借风势，${u.ln} 身上的火烧到了 ${t.ln}` });
+            b.log.push({ c: 'st', s: `【狂风】${u.ln} 的【灼烧】蔓延至 ${t.ln}（每回合 ${num(s.val)}，1 回合）` });
             this.ev(b, { k: 'st', t: t.idx, ally: t.ally, st: 'burn' });
           }
         }
@@ -1741,7 +1843,7 @@ const Battle = {
       //   一回合的控制在生效前就被清掉了——60 场里施加 42 次、生效 0 次
       else if (CTRL_ST.includes(k)) continue;
       else if (s.dur === 1 && ['taunt', 'vuln', 'dodge', 'wind'].includes(k))
-        b.log.push({ c: 'in', s: `${u.ln} 的${ST_NAME[k]}消退` });
+        b.log.push({ c: 'in', s: `${u.ln} 的【${ST_NAME[k]}】结束` });
       s.dur--;
       if (s.dur <= 0) {
         // V10.6 增减益到期也写数：「林冲 武+378 消退（3079→2701）」
@@ -1749,12 +1851,12 @@ const Battle = {
         const stat = isB ? k.slice(5) : isD ? k.slice(7) : null;
         const before = stat ? this.eff(u, stat) : 0;
         delete u.status[k];
-        if (stat && s.val) b.log.push({ c: 'in', s: `${u.ln} ${STAT_NAME[stat] || stat}${isB ? '+' : '−'}${num(s.val)} 消退（${num(before)}→${num(this.eff(u, stat))}）` });
+        if (stat && s.val) b.log.push({ c: 'in', s: `${u.ln} ${STAT_NAME[stat] || stat}${isB ? '增益 +' : '削弱 −'}${num(s.val)} 到期：${STAT_NAME[stat] || stat} ${num(before)}→${num(this.eff(u, stat))}` });
       }
     }
     if (u.shieldDur > 0 && u.shieldDur < 99 && --u.shieldDur === 0 && u.shield > 0) {
+      b.log.push({ c: 'in', s: `${u.ln} 护盾到期：剩余 ${num(u.shield)} 点移除` });
       u.shield = 0;
-      b.log.push({ c: 'in', s: `${u.ln} 护盾消散` });
     }
     if (u.pas.regen > 0 && u.hp < u.maxHp) this.heal(b, u, Math.max(1, Math.round(u.maxHp * u.pas.regen)), null);
   },
@@ -1795,17 +1897,18 @@ const Battle = {
     b.events.push({ k: 'round', n: b.round, li: b.log.length });
     // V10.6 铁壁：每三回合敌方全体再加一成血量的护盾
     if (b.theme === 'shield' && b.round > 1 && (b.round - 1) % 3 === 0) {
-      b.log.push({ c: 'sh', s: '铁壁：敌方全体护盾再加一成' });
+      b.log.push({ c: 'sh', s: '阵势·铁壁：敌方全体获得护盾，数值为最大生命的 10%' });
       for (const u of b.foes) if (u.alive) {
         const add = Math.round(u.maxHp * 0.1); u.shield += add; u.shieldDur = 99;
-        b.log.push({ c: 'sh', s: `　${u.ln} 护盾 +${num(add)}（现有 ${num(u.shield)}）` });
+        b.log.push({ c: 'sh', s: `　${u.ln} 护盾 ${num(u.shield - add)}→${num(u.shield)}（+${num(add)}）` });
       }
     }
     // V10.6 迷阵：开阵时我方随机三人六成几率混乱一回合
     if (b.theme === 'chaos' && b.round === 1) {
       const src = this.living(b.foes)[0];
       const live = this.living(b.allies).slice().sort(() => Math.random() - 0.5).slice(0, 3);
-      if (src) for (const t of live) this.putStatus(b, src, t, { st: 'chaos', chance: 0.6, dur: 1 });
+      if (src && live.length) b.log.push({ c: 'st', s: `阵势·迷阵：${live.map(t => t.ln).join('、')} 各有 60% 几率陷入【混乱】1 回合（命中几率另受智力比影响）` });
+      if (src) for (const t of live) this.putStatus(b, src, t, { st: 'chaos', chance: 0.6, dur: 1 }, false, '阵势·迷阵');
     }
 
     // 地灵星：每回合开头全队回一点血
@@ -1818,6 +1921,8 @@ const Battle = {
     const order = [...b.allies, ...b.foes].filter(u => u.alive)
       .map(u => ({ u, k: this.eff(u, 'agi') * (1 + (Math.random() * 2 - 1) * CFG.agiVar) + (b.round === 1 && u.pas.first ? 1e6 : 0) }))
       .sort((a, c) => c.k - a.k).map(x => x.u);
+    if (b.round === 1) for (const u of order) if (u.pas.first)
+      b.log.push({ c: 'ps', s: `${u.ln} 触发【先手】：第 1 回合优先行动（来源：${u.pas.firstFrom || '被动'}）` });
 
     for (const u of order) {
       if (!u.alive || b.over) continue;
@@ -1826,7 +1931,7 @@ const Battle = {
       if (!u.alive) { if (this.checkEnd(b)) break; continue; }
 
       if (u.status.stun) {
-        b.log.push({ c: 'in', s: `${u.ln} 眩晕，动不了` });
+        b.log.push({ c: 'in', s: `${u.ln} 处于【眩晕】，本回合无法行动` });
       } else if (u.status.chaos) {
         this.chaosAct(b, u);
       } else {
@@ -1835,7 +1940,7 @@ const Battle = {
           this.cast(b, u, sk);
           sk.cur = sk.cd; sk.last = b.round;
         } else if (u.status.disarm) {
-          b.log.push({ c: 'in', s: `${u.ln} 被缴了械，出不了手` });
+          b.log.push({ c: 'in', s: `${u.ln} 处于【缴械】，无法普攻，本回合未行动` });
         } else {
           this.basic(b, u);
         }
