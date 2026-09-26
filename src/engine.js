@@ -2045,6 +2045,45 @@ const Grow = {
     return h.lv - before;
   },
 
+  /* ── V10.6.2 详情页读经验书 ───────────────────────────────────── */
+  /** 手上的经验书，经验少的在前 */
+  expBooks() {
+    return Object.keys(G.items)
+      .filter(k => G.items[k] > 0 && (DB.item(k) || {}).type === 'exp')
+      .sort((a, b) => (DB.item(a).v || 0) - (DB.item(b).v || 0));
+  },
+  /** 预告：再加 add 点经验会到几级（不改数据，规则同 gainExp） */
+  lvAfterExp(h, add) {
+    let lv = h.lv, exp = h.exp + add;
+    while (lv < Lap.maxLv() && exp >= CFG.expNeed(lv)) { exp -= CFG.expNeed(lv); lv++; }
+    return lv;
+  },
+  /** 读到满级要几本这种书（手上够不够另算） */
+  booksToMax(h, key) {
+    const v = (DB.item(key) || {}).v || 0;
+    if (!v || h.lv >= Lap.maxLv()) return 0;
+    let need = 0, left = CFG.expNeed(h.lv) - h.exp;
+    for (let lv = h.lv + 1; lv < Lap.maxLv(); lv++) left += CFG.expNeed(lv);
+    need = Math.ceil(left / v);
+    return need;
+  },
+  /** 一本一本读，满级就停，多的书留着。max 为 0 表示读到满或读完为止 */
+  readBooks(hid, key, max) {
+    const h = G.heroes[hid], it = DB.item(key);
+    if (!h || !it || it.type !== 'exp') return { err: '读不了' };
+    if (h.lv >= Lap.maxLv()) return { err: `${DB.hero(hid).name}已满级` };
+    if (!(G.items[key] > 0)) return { err: `没有${it.name}了` };
+    const lv0 = h.lv;
+    let n = 0;
+    while ((G.items[key] || 0) > 0 && h.lv < Lap.maxLv() && (!max || n < max)) {
+      this.gainExp(h, it.v || 0);
+      if (--G.items[key] <= 0) delete G.items[key];
+      n++;
+    }
+    Save.write();
+    return { n, ups: h.lv - lv0, lv: h.lv, exp: n * (it.v || 0) };
+  },
+
   /** 督练的天花板：打到哪儿，才练得到哪儿。
    *  银子原来可以无限往操练里填，于是招兵买马那一头永远没余钱；
    *  而且谁钱多谁就能把等级堆过头，把关卡难度直接抹平。
@@ -2831,13 +2870,36 @@ const Stages = {
     return null;
   },
 
-  /** 摇一件专属：这一关敌将的 → 手上的人还没拿到的 → 任意一件 */
-  rollExclusive(st) {
-    const pool = DB.exclusivePool;
-    if (!pool.length) return null;
+  /** 手上已有的专属（行囊里的 + 穿在身上的） */
+  excHave() {
     const have = new Set(Object.keys(G.items).filter(k => k.startsWith('eq_') && G.items[k] > 0).map(k => k.slice(3)));
     for (const h of Object.values(G.heroes)) for (const s of SLOTS) if (h.equipment[s]) have.add(h.equipment[s]);
-    const foes = new Set(st.enemies || []);
+    return have;
+  },
+  /** V10.6.2 关卡页的掉落提示，跟 rollExclusive 同一套先后：
+   *  foe = 这一关敌将还有专属没拿到；mine = 改掉麾下武将缺的；any = 改掉其余的；done = 全齐 */
+  excInfo(sid) {
+    if (this.kindOf(sid) !== 'boss') return null;
+    const pool = DB.exclusivePool;
+    if (!pool.length) return null;
+    const have = this.excHave();
+    const list = [...new Set(Battle.roster(sid))].map(hid => {
+      const mine = pool.filter(k => DB.equip(k).exclusive === hid);
+      return { hid, all: mine.length, left: mine.filter(k => !have.has(k)).length };
+    }).filter(x => x.left > 0);
+    if (list.length) return { mode: 'foe', list };
+    if (pool.some(k => G.heroes[DB.equip(k).exclusive] && !have.has(k))) return { mode: 'mine' };
+    if (pool.some(k => !have.has(k))) return { mode: 'any' };
+    return { mode: 'done' };
+  },
+
+  /** 摇一件专属：这一关敌将的 → 手上的人还没拿到的 → 任意一件。
+   *  V10.6.2 敌将按实际出场的算（二周目起会换人），原来读的是关卡数据里的原班人马 */
+  rollExclusive(st, sid) {
+    const pool = DB.exclusivePool;
+    if (!pool.length) return null;
+    const have = this.excHave();
+    const foes = new Set(sid ? Battle.roster(sid) : (st.enemies || []));
     const a = pool.filter(k => foes.has(DB.equip(k).exclusive) && !have.has(k));
     if (a.length) return pick(a);
     const b = pool.filter(k => G.heroes[DB.equip(k).exclusive] && !have.has(k));
@@ -2956,7 +3018,7 @@ const Stages = {
     // Boss 关极低概率掉一件专属。先从这一关的敌将里找，
     // 这一关的人没有专属，就从自己手上的人里找还没拿到的
     if (kind === 'boss' && chance(CFG.excDrop)) {
-      const eid = this.rollExclusive(st);
+      const eid = this.rollExclusive(st, sid);
       if (eid) {
         G.items['eq_' + eid] = (G.items['eq_' + eid] || 0) + 1;
         const e = DB.equip(eid);

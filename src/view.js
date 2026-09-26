@@ -511,8 +511,13 @@ function skRowsHtml(hid, h) {
   return ids.map((id, i) => {
     const sk = DB.skill(id); if (!sk) return '';
     const has = own.includes(id);
-    return `<div class="sk${has ? '' : ' lock'}">
-      <b>${skTag(sk)}${esc(sk.name)}</b><span>${has ? nb(esc(sk.desc)) : `★${i + 1} 解锁`}</span></div>`;
+    if (has) return `<div class="sk">
+      <b>${skTag(sk)}${esc(sk.name)}</b><span>${nb(esc(sk.desc))}</span></div>`;
+    // V10.6.2 没解锁的点一下展开效果，再点收起
+    const key = hid + ':' + id, open = !!(UI.skPeek && UI.skPeek[key]);
+    return `<div class="sk lock peekable${open ? ' open' : ''}" data-action="sk-peek" data-id="${esc(key)}">
+      <b>${skTag(sk)}${esc(sk.name)}</b><span>★${i + 1} 解锁<em class="pk-ar">${open ? '▴' : '▾'}</em></span></div>${
+      open ? `<div class="sk-peek">${nb(esc(sk.desc))}</div>` : ''}`;
   }).join('') + (h && h.sk ? '<div class="sk-note">混乱模式 · 这四招是入伙时随机得来的</div>' : '');
 }
 
@@ -531,6 +536,7 @@ VIEWS.hero = () => {
   const bondOn = Object.entries(bd).filter(([, v]) => v > 0);
 
   const skRows = skRowsHtml(hid, h);
+  const bookN = Grow.expBooks().reduce((a, k) => a + G.items[k], 0);
 
   const eqRows = SLOTS.map(slot => {
     const e = DB.equip(h.equipment[slot]);
@@ -570,6 +576,7 @@ VIEWS.hero = () => {
         ${h.lv < Lap.maxLv() ? `<div class="dexp"><i>经验</i>
           <em><u style="width:${clamp(h.exp / CFG.expNeed(h.lv) * 100, 0, 100)}%"></u></em>
           <b>${Math.round(h.exp)} / ${CFG.expNeed(h.lv)}</b></div>` : ''}
+        ${bookN && h.lv < Lap.maxLv() ? `<div class="dbook" data-action="book-open" data-id="${hid}">读书 ×${bookN}</div>` : ''}
         ${bondOn.length ? `<div class="dbond">羁绊 ${bondOn.map(([k, v]) =>
             `${STAT_NAME[k]}+${Math.round(v * 100)}%`).join('　')}</div>` : ''}
       </div>
@@ -596,6 +603,24 @@ VIEWS.hero = () => {
     <div class="btns"><div class="btn" data-action="go" data-id="${back}">返　回</div></div>
   </div>`;
 };
+
+/* V10.6.2 Boss 关名字旁的「专」：还有得掉朱红，掉完了灰 */
+function excMark(sid) {
+  const x = Stages.excInfo(sid);
+  return x ? `<em class="excmk${x.mode === 'done' ? ' off' : ''}">专</em>` : '';
+}
+/* V10.6.2 关卡页的掉落提示 */
+function excDropHtml(sid) {
+  const x = Stages.excInfo(sid);
+  if (!x) return '';
+  const pct = Math.round(CFG.excDrop * 100);
+  const body = x.mode === 'foe'
+    ? `优先掉 ${x.list.map(r => `<span class="${QCLS[(DB.hero(r.hid) || {}).q] || ''}">${esc(DB.hero(r.hid).name)}</span><i>（缺 ${r.left} 件）</i>`).join('、')} 的专属`
+    : x.mode === 'mine' ? '本关敌将的专属已集齐，改掉你麾下武将缺的专属'
+    : x.mode === 'any' ? '本关敌将和你麾下武将的专属都已集齐，改掉其余武将的专属'
+    : '专属已全部集齐，本关不再掉专属';
+  return `<div class="excdrop${x.mode === 'done' ? ' off' : ''}"><b>掉落 · 专属装备${x.mode === 'done' ? '' : ` · ${pct}% 几率`}</b><span>${body}</span></div>`;
+}
 
 VIEWS.stages = () => {
   let html = '';
@@ -624,7 +649,7 @@ VIEWS.stages = () => {
         <div class="no">${st.is_boss ? '王' : st.hidden ? '秘' : /_f\d/.test(sid) ? '支'
           : '一二三四五六七八九十'[k] || (k + 1)}</div>
         <div class="mid">
-          <div class="t">${esc(stName(st.name))}</div>
+          <div class="t">${esc(stName(st.name))}${excMark(sid)}</div>
           <div class="m">${open ? `难易 <span class="hard">${'一二三四五六七'[Math.min((st.diff || 1) - 1, 6)]}</span> · 推荐 ${st.rec_lv ? Lap.recLv(st.rec_lv)[1] : '?'} 级 · 敌 ${n} 人`
                                 : esc(Stages.lockReason(sid))}</div>
         </div>
@@ -658,6 +683,7 @@ VIEWS.stage = () => {
     <div class="pbar"><em style="width:${clamp(my / (my + foe) * 100, 4, 96)}%"></em></div>
     <div class="meta">推荐 ${st.rec_lv ? Lap.recLv(st.rec_lv).join('–') : '?'} 级 · 敌方 ${tier.lv} 级 ${tier.star} 星 · 共 ${foes.length} 人</div>
     <div class="foelist">${foes.map(f => `<span class="${QCLS[f.q]}">${esc(f.name)}</span>`).join('')}</div>
+    ${excDropHtml(sid)}
     ${st.theme && THEMES[st.theme] ? `<div class="theme"><b>阵势 · ${THEMES[st.theme].name}</b><span>${esc(THEMES[st.theme].tip)}</span></div>` : ''}
     ${dlg && dlg.before ? `<div class="brief">${dlg.before.map(p => `<p>${esc(p)}</p>`).join('')}</div>` : ''}
     <div class="btns">
@@ -758,6 +784,33 @@ function sellHtml(list, bagN) {
 }
 
 /* 一键升星的清单：谁从几星到几星、解锁了哪招、满星后折了几枚兵符 */
+/* V10.6.2 详情页读书：书单弹窗。读完不关，数字当场刷新 */
+function openBooks(hid) {
+  const h = G.heroes[hid], t = DB.hero(hid);
+  const keys = Grow.expBooks();
+  if (!h || !keys.length || h.lv >= Lap.maxLv()) { closeModal(); return; }
+  const max = Lap.maxLv();
+  $('modal').innerHTML = `<div class="sheet">
+    <div class="shead">${esc(t.name)} 读书 · Lv.${h.lv}（上限 ${max}）</div>
+    <div class="bk-exp">经验 ${Math.round(h.exp)} / ${CFG.expNeed(h.lv)}</div>
+    <div class="scroll">${keys.map(k => {
+      const it = DB.item(k), have = G.items[k], v = it.v || 0;
+      const to1 = Grow.lvAfterExp(h, v);
+      const need = Grow.booksToMax(h, k), all = Math.min(have, need);
+      const toAll = Grow.lvAfterExp(h, v * all);
+      return `<div class="bkrow">
+        <div class="bk-l"><b>${esc(it.name)}</b><span>+${v} 经验 · 手上 ×${have}</span>
+          <span class="bk-pv">读一本 Lv.${h.lv}${to1 > h.lv ? ` → ${to1}` : '（不升级）'}${all > 1 ? `　读 ${all} 本 → Lv.${toAll}` : ''}</span></div>
+        <div class="bk-r">
+          <div class="btn sm" data-action="book-read" data-id="${hid}" data-slot="${k}" data-n="1">读一本</div>
+          ${all > 1 ? `<div class="btn sm main" data-action="book-read" data-id="${hid}" data-slot="${k}" data-n="0">${need <= have ? '读到满' : '全读'} ×${all}</div>` : ''}
+        </div></div>`;
+    }).join('')}</div>
+    <div class="btns"><div class="btn" data-action="modal-close">关　闭</div></div>
+  </div>`;
+  $('modal').classList.add('on');
+}
+
 function openStarAll(list) {
   const tk = list.reduce((a, r) => a + r.token, 0);
   $('modal').innerHTML = `<div class="sheet">
@@ -1647,6 +1700,19 @@ document.addEventListener('click', ev => {
         toast(`卸下 ${r.n} 件，都回行囊了`); render();
       });
       break;
+    }
+    case 'sk-peek': {
+      UI.skPeek = UI.skPeek || {};
+      if (UI.skPeek[id]) delete UI.skPeek[id]; else UI.skPeek[id] = 1;
+      render(); break;
+    }
+    case 'book-open': openBooks(id); break;
+    case 'book-read': {
+      const r = Grow.readBooks(id, slot, +el.dataset.n || 0);
+      if (r.err) { toast(r.err); break; }
+      const it = DB.item(slot);
+      toast(`读了 ${r.n} 本${it.name}，经验 +${r.exp}${r.ups ? `，升到 ${r.lv} 级` : ''}`);
+      render(); openBooks(id); break;
     }
     case 'star-all': {
       const r = Grow.starUpAllOwn();

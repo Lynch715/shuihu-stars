@@ -774,3 +774,36 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
   .sk:not(.lock) b{min-width:0}
   .sk:not(.lock)>span{padding-left:.2em}
 }
+
+/* V10.6.2 详情页读书 */
+.dbook{display:inline-block;margin-top:6px;font-family:var(--f-title);font-size:.74em;color:var(--indigo);
+  border:1px solid var(--ink-4);padding:3px 10px;cursor:pointer;letter-spacing:.06em;min-height:26px;line-height:18px}
+.dbook:active{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.bk-exp{font-size:.76em;color:var(--ink-3);margin:-4px 0 6px;text-align:center}
+.bkrow{display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--ink-4);padding:9px 0}
+.bk-l{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:2px}
+.bk-l b{font-weight:400;font-family:var(--f-title);font-size:1.02em}
+.bk-l span{font-size:.78em;color:var(--ink-3)}
+.bk-l .bk-pv{color:var(--q-meng)}
+.bk-r{flex:none;display:flex;flex-direction:column;gap:6px;width:6.4em}
+.bk-r .btn{padding:6px 0;white-space:nowrap}
+/* V10.6.2 没解锁的技能点开看 */
+.sk.peekable{cursor:pointer}
+.sk .pk-ar{font-style:normal;margin-left:6px;color:var(--ink-3);font-size:.9em}
+.sk-peek{font-size:.8em;line-height:1.8;color:var(--ink-3);border-left:2px solid var(--ink-4);
+  padding:2px 0 4px 9px;margin:0 0 5px .2em}
+
+/* V10.6.2 专属掉落提示 */
+.excmk{font-style:normal;font-size:.66em;color:var(--cinnabar);border:1px solid var(--cinnabar);
+  display:inline-block;line-height:1.45;padding:0 3px;margin-left:8px;vertical-align:middle;
+  position:relative;top:-2px;letter-spacing:0;text-indent:0;font-family:var(--f-title)}
+.excmk.off{color:var(--ink-4);border-color:var(--ink-4)}
+.excdrop{margin:8px 0 2px;padding:6px 9px;border:1px dashed var(--gold);background:rgba(233,226,208,.7);
+  text-align:left;font-size:.8em;line-height:1.75}
+.excdrop b{display:block;font-family:var(--f-title);color:var(--gold);letter-spacing:.14em;font-weight:400}
+.excdrop span{color:var(--ink-2)}
+.excdrop span span{font-family:var(--f-title)}
+.excdrop i{font-style:normal;color:var(--ink-3);font-size:.9em}
+.excdrop.off{border-color:var(--ink-4)}
+.excdrop.off b{color:var(--ink-3)}
+.sk.lock>span{white-space:nowrap}
