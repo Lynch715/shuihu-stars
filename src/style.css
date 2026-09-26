@@ -754,3 +754,23 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .sellbar b{font-weight:400;color:var(--cinnabar);font-family:var(--f-title);font-size:1.1em}
 .sellbar .btn{flex:none;min-width:7em}
 .sellpick{margin-top:10px}
+
+/* V10.6.1 界面勘误 ───────────────────────────────── */
+/* 投奔页：品阶章原来没有定位基准，两张卡的章都飘到了顶栏上 */
+.gc-row{position:relative}
+.gc-info .nm{padding-right:30px}
+/* 布阵页四个按钮：360 宽下每个只有 77px，字距收紧才放得下一行 */
+.btns.tight2 .btn{letter-spacing:.04em;text-indent:.04em;white-space:nowrap}
+/* 黄金求贤：概率挪到第二行小字 */
+.btn small{display:block;font-size:.7em;letter-spacing:.04em;text-indent:0;opacity:.78;margin-top:3px}
+/* 行囊：谁在用和闲几件合成右边一栏，统一右对齐；人名、「在用」不拆开 */
+.nw{white-space:nowrap}
+.itrow .rt{flex:none;max-width:6.5em;display:flex;flex-direction:column;align-items:flex-end;gap:2px;text-align:right;margin-left:auto}
+.itrow .rt .who{margin-left:0;padding-right:0;max-width:none;line-height:1.5}
+.itrow .rt .n{white-space:nowrap}
+/* 技能：窄屏把说明挪到技能名下面占满一行，不再挤成一条窄栏（没解锁的还是一行） */
+@media (max-width:429px){
+  .sk:not(.lock){flex-direction:column;gap:1px;align-items:stretch}
+  .sk:not(.lock) b{min-width:0}
+  .sk:not(.lock)>span{padding-left:.2em}
+}

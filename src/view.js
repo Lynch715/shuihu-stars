@@ -433,11 +433,19 @@ function statNote(k, s) {
 }
 
 /** 装备的全部属性写成一行 */
+/* 属性名和后面的数值粘在一起，换行只落在两项之间，不会出现「血 / +25%」。
+   原来有空格的换成不断行空格，没空格的插一个零宽连接符。 */
+const NB_RE = /(武|防|智|捷|血|暴击|全属性|先手|闪避|护盾)( ?)([+＋\-−]\s?\d)/g;
+/* 末尾两个字也粘住：长句换行时最后一行至少两个字，不留孤字（结尾是 &gt; 这类转义的不动） */
+function nb(s) {
+  return String(s).replace(NB_RE, (m, a, sp, v) => a.split('').join('\u2060') + (sp ? '\u00a0' : '\u2060') + v)
+    .replace(/([^\s;&])([^\s;&])$/, '$1\u2060$2');
+}
 function eqTxt(e) {
   const p = [];
   for (const k of ['atk', 'def', 'int', 'agi', 'hp']) if (e.flat[k]) p.push(`${STAT_NAME[k]}+${e.flat[k]}`);
   for (const k of ['atk', 'int', 'def', 'hp']) if (e.pct[k]) p.push(`${STAT_NAME[k]}+${Math.round(e.pct[k] * 100)}%`);
-  return p.join(' ');
+  return nb(p.join(' '));
 }
 const OB_NAME = { atk: '武', def: '防', int: '智', agi: '捷', hp: '血', crit: '暴击', all: '全属性' };
 function obTxt(e) {
@@ -447,7 +455,7 @@ function obTxt(e) {
     .filter(([, v]) => v).map(([k, v]) => `${OB_NAME[k] || k}+${Math.round(v * 100)}%`);
   // V10.4 专属特效跟在属性后面，写法同技能被动
   const fx = (e.fx || []).map(f => SkillText.fx(f));
-  return `${who ? who.name : ''}用时 ` + [stat.join(' '), ...fx].filter(Boolean).join('；');
+  return nb(`${who ? who.name : ''}用时 ` + [stat.join(' '), ...fx].filter(Boolean).join('；'));
 }
 /** V10.6 装备百分比合计与上限：每项单独封顶 CFG.cap.eqPct */
 function eqPctHtml(meta) {
@@ -504,7 +512,7 @@ function skRowsHtml(hid, h) {
     const sk = DB.skill(id); if (!sk) return '';
     const has = own.includes(id);
     return `<div class="sk${has ? '' : ' lock'}">
-      <b>${skTag(sk)}${esc(sk.name)}</b><span>${has ? esc(sk.desc) : `★${i + 1} 解锁`}</span></div>`;
+      <b>${skTag(sk)}${esc(sk.name)}</b><span>${has ? nb(esc(sk.desc)) : `★${i + 1} 解锁`}</span></div>`;
   }).join('') + (h && h.sk ? '<div class="sk-note">混乱模式 · 这四招是入伙时随机得来的</div>' : '');
 }
 
@@ -794,10 +802,9 @@ VIEWS.items = () => {
         <b class="${QCLS[e.q]}">${esc(e.name)}</b>
         <span class="s">${SLOT_NAME[e.slot] || e.slot}</span>
         <span class="eqs">${esc(eqTxt(e))}${e.exclusive ? `<em>专属 · ${esc(obTxt(e))}</em>` : ''}</span>
-        <span class="who">${users.length
-          ? users.map(h => esc(DB.hero(h).name)).join('、') + ' 在用'
-          : ''}</span>
-        <span class="n">${n ? `闲 ×${n}` : ''}</span></div>`;
+        <span class="rt">${users.length ? `<span class="who">${users.map(h =>
+            `<span class="nw">${esc(DB.hero(h).name)}</span>`).join('、')} <span class="nw">在用</span></span>` : ''}${
+          n ? `<span class="n">闲 ×${n}</span>` : ''}</span></div>`;
     }).join('')}</div>`
       : '<div class="empty">空空如也</div>'),
       `<span class="tp${idle + Object.keys(worn).length ? '' : ' zero'}">闲置 ${idle} · 在用 ${Object.keys(worn).length}</span>`) +
@@ -858,7 +865,7 @@ VIEWS.tavern = () => {
         十连 · ${CFG.recruitCost10} 银</div>
     </div>
     <div class="btns"><div class="btn ${afford(G.res.gold, CFG.goldExchangeCost)}"
-      data-action="gold">黄金求贤 · ${CFG.goldExchangeCost} 金（保底名将 · 天罡 ${Math.round(CFG.goldRate[5] * 100)}% 绝世 ${Math.round(CFG.goldRate[6] * 100)}%）</div></div>
+      data-action="gold">黄金求贤 · ${CFG.goldExchangeCost} 金<small>保底名将 · 天罡 ${Math.round(CFG.goldRate[5] * 100)}% · 绝世 ${Math.round(CFG.goldRate[6] * 100)}%</small></div></div>
   </div>` + forgeHtml();
 };
 
@@ -982,7 +989,7 @@ function openEquipInfo(eid) {
     <div class="sbody">
       <div>${esc(eqTxt(e)) || '—'}</div>
       ${e.exclusive ? `<div class="mine">${esc(obTxt(e))}</div>` : ''}
-      ${set ? `<div class="dim">套装 · ${esc(set.name)}（${set.items.filter(id => have.has(id)).length}/${set.items.length}）：${esc(set.fx.map(f => SkillText.fx(f)).join('；'))}</div>` : ''}
+      ${set ? `<div class="dim">套装 · ${esc(set.name)}（${set.items.filter(id => have.has(id)).length}/${set.items.length}）：${nb(esc(set.fx.map(f => SkillText.fx(f)).join('；')))}</div>` : ''}
       <div class="dim">${worn.length ? worn.map(h => DB.hero(h).name).join('、') + ' 在用' : n ? `行囊里 ×${n}` : e.exclusive ? '还没拿到。Boss 关 3% 掉，铁匠铺也能碰运气' : '还没拿到'}</div>
     </div>
     <div class="btns"><div class="btn" data-action="modal-close">关　闭</div></div>
@@ -1074,7 +1081,7 @@ function logHtml(all, tail) {
 }
 /* 名字上色：{a|名} 我方、{f|名} 敌方 */
 function logLine(s) {
-  return esc(s).replace(/\{([af])\|([^}]+)\}/g, (m, side, n) => `<b class="ln-${side}">${n}</b>`);
+  return nb(esc(s)).replace(/\{([af])\|([^}]+)\}/g, (m, side, n) => `<b class="ln-${side}">${n}</b>`);
 }
 /* 榜单：输出 / 承伤 / 治疗各前五，我方一张、敌方一张（V10.6） */
 function boardHtml(b) {
