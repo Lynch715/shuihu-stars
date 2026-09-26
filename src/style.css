@@ -537,7 +537,8 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .sheet .log.full{max-height:none;margin-top:6px}
 .log .sk{color:var(--q-tian)}.log .dm{color:var(--cinnabar)}
 .log .he{color:var(--q-meng)}.log .sh{color:var(--indigo)}.log .in{color:var(--ink-3)}
-/* 立绘尺寸随上阵人数切档 */
+/* 立绘尺寸随上阵人数切档；兜底按最小档，免得哪天人数出了档、图按原尺寸撑满屏 */
+.board .cell .por{width:46px;height:61px}
 .board[data-n="1"] .cell .por,.board[data-n="2"] .cell .por,.board[data-n="3"] .cell .por{width:88px;height:117px}
 .board[data-n="4"] .cell .por,.board[data-n="5"] .cell .por,.board[data-n="6"] .cell .por{width:60px;height:80px}
 .board[data-n="7"] .cell .por,.board[data-n="8"] .cell .por,.board[data-n="9"] .cell .por{width:46px;height:61px}

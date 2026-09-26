@@ -115,7 +115,7 @@ const CFG = {
   favBonus: 0.20,         // 擅长武器加攻
   cap: { eqPct: 0.30, bondAtk: 0.25, bondHp: 0.25, bondOther: 0.20 },
   /* V10.4 被动汇总封顶：绝世三件套 + 技能被动叠起来不许成墙 */
-  pasCap: { cut: 0.35, dodge: 0.30, skrate: 0.25, pierce: 0.40 },
+  pasCap: { cut: 0.35, dodge: 0.30, skrate: 0.25, pierce: 0.40, heal: 0.40, ctrl: 0.20, buff: 0.35, dot: 1.0 },
 
   /* 暴击跟着捷走。原来挂在魅上，魅又不在详情页上显示 —— 玩家看到一个
      「魅」不知道干什么用，V10.1 把魅整个删了，暴击交给捷。
@@ -129,6 +129,8 @@ const CFG = {
      五十级满配顶级武将的武约 1750、顶级谋士的智约 1050，再进同一条伤害公式，法术单发只有武将的三成。
      凡是从智派生的数 —— src:'int' 的伤害、mult 型治疗、法术技能的灼烧 —— 先乘这一道再进公式。敌我同口径。 */
   intK: 1.1,
+  intBasic: 0.85,
+  healK: 2.2,             // V10.6 治疗系数：按智回血 × 技能威力 × 2.2，群疗 0.8 约回一成血        // V10.6 法术普攻：智高的人普攻按 智×intK×0.85 打
   /* V10.5 持续伤害改百分比：流血按最大生命、中毒按当前生命叠层、灼烧仍是固定值（施术者攻击值 × burnK）。
      原来三种都是上状态时按施术者武 ×1.2 再乘 0.3 / 0.25 / 0.2 定死，五十级对着两万血条扣几百，159 个带流血的技能全是摆设。 */
   bleedPct: 0.04, poisonPct: 0.04, poisonMax: 5, burnK: 0.35,
@@ -276,6 +278,7 @@ const SkillText = {
         if (f.exec) s += `，目标血量低于${pc(f.exec.at)}时伤害×${f.exec.mul}`;
         if (f.drain) s += `，${f.drain >= 1 ? '' : pc(f.drain)}伤害转为自身回复`;
         if (f.pierce) s += `，无视${pc(f.pierce)}防御`;
+        if (f.vsCtrl) s += `，对被控制（眩晕、混乱、沉默）的目标伤害+${pc(f.vsCtrl)}`;
         return s;
       }
       case 'status': {
@@ -285,14 +288,14 @@ const SkillText = {
         if (f.st === 'dodge') return `${tg}获得${pc(f.val || 0.2)}闪避${dur}`;
         if (f.st === 'taunt') return `${tg}嘲讽敌方${dur}`;
         if (f.st === 'wind') return `${tg}陷入狂风${dur}（灼烧 +${pc(CFG.windBurn - 1)} 并向同排蔓延）`;
-        if (f.st === 'bleed') return `${ch}使${tg}流血${dur}（每回合失 ${pc(CFG.bleedPct)} 最大生命）`;
-        if (f.st === 'poison') return `${ch}使${tg}中毒${f.layers > 1 ? ` ${f.layers} 层` : ''}${dur}（每层每回合失 ${pc(CFG.poisonPct)} 当前生命）`;
+        if (f.st === 'bleed') return `${ch}使${tg}流血${dur}（每回合失 ${pc(CFG.bleedPct)} 最大生命，无视护盾）`;
+        if (f.st === 'poison') return `${ch}使${tg}中毒${f.layers > 1 ? ` ${f.layers} 层` : ''}${dur}（每层每回合失 ${pc(CFG.poisonPct)} 当前生命，无视护盾）`;
         if (f.st === 'burn') return `${ch}使${tg}灼烧${dur}（每回合受施术者攻击值 ${pc(CFG.burnK)} 的伤害）`;
         return `${ch}使${tg}${n}${dur}`;
       }
       case 'buff':   return `${tg}${STAT_NAME[f.stat] || f.stat}+${pc(f.pct)}${dur ? '，持续' + dur : ''}`;
       case 'debuff': return `${tg}${STAT_NAME[f.stat] || f.stat}−${pc(f.pct)}${dur ? '，持续' + dur : ''}`;
-      case 'heal':   return f.pct ? `${tg}回复${pc(f.pct)}血量` : `为${tg}回复智×${f.mult}的血量`;
+      case 'heal':   return f.pct ? `${tg}回复${pc(f.pct)}血量` : `为${tg}回复智×${+(f.mult * CFG.healK).toFixed(2)}的血量`;
       case 'shield': return `${tg}获得${pc(f.pct)}血量的护盾`;
       case 'steal':  return `夺取${tg}${pc(f.pct)}的${STAT_NAME[f.stat] || f.stat}${dur}`;
       case 'cleanse':return `解除${tg}的负面状态`;
@@ -316,6 +319,10 @@ const SkillText = {
       case 'pskrate':  return `主动技发动率+${pc(f.val)}`;
       case 'ppierce':  return `无视${pc(f.pct)}防御`;
       case 'pcmd':     return `指挥技效果+${pc(f.pct)}`;
+      case 'pheal':    return `施放的治疗+${pc(f.pct)}`;
+      case 'pctrl':    return `眩晕、混乱、沉默的命中几率+${pc(f.val)}`;
+      case 'pbuff':    return `施放的增益与护盾+${pc(f.pct)}`;
+      case 'pdot':     return `施加的流血、中毒伤害+${pc(f.pct)}`;
       default: return f.k;
     }
   },
@@ -345,11 +352,12 @@ const DB = (() => {
       weaponType: e.weapon_type || '',
       flat: { atk: e.atk || 0, def: e.def || 0, int: e.int || 0,
               agi: e.agi || 0, hp: e.hp || 0 },
-      pct:  { atk: e.pct_atk || 0, def: e.pct_def || 0, hp: e.pct_hp || 0 },
+      pct:  { atk: e.pct_atk || 0, def: e.pct_def || 0, hp: e.pct_hp || 0, int: e.pct_int || 0 },   // V10.6 文官兵器吃智%
       exclusive: e.exclusive || null,
       // 专属加成：只有本人穿才有。键是 atk/def/int/agi/hp/crit/all
       ownerBonus: e.exclusive ? (e.owner_bonus || { atk: 0.25 }) : null,
       fx: e.fx || [],          // V10.4 专属特效：本人穿才生效，写法同技能被动
+      wen: !!e.wen,            // V10.6 文官合用的通用装（关卡掉落按阵上文官比例摇）
     };
   }
 
@@ -439,6 +447,8 @@ const DB = (() => {
 
   return {
     hero: id => heroes[id] || null,
+    /** V10.6 敌方口径：升过品阶的文官当敌将时仍用改版前的品阶与五维（数据里的 foe 快照），关卡难度不跟着变 */
+    foeHero: id => { const t = heroes[id]; return t ? (t.foe ? Object.assign({}, t, t.foe) : t) : null; },
     skill: id => skills[id] || null,
     equip: id => equip[id] || null,
     stage: id => stages[id] || null,
@@ -806,11 +816,11 @@ const baseHp = t => Math.max(100, t.hp || 10);
 
 /** 把模板按等级累积成长，得到该等级的 base。带缓存。 */
 const _grownCache = new Map();
-function grownBase(hid, lv) {
-  const key = hid + '@' + lv;
+function grownBase(hid, lv, foeT) {
+  const key = hid + '@' + lv + (foeT ? 'f' : '');
   const hit = _grownCache.get(key);
   if (hit) return hit;
-  const t = DB.hero(hid);
+  const t = foeT ? DB.foeHero(hid) : DB.hero(hid);
   if (!t) return null;
   const b0 = { atk: t.atk, def: t.def, int: t.int, agi: t.agi, hp: baseHp(t) };
   const b = Object.assign({}, b0);
@@ -844,7 +854,7 @@ function skillIdsOf(hid, h) { return (h && h.sk) || (DB.hero(hid) || {}).sk || [
 function passivesOf(ids, extra) {
   const p = { stat: { atk: 0, def: 0, int: 0, agi: 0, hp: 0 }, crit: 0, critDmg: 0, dmg: 0, cut: 0, dodge: 0,
               counter: null, follow: null, onhit: [], regen: 0, low: [], shield: 0, immune: [], first: false, tough: false,
-              skrate: 0, pierce: 0, cmd: 0 };
+              skrate: 0, pierce: 0, cmd: 0, heal: 0, ctrl: 0, buff: 0, dot: 0 };
   // 技能被动 + V10.4 专属装备特效（extra：本人穿着的专属与套装，已在 Stats.gear 里挑好）
   const lists = [];
   for (const id of ids || []) {
@@ -873,12 +883,17 @@ function passivesOf(ids, extra) {
         case 'pskrate':  p.skrate += f.val; break;
         case 'ppierce':  p.pierce += f.pct; break;
         case 'pcmd':     p.cmd += f.pct; break;
+        case 'pheal':    p.heal += f.pct; break;
+        case 'pctrl':    p.ctrl += f.val; break;
+        case 'pbuff':    p.buff += f.pct; break;
+        case 'pdot':     p.dot += f.pct; break;
       }
     }
   }
   const cp = CFG.pasCap;
   p.cut = Math.min(p.cut, cp.cut); p.dodge = Math.min(p.dodge, cp.dodge);
   p.skrate = Math.min(p.skrate, cp.skrate); p.pierce = Math.min(p.pierce, cp.pierce);
+  p.heal = Math.min(p.heal, cp.heal); p.ctrl = Math.min(p.ctrl, cp.ctrl); p.buff = Math.min(p.buff, cp.buff); p.dot = Math.min(p.dot, cp.dot);
   return p;
 }
 /** 暴击率（未计宿星）。详情页和战斗共用 */
@@ -946,7 +961,7 @@ const Stats = {
     const h = (opt && opt.hero) || G.heroes[hid];
     const t = DB.hero(hid);
     if (!h || !t) return null;
-    const lv = h.lv || 1, star = h.star || 1, q = t.q || 1;
+    const lv = h.lv || 1, star = h.star || 1, q = (opt && opt.q) || t.q || 1;
     const mult = (CFG.qmult[q] || 1) * (CFG.starMul[star] || 1) * (1 + (lv - 1) * CFG.lvGrow);
 
     /* V10.3.1：成长只算一次。base 已经是 growStep 一级一级累加过的，
@@ -1025,14 +1040,15 @@ const Stats = {
   foeMul(hid, tier) {
     // 二周目起支线关的倍率再打七五折：ch20_f2 田虎决战七个名将 ★5 ×2.0，三局三停
     const sideCut = (tier.side && Lap.now() > 1) ? 0.75 : 1;
-    return Lap.foeMulOf(tier.mul, (DB.hero(hid) || {}).q, tier.ch) * (tier.ease == null ? 1 : tier.ease) * sideCut;
+    return Lap.foeMulOf(tier.mul, (DB.foeHero(hid) || {}).q, tier.ch) * (tier.ease == null ? 1 : tier.ease) * sideCut;
   },
 
   calcEnemy(hid, lv, star, mul, gear) {
-    const base = grownBase(hid, lv);
+    const base = grownBase(hid, lv, true);
     if (!base) return null;
-    const skills = ((DB.hero(hid) || {}).sk || []).slice(0, Math.min(star, 4));
-    const s = this.calc(hid, { hero: { lv, star, base, equipment: {} }, noBond: true, team: [], skills });
+    const ft = DB.foeHero(hid) || {};
+    const skills = (ft.sk || []).slice(0, Math.min(star, 4));
+    const s = this.calc(hid, { hero: { lv, star, base, equipment: {} }, noBond: true, team: [], skills, q: ft.q });
     if (!s) return null;
     if (gear) for (const k of ['atk', 'def', 'int', 'agi', 'maxHp']) s[k] = Math.max(1, Math.round(s[k] * (1 + gear)));
     const m = mul || 1;
@@ -1124,7 +1140,8 @@ const Battle = {
   unit(hid, stats, ally, idx) {
     const t = DB.hero(hid);
     const h = ally ? G.heroes[hid] : null;
-    const ids = ally ? (h.owned || []) : (t.sk || []).slice(0, Math.min(stats.star, 4));
+    // V10.6 敌将用 foe 快照里的技能（升档改过技能的老角色，当 Boss 时还是 V10.5 那一套）
+    const ids = ally ? (h.owned || []) : ((DB.foeHero(hid) || t).sk || []).slice(0, Math.min(stats.star, 4));
     const skills = ids.map((id, i) => {
       const s = DB.skill(id);
       return s ? { id, slot: i, name: s.name, cat: s.cat, rate: s.rate, cd: s.cd || 0, fx: s.fx, cur: 0, last: -99 } : null;
@@ -1257,7 +1274,9 @@ const Battle = {
     }
     amount = Math.max(1, Math.round(amount));
     let left = amount, absorbed = 0;
-    if (tgt.shield > 0) {
+    // V10.6 流血、中毒是真实伤害：不吃防御减伤（上面 src 为空已经跳过），也不被护盾挡
+    const trueDmg = tag === 'bleed' || tag === 'poison';
+    if (tgt.shield > 0 && !trueDmg) {
       absorbed = Math.min(tgt.shield, left);
       tgt.shield -= absorbed; left -= absorbed;
     }
@@ -1302,6 +1321,7 @@ const Battle = {
   },
 
   heal(b, tgt, amount, src) {
+    if (src && src.pas && src.pas.heal) amount = Math.round(amount * (1 + src.pas.heal));   // V10.6 pheal
     const before = tgt.hp;
     tgt.hp = Math.min(tgt.maxHp, tgt.hp + amount);
     const got = tgt.hp - before;
@@ -1389,6 +1409,8 @@ const Battle = {
     if (!t.alive) return;
     if (t.pas.immune.includes(f.st)) { b.log.push({ c: 'in', s: `${t.ln} 不受${ST_NAME[f.st] || f.st}` }); return; }
     let p = f.chance == null ? 1 : f.chance;
+    // V10.6 pctrl：自己上的眩晕、混乱、沉默更容易中，封顶 95%
+    if (u && u.pas && u.pas.ctrl && u.ally !== t.ally && ['stun', 'chaos', 'silence'].includes(f.st)) p = Math.min(0.95, p + u.pas.ctrl);
     if (f.st === 'chaos' && u) {
       // 乱得了乱不了，看两边谁的智高：高一倍命中翻到 1.5 倍，低一半降到一半
       const ratio = clamp(0.5 + 0.5 * this.eff(u, 'int') / Math.max(1, this.eff(t, 'int')), 0.5, 1.5);
@@ -1405,7 +1427,9 @@ const Battle = {
     if (f.st === 'burn') val = Math.max(1, Math.round((f.base || 0) * CFG.burnK));
     const cur = t.status[f.st];
     const n = f.st === 'poison' ? Math.min(CFG.poisonMax, (cur ? cur.n || 1 : 0) + (f.layers || 1)) : 0;
-    t.status[f.st] = { dur: Math.max(dur, cur ? cur.dur : 0), val: Math.max(val, cur ? cur.val : 0), n };
+    // V10.6 pdot：施术者的流血中毒加成记在状态上，取高的那个
+    const mul = (f.st === 'bleed' || f.st === 'poison') ? Math.max(cur && cur.mul || 1, 1 + (u && u.pas ? u.pas.dot || 0 : 0)) : undefined;
+    t.status[f.st] = { dur: Math.max(dur, cur ? cur.dur : 0), val: Math.max(val, cur ? cur.val : 0), n, mul };
     if (f.st === 'chaos') t.chaosHit++;
     // 写清楚这个状态到底干了什么，玩家不用去翻说明
     const what = {
@@ -1435,6 +1459,7 @@ const Battle = {
           if ((f.tg === 'single' || f.tg === 'weakest' || f.tg === 'strongest' || f.tg === 'smartest') && this.dodged(b, t)) continue;
           let base = atkV * f.mult;
           if (f.exec && t.hp / t.maxHp < f.exec.at) base *= f.exec.mul;
+          if (f.vsCtrl && (t.status.stun || t.status.chaos || t.status.silence)) base *= 1 + f.vsCtrl;
           const defV = this.eff(t, 'def') * (1 - (f.pierce || 0));
           const d = this.dmg(atkV, defV, base, pw, this.critOf(u), u);
           const real = this.hurt(b, t, d.v, u, d.crit ? 'crit' : '');
@@ -1463,7 +1488,8 @@ const Battle = {
         const key = f.k + '_' + f.stat, sign = f.k === 'buff' ? '+' : '−';
         const live = tgts.filter(t => t.alive);
         for (const t of live) {
-          const add = Math.round((t[f.stat] || 10) * f.pct * mod);
+          const bm = f.k === 'buff' && u.pas && u.pas.buff ? 1 + u.pas.buff : 1;   // V10.6 pbuff
+          const add = Math.round((t[f.stat] || 10) * f.pct * mod * bm);
           const cur = t.status[key];
           t.status[key] = { dur: f.dur || 2, val: Math.max(add, cur ? cur.val : 0) };
           if (live.length === 1) b.log.push({ c: 'sk', s: `${t.ln} ${STAT_NAME[f.stat] || f.stat}${sign}${add}（${f.dur || 2}回合）` });
@@ -1477,14 +1503,16 @@ const Battle = {
       }
       case 'heal':
         for (const t of tgts) if (t.alive) {
-          const v = f.pct ? Math.round(t.maxHp * f.pct * mod) : Math.round(this.magic(u) * f.mult * mod);
+          // V10.6 按智回血补上技能威力与治疗系数：原来没乘 dmgK 也没乘技能威力，倍率相同的治疗只有伤害的三分之一
+          //   敌我同口径（V10.6 定）：敌将的奶一样变强，关卡跟着变难
+          const v = f.pct ? Math.round(t.maxHp * f.pct * mod) : Math.round(this.magic(u) * f.mult * pw * CFG.healK);
           this.heal(b, t, v, u);
         }
         return tgts;
       case 'shield':
         for (const t of tgts) {
           if (!t.alive) continue;
-          const add = Math.round(t.maxHp * f.pct * pw);
+          const add = Math.round(t.maxHp * f.pct * pw * (u.pas && u.pas.buff ? 1 + u.pas.buff : 1));   // V10.6 pbuff
           t.shield += add; u.tally.healed += add;
           t.shieldDur = Math.max(t.shieldDur, CFG.shieldDur);
           b.log.push({ c: 'sh', s: `${t.ln} 护盾 +${add}` });
@@ -1511,8 +1539,12 @@ const Battle = {
         for (const t of tgts) {
           const good = Object.keys(t.status).filter(k => k.startsWith('buff_') || k === 'dodge' || k === 'taunt');
           for (const k of good) delete t.status[k];
-          if (t.shield > 0) { t.shield = 0; t.shieldDur = 0; }
-          if (good.length) b.log.push({ c: 'in', s: `${t.ln} 增益被驱散` });
+          const hadShield = t.shield > 0;
+          if (hadShield) { t.shield = 0; t.shieldDur = 0; }
+          if (good.length || hadShield) {
+            b.log.push({ c: 'in', s: `${t.ln} ${hadShield ? '护盾' + (good.length ? '与增益' : '') : '增益'}被驱散` });
+            this.ev(b, { k: 'st', t: t.idx, ally: t.ally, st: 'dispel' });
+          }
         }
         return tgts;
       default: return tgts;
@@ -1540,14 +1572,16 @@ const Battle = {
     if (!tg.length) return;
     const t = tg[0];
     if (this.dodged(b, t)) return;
-    const d = this.dmg(this.eff(u, 'atk'), this.eff(t, 'def'), this.eff(u, 'atk'), 1, this.critOf(u), u);
+    // V10.6 法术普攻：智（乘法术系数）比武高的人，普攻按 智×法术系数×intBasic 打。敌我同口径
+    const pa = Math.max(this.eff(u, 'atk'), this.magic(u) * CFG.intBasic);
+    const d = this.dmg(pa, this.eff(t, 'def'), pa, 1, this.critOf(u), u);
     this.hurt(b, t, d.v, u, d.crit ? 'crit' : '');
     if (!t.alive || !u.alive) return;
     for (const f of u.pas.onhit) if (chance(f.chance)) this.putStatus(b, u, t, { ...f, base: this.eff(u, 'atk') });
     const fo = u.pas.follow;
     if (fo && t.alive && chance(fo.chance)) {
       b.log.push({ c: 'ps', s: `${u.ln} 追击（被动）` });
-      const d2 = this.dmg(this.eff(u, 'atk'), this.eff(t, 'def'), this.eff(u, 'atk') * fo.mult, 1, this.critOf(u), u);
+      const d2 = this.dmg(pa, this.eff(t, 'def'), pa * fo.mult, 1, this.critOf(u), u);
       this.hurt(b, t, d2.v, u, 'follow');
     }
   },
@@ -1566,8 +1600,8 @@ const Battle = {
     for (const k of Object.keys(u.status)) {
       const s = u.status[k];
       if (k === 'bleed' || k === 'burn' || k === 'poison') {
-        let v = k === 'bleed' ? u.maxHp * CFG.bleedPct
-              : k === 'poison' ? u.hp * CFG.poisonPct * (s.n || 1)
+        let v = k === 'bleed' ? u.maxHp * CFG.bleedPct * (s.mul || 1)
+              : k === 'poison' ? u.hp * CFG.poisonPct * (s.n || 1) * (s.mul || 1)
               : s.val * (u.status.wind ? CFG.windBurn : 1);
         this.hurt(b, u, Math.max(1, Math.round(v)), null, k);
         if (!u.alive) return;
@@ -2157,7 +2191,9 @@ const Grow = {
     const mage = (t.int || 0) > (t.atk || 0);
     v += (e.flat.atk || 0) * (mage ? 1 : 3) + (e.flat.int || 0) * (mage ? 3 : 1)
        + (e.flat.def || 0) * 2 + (e.flat.agi || 0) * 2 + (e.flat.hp || 0) / 20
-       + ((e.pct.atk || 0) * (mage ? 300 : 900)) + ((e.pct.def || 0) + (e.pct.hp || 0)) * 600;
+       + ((e.pct.atk || 0) * (mage ? 300 : 900)) + ((e.pct.int || 0) * (mage ? 900 : 100)) + ((e.pct.def || 0) + (e.pct.hp || 0)) * 600;
+    // V10.6 文官兵器（只加智%）武将拿着吃亏：扣掉两档品阶，高两档以上才考虑
+    if (e.slot === 'weapon' && e.pct.int && !e.pct.atk && !mage) v -= 2500;
     return v;
   },
   /** 只动阵上九人，只从背包里拿，不从别人身上扒 */
@@ -2441,12 +2477,19 @@ const Stages = {
   /** 按槽位与品质区间摇一件装备。该档没货就往下找，绝世的甲与盔本来就没有。 */
   rollEquip(slot, qmax, qmin) {
     const sl = slot === 'helm' ? 'helmet' : (slot || pick(SLOTS));
+    // V10.6：文官装按阵上文官（智高于武）的比例摇，没有文官也留一成。不然低档兵器被扇子笔杆摊薄
+    const team = (G.team || []).filter(Boolean);
+    const mages = team.filter(h => { const t = DB.hero(h); return t && t.int > t.atk; }).length;
+    const wenP = Math.max(0.1, team.length ? mages / team.length : 0.1);
+    const wantWen = chance(wenP);
     for (let lo = qmin; lo >= 1; lo--) {
       const cand = DB.equipIds().filter(k => {
         const e = DB.equip(k);
         return e && e.slot === sl && e.q <= qmax && e.q >= lo && !e.exclusive;
       });
-      if (cand.length) return pick(cand);
+      if (!cand.length) continue;
+      const pref = cand.filter(k => DB.equip(k).wen === wantWen);
+      return pick(pref.length ? pref : cand);
     }
     return null;
   },

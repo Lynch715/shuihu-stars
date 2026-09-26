@@ -426,7 +426,7 @@ function statNote(k, s) {
 function eqTxt(e) {
   const p = [];
   for (const k of ['atk', 'def', 'int', 'agi', 'hp']) if (e.flat[k]) p.push(`${STAT_NAME[k]}+${e.flat[k]}`);
-  for (const k of ['atk', 'def', 'hp']) if (e.pct[k]) p.push(`${STAT_NAME[k]}+${Math.round(e.pct[k] * 100)}%`);
+  for (const k of ['atk', 'int', 'def', 'hp']) if (e.pct[k]) p.push(`${STAT_NAME[k]}+${Math.round(e.pct[k] * 100)}%`);
   return p.join(' ');
 }
 const OB_NAME = { atk: '武', def: '防', int: '智', agi: '捷', hp: '血', crit: '暴击', all: '全属性' };
@@ -951,7 +951,8 @@ function cellHtml(u, n) {
 VIEWS.battle = () => {
   const b = UI.battle;
   if (!b) return '<div class="empty">没有进行中的战斗</div>';
-  const n = Math.max(b.allies.length, b.foes.length);
+  // 二周目地煞星会给敌方多加人，超过九个按九人档排（样式只分到 9）
+  const n = Math.min(9, Math.max(b.allies.length, b.foes.length));
   const done = !!b.settled;
   return `<div class="board${done ? ' done' : ''}" data-n="${n}">
     <div class="bhead"><span>第 <b id="rn">${b.round}</b> 回合</span>

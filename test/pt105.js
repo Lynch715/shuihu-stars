@@ -45,7 +45,10 @@ const SIM = function (opt) {
         if (!Hurt.cure(hid)) st.spendCure = (st.spendCure || 0) + (b0 - G.res.silver);
       }
     };
-    const gearUp = () => {                      // 每人每格穿包里最好的一件
+    // V10.6：跟玩家一样点「一键装备」（按 gearScore 挑，武将不拿文官兵器）。
+    // 原来是「品阶最高的就穿」，有了只加智的兵器以后会把扇子塞给武将。老版本没有 autoEquip 就走旧路子。
+    const gearUp = () => {
+      if (Grow.autoEquip) { Grow.autoEquip(); return; }
       for (const hid of G.team) for (const slot of SLOTS) {
         const bag = Grow.bagEquips(slot);
         if (!bag.length) continue;
