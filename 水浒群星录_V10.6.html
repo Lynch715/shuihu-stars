@@ -892,6 +892,8 @@ const CFG = {
      凡是从智派生的数 —— src:'int' 的伤害、mult 型治疗、法术技能的灼烧 —— 先乘这一道再进公式。敌我同口径。 */
   intK: 1.1,
   intBasic: 0.85,
+  /* V10.6 兵力：血量就是兵力。伤害、治疗、给人加的护盾都乘 troopMin + (1 − troopMin) × 当前血量比（Lynch 定 A 案：满血 100%、半血 65%、一成血 37%） */
+  troopMin: 0.3,
   healK: 2.2,             // V10.6 治疗系数：按智回血 × 技能威力 × 2.2，群疗 0.8 约回一成血        // V10.6 法术普攻：智高的人普攻按 智×intK×0.85 打
   /* V10.5 持续伤害改百分比：流血按最大生命、中毒按当前生命叠层、灼烧仍是固定值（施术者攻击值 × burnK）。
      原来三种都是上状态时按施术者武 ×1.2 再乘 0.3 / 0.25 / 0.2 定死，五十级对着两万血条扣几百，159 个带流血的技能全是摆设。 */
@@ -1606,17 +1608,20 @@ function foeEase(ch, side) {
   return P[P.length - 1][1];
 }
 
+/** V10.6 兵力系数：血量比例折算，满血 1、见底 troopMin */
+const troopOf = u => (u && u.maxHp) ? CFG.troopMin + (1 - CFG.troopMin) * Math.max(0, u.hp) / u.maxHp : 1;
+
 /** V10.6 出手后才倒计时的控制状态 */
 const CTRL_ST = ['stun', 'chaos', 'silence', 'disarm'];
 
 /** V10.6 Boss 关阵势。关卡数据里 theme 字段指到这里；效果只挂在敌方身上，叠在 Boss ×1.5 之上。
  *  普攻附带状态（ponhit）会先后掷两次几率，这里填的是开过平方的数，实际命中 = 平方 */
 const THEMES = {
-  shield: { name: '铁壁', tip: '敌方全体开局带三成血量的护盾，不会消散，每三回合再加一成。带驱散的人、流血中毒（穿盾）好打得多。' },
-  dot:    { name: '毒刃', tip: '敌方普攻带毒带血，他们上的毒和流血伤害翻倍。带净化、治疗的人好打得多。' },
-  chaos:  { name: '迷阵', tip: '一开阵我方就有人发昏，敌方普攻三成几率让人混乱，控制更容易中。智高的人不容易乱，免疫混乱的装备、净化都管用。' },
-  blade:  { name: '刀山', tip: '敌方全是武将，武力加两成、暴击加一成。护盾减伤顶住，智力差伤害专打武将。' },
-  wen:    { name: '谋臣', tip: '敌方以文官为主，智加三成半、技能更常放。驱散拆他们的增益、净化解控，我方智高也不容易被乱。' },
+  shield: { name: '铁壁', tip: '敌方全体开局带三成血量的护盾，不会消散，每三回合再加一成。' },
+  dot:    { name: '毒刃', tip: '敌方普攻带毒带血，他们上的毒和流血伤害翻倍。' },
+  chaos:  { name: '迷阵', tip: '一开阵我方就有人发昏，敌方普攻三成几率让人混乱，控制更容易中。' },
+  blade:  { name: '刀山', tip: '敌方全是武将，武力加两成、暴击加一成。' },
+  wen:    { name: '谋臣', tip: '敌方以文官为主，智加三成半、技能更常放。' },
 };
 /** 阵势对敌方面板的加成（战力估算与开打共用） */
 function themeStats(s, th) {
@@ -2089,6 +2094,7 @@ const Battle = {
     if (src && src.pas.pierce) defV *= 1 - src.pas.pierce;     // V10.4 专属：无视防御
     const armor = Math.max(defV * CFG.armorK, 1);
     let d = base * (atkV / (atkV + armor)) * mod * CFG.dmgK;
+    if (src) d *= troopOf(src);          // V10.6 兵力：残兵打不出满编的伤害
     d *= 1 + (Math.random() * 2 - 1) * CFG.dmgVar;
     if (src && src.pas.dmg) d *= 1 + src.pas.dmg;
     let crit = false;
@@ -2360,14 +2366,14 @@ const Battle = {
         for (const t of tgts) if (t.alive) {
           // V10.6 按智回血补上技能威力与治疗系数：原来没乘 dmgK 也没乘技能威力，倍率相同的治疗只有伤害的三分之一
           //   敌我同口径（V10.6 定）：敌将的奶一样变强，关卡跟着变难
-          const v = f.pct ? Math.round(t.maxHp * f.pct * mod) : Math.round(this.magic(u) * f.mult * pw * CFG.healK);
+          const v = Math.round((f.pct ? t.maxHp * f.pct * mod : this.magic(u) * f.mult * pw * CFG.healK) * troopOf(u));   // V10.6 兵力
           this.heal(b, t, v, u);
         }
         return tgts;
       case 'shield':
         for (const t of tgts) {
           if (!t.alive) continue;
-          const add = Math.round(t.maxHp * f.pct * pw * (u.pas && u.pas.buff ? 1 + u.pas.buff : 1));   // V10.6 pbuff
+          const add = Math.round(t.maxHp * f.pct * pw * (u.pas && u.pas.buff ? 1 + u.pas.buff : 1) * troopOf(u));   // V10.6 pbuff、兵力
           t.shield += add; u.tally.healed += add;
           t.shieldDur = Math.max(t.shieldDur, CFG.shieldDur);
           b.log.push({ c: 'sh', s: `${t.ln} 护盾 +${num(add)}（现有 ${num(t.shield)}）` });
@@ -2417,7 +2423,8 @@ const Battle = {
     const mod = u.skillMod * (sk.cat === 'cmd' && u.pas.cmd ? 1 + u.pas.cmd : 1);
     // 技能名后面把效果写全：「林冲 · 豹头环眼｜对单体造成200%伤害；30%几率使命中者眩晕1回合」
     const tagTxt = sk.cat === 'cmd' ? '（指挥）' : sk.cat === 'sure' ? '（必中）' : '';
-    b.log.push({ c: 'sk', s: `${u.ln} · ${sk.name}${tagTxt}｜${SkillText.desc(sk)}` });
+    const tp = troopOf(u);
+    b.log.push({ c: 'sk', s: `${u.ln} · ${sk.name}${tagTxt}${tp < 0.995 ? `（兵力 ${pc(tp)}）` : ''}｜${SkillText.desc(sk)}` });
     this.ev(b, { k: 'cast', t: u.idx, ally: u.ally, name: sk.name });
     let hit = [], src = null;
     for (const f of sk.fx || []) {
@@ -4238,7 +4245,7 @@ VIEWS.team = () => {
        <div class="btn" data-action="strip-team">一键卸装</div>
        <div class="btn" data-action="go" data-id="heroes">去挑人</div>
      </div>
-     <div class="tip">按住格子拖动可以换位。前三个站第一排，单挑先打前排。一键装备只动阵上九人、只从行囊里拿。</div>` +
+     <div class="tip">按住格子拖动可以换位。前三个站第一排，单挑先打前排。血量就是兵力：血越少，伤害、治疗、护盾越弱（半血只剩六成半）。一键装备只动阵上九人、只从行囊里拿。</div>` +
     section('teambond', `已激活羁绊（${bonds.length}）`,
     (bonds.length ? `<div class="frame tight">${bonds.map(({ b, have, tier }) =>
       `<div class="bondrow"><b>${esc(b.name)}</b>

@@ -371,8 +371,12 @@ check('buff 技能有实际效果', async b => {
           if (withBuff) u.status.buff_atk = { dur: 99, val: 5000 };
         });
         const a = s.foes.reduce((x, u) => x + u.hp, 0);
+        // 流血中毒按最大生命扣，五百万血一跳就是二十万，会把 buff 的差别淹掉：不计
+        let dot = 0; const B = window.Battle, H0 = B && B.hurt;
+        if (H0) B.hurt = function (b, t, am, src, tag) { const hp = t.hp; const r = H0.call(this, b, t, am, src, tag); if (!t.ally && (tag === 'bleed' || tag === 'poison')) dot += hp - t.hp; return r; };
         for (let g = 0; g < 3 && !bt.over; g++) __api.round(bt);
-        sum += a - s.foes.reduce((x, u) => x + u.hp, 0);
+        if (H0) B.hurt = H0;
+        sum += a - s.foes.reduce((x, u) => x + u.hp, 0) - dot;
       }
       return Math.round(sum / 40);
     }
@@ -582,7 +586,9 @@ check('伤势记账与休养', async b => {
     const first = W.G.team.slice();
     const bt = W.Battle.create('ch16_boss'); W.Battle.runAll(bt); W.Stages.settle(bt);
     const heavy = Object.values(W.G.heroes).filter(v => v.hurt && v.hurt.lv === 2).length;
-    const swapped = W.G.team.length === 9 && first.every(h => !W.G.team.includes(h));
+    // V10.5 起伤病分轻重：只有重伤的要被换下，轻伤的带伤接着打（原来要求九人全换，是「输了全员重伤」那套规则时写的）
+    const hvFirst = first.filter(h => W.G.heroes[h].hurt && W.G.heroes[h].hurt.lv === 2);
+    const swapped = W.G.team.length === 9 && hvFirst.length > 0 && hvFirst.every(h => !W.G.team.includes(h));
     const hv = Object.keys(W.G.heroes).find(h => W.G.heroes[h].hurt.lv === 2);
     const blocked = !!W.Grow.addToTeam(hv);
 

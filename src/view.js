@@ -688,7 +688,7 @@ VIEWS.team = () => {
        <div class="btn" data-action="strip-team">一键卸装</div>
        <div class="btn" data-action="go" data-id="heroes">去挑人</div>
      </div>
-     <div class="tip">按住格子拖动可以换位。前三个站第一排，单挑先打前排。一键装备只动阵上九人、只从行囊里拿。</div>` +
+     <div class="tip">按住格子拖动可以换位。前三个站第一排，单挑先打前排。血量就是兵力：血越少，伤害、治疗、护盾越弱（半血只剩六成半）。一键装备只动阵上九人、只从行囊里拿。</div>` +
     section('teambond', `已激活羁绊（${bonds.length}）`,
     (bonds.length ? `<div class="frame tight">${bonds.map(({ b, have, tier }) =>
       `<div class="bondrow"><b>${esc(b.name)}</b>
