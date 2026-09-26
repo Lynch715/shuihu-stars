@@ -2475,35 +2475,55 @@ const Grow = {
     if (e.slot === 'weapon' && e.pct.int && !e.pct.atk && !mage) v -= 2500;
     return v;
   },
-  /** V10.6.1 起面向全体：阵上九人先挑，再轮到板凳上的人，各自按战力从高到低。
-   *  只从背包里拿，不从别人身上扒。专属先发给本人，不管在不在阵上。 */
+  /** V10.6.1b 只管阵上九人，要把最好的给他们：
+   *  阵上的人身上的先全收回来重排；板凳上的人身上的也拿来挑，
+   *  被挑走的那格就空着，没被挑中的原样穿回去。板凳上的人不另发装备。
+   *  专属先给本人（本人得在阵上），其余按战力从高往低轮，每格挑评分最高的。 */
   autoEquip() {
-    const all = Object.keys(G.heroes);
-    if (!all.length) return { err: '手上没有人' };
-    let put = 0, swapped = 0;
-    const byPow = (a, b) => Stats.heroPower(b) - Stats.heroPower(a);
     const team = G.team.filter(h => h && G.heroes[h]);
-    const order = team.slice().sort(byPow)
-      .concat(all.filter(h => !team.includes(h)).sort(byPow));
+    if (!team.length) return { err: '阵上没有人' };
+    const bench = Object.keys(G.heroes).filter(h => !team.includes(h));
+    const before = {};
+    for (const hid of team) before[hid] = Object.assign({}, G.heroes[hid].equipment);
+    const benchWore = {};
+    for (const hid of [...team, ...bench]) for (const slot of SLOTS) {
+      const eid = G.heroes[hid].equipment[slot];
+      if (!eid) continue;
+      if (bench.includes(hid)) (benchWore[hid] ||= {})[slot] = eid;
+      // 直接挪回行囊，中途不存档
+      G.items['eq_' + eid] = (G.items['eq_' + eid] || 0) + 1;
+      G.heroes[hid].equipment[slot] = null;
+    }
+    // 按裸身战力排座次：带着装备排的话，配完一轮次序就变了，再点一次又会换
+    const order = team.slice().sort((a, b) => Stats.heroPower(b) - Stats.heroPower(a));
+    const take = (hid, slot, eid) => {
+      G.heroes[hid].equipment[slot] = eid;
+      if (--G.items['eq_' + eid] <= 0) delete G.items['eq_' + eid];
+    };
     for (const e of this.bagEquips(null)) {
       const hid = e.exclusive;
-      if (!hid || !G.heroes[hid]) continue;
-      const cur = G.heroes[hid].equipment[e.slot];
-      if (cur === e.id) continue;
-      if (!this.equip(hid, e.slot, e.id)) { put++; if (cur) swapped++; }
+      if (hid && team.includes(hid) && !G.heroes[hid].equipment[e.slot]) take(hid, e.slot, e.id);
     }
     for (const hid of order) for (const slot of SLOTS) {
+      if (G.heroes[hid].equipment[slot]) continue;
       const bag = this.bagEquips(slot);
       if (!bag.length) continue;
       const best = bag.slice().sort((a, b) => this.gearScore(hid, b) - this.gearScore(hid, a))[0];
-      const curId = G.heroes[hid].equipment[slot];
-      const cur = DB.equip(curId);
-      // 身上是自己的专属就不换（专属另有特效，分数算不出来）
-      if (cur && cur.exclusive === hid) continue;
-      if (cur && this.gearScore(hid, cur) >= this.gearScore(hid, best)) continue;
-      if (!this.equip(hid, slot, best.id)) { put++; if (cur) swapped++; }
+      take(hid, slot, best.id);
     }
-    return { put, swapped };
+    // 板凳上的人：没被挑走的原样穿回去
+    let fromBench = 0;
+    for (const hid of bench) for (const [slot, eid] of Object.entries(benchWore[hid] || {})) {
+      if ((G.items['eq_' + eid] || 0) > 0) take(hid, slot, eid); else fromBench++;
+    }
+    let put = 0, changed = 0;
+    for (const hid of team) for (const slot of SLOTS) {
+      const now = G.heroes[hid].equipment[slot];
+      if (now) put++;
+      if (now !== before[hid][slot]) changed++;
+    }
+    Save.write();
+    return { put, changed, fromBench };
   },
   /** 全体身上一共几人穿着、几件。卸装前的确认框用 */
   wornCount() {

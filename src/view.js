@@ -705,7 +705,7 @@ VIEWS.team = () => {
        <div class="btn" data-action="strip-team">一键卸装</div>
        <div class="btn" data-action="go" data-id="heroes">去挑人</div>
      </div>
-     <div class="tip">按住格子拖动可以换位。前三个站第一排，单挑先打前排。血量就是兵力：血越少，伤害、治疗、护盾越弱（半血只剩六成半）。一键装备、一键卸装管所有人：阵上九人先挑，再轮到板凳上的人；只从行囊里拿，不从别人身上扒。</div>` +
+     <div class="tip">按住格子拖动可以换位。前三个站第一排，单挑先打前排。血量就是兵力：血越少，伤害、治疗、护盾越弱（半血只剩六成半）。一键装备只配阵上九人：行囊里的和板凳上的人身上的一起挑，最好的给阵上，被拿走的那格空着。一键卸装卸所有人。</div>` +
     section('teambond', `已激活羁绊（${bonds.length}）`,
     (bonds.length ? `<div class="frame tight">${bonds.map(({ b, have, tier }) =>
       `<div class="bondrow"><b>${esc(b.name)}</b>
@@ -1628,7 +1628,8 @@ document.addEventListener('click', ev => {
     }
     case 'auto-equip': {
       const r = Grow.autoEquip();
-      toast(r.err ? r.err : r.put ? `配了 ${r.put} 件，换下 ${r.swapped} 件` : '行囊里没有更好的');
+      toast(r.err ? r.err : !r.changed ? '阵上九人已经是最好的配法'
+        : `阵上九人换了 ${r.changed} 格，共穿 ${r.put} 件${r.fromBench ? `，${r.fromBench} 件取自板凳上的人` : ''}`);
       render(); break;
     }
     case 'strip-team': {
