@@ -722,3 +722,7 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .theme{margin:8px 0 2px;padding:6px 9px;border:1px solid var(--cinnabar);background:rgba(233,226,208,.7);text-align:left;font-size:.8em;line-height:1.7}
 .theme b{display:block;font-family:var(--f-title);color:var(--cinnabar);letter-spacing:.2em;font-weight:400}
 .theme span{color:var(--ink-2)}
+
+/* V10.6 榜单分我方、敌方 */
+.bd-side{font-family:var(--f-title);font-size:.72em;letter-spacing:.3em;color:var(--ink-3);margin:10px 0 -4px}
+.bd-side.foes{color:var(--cinnabar)}

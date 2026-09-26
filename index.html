@@ -737,6 +737,10 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .theme{margin:8px 0 2px;padding:6px 9px;border:1px solid var(--cinnabar);background:rgba(233,226,208,.7);text-align:left;font-size:.8em;line-height:1.7}
 .theme b{display:block;font-family:var(--f-title);color:var(--cinnabar);letter-spacing:.2em;font-weight:400}
 .theme span{color:var(--ink-2)}
+
+/* V10.6 榜单分我方、敌方 */
+.bd-side{font-family:var(--f-title);font-size:.72em;letter-spacing:.3em;color:var(--ink-3);margin:10px 0 -4px}
+.bd-side.foes{color:var(--cinnabar)}
 </style>
 </head>
 <body>
@@ -1982,7 +1986,16 @@ const Battle = {
   /** 战报里的名字带阵营标记：{a|林冲} 是我方、{f|史进} 是敌方，视图 logHtml 拿去上色。
    *  原来两边撞名才标「（我）」「（敌）」，现在颜色一分，同名也认得出。 */
   tagNames(b) {
-    for (const u of [...b.allies, ...b.foes]) u.ln = `{${u.ally ? 'a' : 'f'}|${u.name}}`;
+    // V10.6 同一方有重名（二周目补人、地煞星加人）就按出场顺序加甲乙丙，战报才分得清谁是谁
+    const TAG = '甲乙丙丁戊己庚辛壬癸';
+    for (const side of [b.allies, b.foes]) {
+      const cnt = {}, seen = {};
+      for (const u of side) cnt[u.name] = (cnt[u.name] || 0) + 1;
+      for (const u of side) {
+        const k = seen[u.name] = (seen[u.name] || 0) + 1;
+        u.ln = `{${u.ally ? 'a' : 'f'}|${u.name}${cnt[u.name] > 1 ? TAG[k - 1] || k : ''}}`;
+      }
+    }
   },
 
   create(sid) {
@@ -2000,8 +2013,12 @@ const Battle = {
     }
     const foes = elist
       .map((eid, i) => {
-        const s = themeStats(Stats.calcEnemy(eid, tier.lv, tier.star, Stats.foeMul(eid, tier), tier.gear), st.theme);
-        return s ? this.unit(eid, s, false, i) : null;
+        const s0 = Stats.calcEnemy(eid, tier.lv, tier.star, Stats.foeMul(eid, tier), tier.gear);
+        const pre = s0 ? { atk: s0.atk, int: s0.int } : null;
+        const s = themeStats(s0, st.theme);
+        const unit = s ? this.unit(eid, s, false, i) : null;
+        if (unit) unit.pre = pre;
+        return unit;
       }).filter(Boolean);
     // V10.6 Boss 关阵势
     if (st.theme && THEMES[st.theme]) for (const u of foes) themeUnit(u, st.theme);
@@ -2020,7 +2037,20 @@ const Battle = {
     }
     const b = { sid, stage: st, allies, foes, round: 0, over: false, win: null, log: [], events: [], theme: st.theme || null };
     this.tagNames(b);
-    if (b.theme && THEMES[b.theme]) b.log.push({ c: 'in', s: `阵势 · ${THEMES[b.theme].name}：${THEMES[b.theme].tip}` });
+    if (b.theme && THEMES[b.theme]) {
+      b.log.push({ c: 'in', s: `阵势 · ${THEMES[b.theme].name}：${THEMES[b.theme].tip}` });
+      // V10.6 每个敌将挂了什么，逐个写出来
+      for (const u of foes) {
+        const th = b.theme, p = u.pre || {};
+        const txt = th === 'blade' ? `武 ${num(p.atk)}→${num(u.atk)}，暴击 +10%`
+                  : th === 'wen' ? `智 ${num(p.int)}→${num(u.int)}，主动技发动率 +15%`
+                  : th === 'shield' ? `护盾 +${num(u.shield)}（不会消散）`
+                  : th === 'dot' ? '普攻八成上两层毒、四成半上流血，毒与流血伤害翻倍'
+                  : '普攻三成几率致乱，控制命中 +20%';
+        b.log.push({ c: 'ps', s: `　${u.ln} ${THEMES[th].name}：${txt}` });
+      }
+    }
+    for (const u of foes) if (u.isBoss) b.log.push({ c: 'ps', s: `${u.ln} 坐镇本关：受到的伤害 −10%，致命一击留一口气` });
     return b;
   },
 
@@ -2131,8 +2161,9 @@ const Battle = {
       u.lowDone[key] = 1;
       const add = Math.round((u[f.stat] || 10) * f.pct);
       const cur = u.status['buff_' + f.stat];
+      const before = this.eff(u, f.stat);
       u.status['buff_' + f.stat] = { dur: 99, val: (cur ? cur.val : 0) + add };
-      b.log.push({ c: 'ps', s: `${u.ln} 濒危奋起，${STAT_NAME[f.stat]}+${add}（被动）` });
+      b.log.push({ c: 'ps', s: `${u.ln} 濒危奋起，${STAT_NAME[f.stat]} ${num(before)}→${num(this.eff(u, f.stat))}（+${num(add)}，被动）` });
     }
   },
 
@@ -2143,7 +2174,7 @@ const Battle = {
     const got = tgt.hp - before;
     if (got > 0) {
       if (src) src.tally.healed += got;
-      b.log.push({ c: 'he', s: `${tgt.ln} 回复 ${num(got)}` });
+      b.log.push({ c: 'he', s: `${tgt.ln} 回复 ${num(got)}（${num(before)}→${num(tgt.hp)} / ${num(tgt.maxHp)}）` });
       this.ev(b, { k: 'heal', t: tgt.idx, ally: tgt.ally, v: got,
                    s: src ? src.idx : null, sa: src ? src.ally : null });
     }
@@ -2302,20 +2333,26 @@ const Battle = {
       }
       case 'buff':
       case 'debuff': {
-        // 群体的一行写完（「全军 武+12%」），九行「某某 武+7」没人看
+        // V10.6 群体先一句总述，再每人一行写前后数值（Lynch：战报越细越好，属性变化要见数）
         const key = f.k + '_' + f.stat, sign = f.k === 'buff' ? '+' : '−';
+        const nm = STAT_NAME[f.stat] || f.stat, dur = f.dur || 2;
         const live = tgts.filter(t => t.alive);
+        if (live.length > 1) {
+          const mine = f.k === 'buff' ? u.ally : !u.ally;     // 增益给自己人，减益给对面
+          const tn = TG_NAME[f.tg] || '';
+          b.log.push({ c: 'sk', s: `{${mine ? 'a' : 'f'}|${/^[敌我]方/.test(tn) ? tn : (mine ? '我方' : '敌方') + tn}} ${nm}${sign}${pc(f.pct * mod)}（${dur}回合）` });
+        }
         for (const t of live) {
           const bm = f.k === 'buff' && u.pas && u.pas.buff ? 1 + u.pas.buff : 1;   // V10.6 pbuff
           const add = Math.round((t[f.stat] || 10) * f.pct * mod * bm);
           const cur = t.status[key];
-          t.status[key] = { dur: f.dur || 2, val: Math.max(add, cur ? cur.val : 0) };
-          if (live.length === 1) b.log.push({ c: 'sk', s: `${t.ln} ${STAT_NAME[f.stat] || f.stat}${sign}${add}（${f.dur || 2}回合）` });
+          const before = this.eff(t, f.stat);
+          t.status[key] = { dur, val: Math.max(add, cur ? cur.val : 0) };
+          if (cur && cur.val >= add)
+            b.log.push({ c: 'sk', s: `　${t.ln} ${nm}${sign}${add} 不叠加（已有${sign}${cur.val}，回合数刷新为 ${dur}）` });
+          else
+            b.log.push({ c: 'sk', s: `　${t.ln} ${nm} ${num(before)}→${num(this.eff(t, f.stat))}（${sign}${add}${cur ? `，顶掉原来的${sign}${cur.val}` : ''}，${dur}回合）` });
           this.ev(b, { k: 'st', t: t.idx, ally: t.ally, st: f.k });
-        }
-        if (live.length > 1) {
-          const mine = f.k === 'buff' ? u.ally : !u.ally;     // 增益给自己人，减益给对面
-          b.log.push({ c: 'sk', s: `{${mine ? 'a' : 'f'}|${mine ? '我方' : '敌方'}${TG_NAME[f.tg] || ''}} ${STAT_NAME[f.stat] || f.stat}${sign}${pc(f.pct * mod)}（${f.dur || 2}回合）` });
         }
         return tgts;
       }
@@ -2333,34 +2370,40 @@ const Battle = {
           const add = Math.round(t.maxHp * f.pct * pw * (u.pas && u.pas.buff ? 1 + u.pas.buff : 1));   // V10.6 pbuff
           t.shield += add; u.tally.healed += add;
           t.shieldDur = Math.max(t.shieldDur, CFG.shieldDur);
-          b.log.push({ c: 'sh', s: `${t.ln} 护盾 +${add}` });
+          b.log.push({ c: 'sh', s: `${t.ln} 护盾 +${num(add)}（现有 ${num(t.shield)}）` });
         }
         return tgts;
       case 'steal':
         for (const t of tgts) {
           if (!t.alive) continue;
           const v = Math.round((t[f.stat] || 10) * f.pct * mod);
-          const dur = f.dur || 2;
+          const dur = f.dur || 2, nm = STAT_NAME[f.stat] || f.stat;
+          const t0 = this.eff(t, f.stat), u0 = this.eff(u, f.stat);
           t.status['debuff_' + f.stat] = { dur, val: Math.max(v, t.status['debuff_' + f.stat]?.val || 0) };
           u.status['buff_' + f.stat] = { dur, val: (u.status['buff_' + f.stat]?.val || 0) + v };
-          b.log.push({ c: 'sk', s: `${u.ln} 夺 ${t.ln} ${STAT_NAME[f.stat] || f.stat} ${v}` });
+          const t1 = this.eff(t, f.stat);
+          b.log.push({ c: 'sk', s: `${u.ln} 夺 ${t.ln} ${nm} ${num(v)}：${t.ln} ${num(t0)}→${num(t1)}${t1 === t0 ? '（已有更大的削弱，不再多扣）' : ''}，${u.ln} ${num(u0)}→${num(this.eff(u, f.stat))}（${dur}回合）` });
         }
         return tgts;
       case 'cleanse':
         for (const t of tgts) {
           const bad = Object.keys(t.status).filter(k => k.startsWith('debuff_') || ['stun', 'silence', 'disarm', 'chaos', 'vuln', 'bleed', 'burn', 'poison', 'wind'].includes(k));
+          const what = bad.map(k => k.startsWith('debuff_') ? `${STAT_NAME[k.slice(7)] || k.slice(7)}−${num(t.status[k].val)}`
+                                   : k === 'poison' ? `中毒×${t.status[k].n || 1}` : (ST_NAME[k] || k));
           for (const k of bad) delete t.status[k];
-          if (bad.length) b.log.push({ c: 'he', s: `${t.ln} 状态解除` });
+          if (bad.length) b.log.push({ c: 'he', s: `${t.ln} 解除：${what.join('、')}` });
         }
         return tgts;
       case 'dispel':
         for (const t of tgts) {
           const good = Object.keys(t.status).filter(k => k.startsWith('buff_') || k === 'dodge' || k === 'taunt');
+          const what = good.map(k => k.startsWith('buff_') ? `${STAT_NAME[k.slice(5)] || k.slice(5)}+${num(t.status[k].val)}`
+                                    : k === 'dodge' ? `闪避+${pc(t.status[k].val || 0.2)}` : '嘲讽');
           for (const k of good) delete t.status[k];
-          const hadShield = t.shield > 0;
-          if (hadShield) { t.shield = 0; t.shieldDur = 0; }
+          const hadShield = t.shield > 0, sh = t.shield;
+          if (hadShield) { t.shield = 0; t.shieldDur = 0; what.push(`护盾 ${num(sh)}`); }
           if (good.length || hadShield) {
-            b.log.push({ c: 'in', s: `${t.ln} ${hadShield ? '护盾' + (good.length ? '与增益' : '') : '增益'}被驱散` });
+            b.log.push({ c: 'in', s: `${t.ln} 被驱散：${what.join('、')}` });
             this.ev(b, { k: 'st', t: t.idx, ally: t.ally, st: 'dispel' });
           }
         }
@@ -2451,7 +2494,14 @@ const Battle = {
       else if (s.dur === 1 && ['taunt', 'vuln', 'dodge', 'wind'].includes(k))
         b.log.push({ c: 'in', s: `${u.ln} 的${ST_NAME[k]}消退` });
       s.dur--;
-      if (s.dur <= 0) delete u.status[k];
+      if (s.dur <= 0) {
+        // V10.6 增减益到期也写数：「林冲 武+378 消退（3079→2701）」
+        const isB = k.startsWith('buff_'), isD = k.startsWith('debuff_');
+        const stat = isB ? k.slice(5) : isD ? k.slice(7) : null;
+        const before = stat ? this.eff(u, stat) : 0;
+        delete u.status[k];
+        if (stat && s.val) b.log.push({ c: 'in', s: `${u.ln} ${STAT_NAME[stat] || stat}${isB ? '+' : '−'}${num(s.val)} 消退（${num(before)}→${num(this.eff(u, stat))}）` });
+      }
     }
     if (u.shieldDur > 0 && u.shieldDur < 99 && --u.shieldDur === 0 && u.shield > 0) {
       u.shield = 0;
@@ -2496,8 +2546,11 @@ const Battle = {
     b.events.push({ k: 'round', n: b.round, li: b.log.length });
     // V10.6 铁壁：每三回合敌方全体再加一成血量的护盾
     if (b.theme === 'shield' && b.round > 1 && (b.round - 1) % 3 === 0) {
-      for (const u of b.foes) if (u.alive) { u.shield += Math.round(u.maxHp * 0.1); u.shieldDur = 99; }
       b.log.push({ c: 'sh', s: '铁壁：敌方全体护盾再加一成' });
+      for (const u of b.foes) if (u.alive) {
+        const add = Math.round(u.maxHp * 0.1); u.shield += add; u.shieldDur = 99;
+        b.log.push({ c: 'sh', s: `　${u.ln} 护盾 +${num(add)}（现有 ${num(u.shield)}）` });
+      }
     }
     // V10.6 迷阵：开阵时我方随机三人六成几率混乱一回合
     if (b.theme === 'chaos' && b.round === 1) {
@@ -2570,10 +2623,13 @@ const Battle = {
     return b.over;
   },
 
-  /** 榜单：我方输出、承伤、治疗各取前三。结算和战报底下都读它。 */
-  board(b) {
-    const top = k => b.allies.filter(u => u.tally[k] > 0).sort((x, y) => y.tally[k] - x.tally[k]).slice(0, 3)
-      .map(u => ({ name: u.name, hid: u.hid, v: u.tally[k] }));
+  /** 榜单：输出、承伤、治疗各取前五。V10.6 起敌方也出一张（side = 'foes'）。
+   *  名字用战报里的叫法（重名带甲乙丙），好对上号 */
+  board(b, side) {
+    const list = side === 'foes' ? b.foes : b.allies;
+    const nm = u => (u.ln || '').replace(/^\{[af]\|(.*)\}$/, '$1') || u.name;
+    const top = k => list.filter(u => u.tally[k] > 0).sort((x, y) => y.tally[k] - x.tally[k]).slice(0, 5)
+      .map(u => ({ name: nm(u), hid: u.hid, v: u.tally[k] }));
     return { dealt: top('dealt'), taken: top('taken'), healed: top('healed') };
   },
 
@@ -4497,12 +4553,13 @@ function logHtml(all, tail) {
 function logLine(s) {
   return esc(s).replace(/\{([af])\|([^}]+)\}/g, (m, side, n) => `<b class="ln-${side}">${n}</b>`);
 }
-/* 榜单：输出 / 承伤 / 治疗各前三 */
+/* 榜单：输出 / 承伤 / 治疗各前五，我方一张、敌方一张（V10.6） */
 function boardHtml(b) {
-  const bd = Battle.board(b);
   const col = (t, list) => `<div class="bd-col"><i>${t}</i>${list.length ? list.map((x, i) =>
     `<span class="r${i}"><em>${esc(x.name)}</em><u>${num(x.v)}</u></span>`).join('') : '<span class="none">—</span>'}</div>`;
-  return `<div class="board-mvp">${col('输出', bd.dealt)}${col('承伤', bd.taken)}${col('治疗', bd.healed)}</div>`;
+  const one = (side, label) => { const bd = Battle.board(b, side);
+    return `<div class="bd-side ${side}">${label}</div><div class="board-mvp">${col('输出', bd.dealt)}${col('承伤', bd.taken)}${col('治疗', bd.healed)}</div>`; };
+  return one('allies', '我　方') + one('foes', '敌　方');
 }
 
 function openBattleLog() {

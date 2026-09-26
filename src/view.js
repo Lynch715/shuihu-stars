@@ -1003,12 +1003,13 @@ function logHtml(all, tail) {
 function logLine(s) {
   return esc(s).replace(/\{([af])\|([^}]+)\}/g, (m, side, n) => `<b class="ln-${side}">${n}</b>`);
 }
-/* 榜单：输出 / 承伤 / 治疗各前三 */
+/* 榜单：输出 / 承伤 / 治疗各前五，我方一张、敌方一张（V10.6） */
 function boardHtml(b) {
-  const bd = Battle.board(b);
   const col = (t, list) => `<div class="bd-col"><i>${t}</i>${list.length ? list.map((x, i) =>
     `<span class="r${i}"><em>${esc(x.name)}</em><u>${num(x.v)}</u></span>`).join('') : '<span class="none">—</span>'}</div>`;
-  return `<div class="board-mvp">${col('输出', bd.dealt)}${col('承伤', bd.taken)}${col('治疗', bd.healed)}</div>`;
+  const one = (side, label) => { const bd = Battle.board(b, side);
+    return `<div class="bd-side ${side}">${label}</div><div class="board-mvp">${col('输出', bd.dealt)}${col('承伤', bd.taken)}${col('治疗', bd.healed)}</div>`; };
+  return one('allies', '我　方') + one('foes', '敌　方');
 }
 
 function openBattleLog() {
