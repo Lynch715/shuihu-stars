@@ -220,6 +220,9 @@ const CFG = {
      池子的最高品阶跟着进度走：当前章的掉落上限 +1（qCap），一周目打完就不封。
      摇不到的档位把概率让给下面一档，界面上按实际池子重算显示。 */
   forgeCost1: 400, forgeCost10: 3600,
+  /* V10.6.1 行囊卖装备的价钱。铁匠铺一抽 400 两，抽出来的东西按这张表卖掉平均回本不到两成，
+     不会变成刷钱的路子。专属不能卖（见 Grow.sellPrice）。 */
+  sellPrice: { 1: 20, 2: 40, 3: 80, 4: 160, 5: 400, 6: 1000 },
   forgeRate: { 1: 0.35, 2: 0.30, 3: 0.20, 4: 0.10, 5: 0.04, 6: 0.006, 7: 0.004 },
   forgePityTen: 3,        // 十连保底 ≥猛
   forgeForty: 5,          // 累计 40 抽保底 ≥天罡
@@ -2201,6 +2204,28 @@ const Grow = {
     return null;
   },
 
+  /** 只算本人碎片够不够下一星（不算兵符）。一键升星和「碎片够」筛选都读这一份 */
+  ownReady(hid) {
+    const n = this.starNeed(hid);
+    return !!n && !n.max && n.own >= n.cost;
+  },
+
+  /** V10.6.1 一键升星：只花本人碎片，一枚兵符都不动。谁够几星就连升几星。
+   *  返回 [{ hid, from, to, skills:[技能id], token }]，token 是满星后碎片折出的兵符 */
+  starUpAllOwn() {
+    const out = [];
+    for (const hid of Object.keys(G.heroes)) {
+      const h = G.heroes[hid];
+      if (!this.ownReady(hid)) continue;
+      const from = h.star, had = h.owned.slice(), tk0 = G.res.token || 0;
+      while (this.ownReady(hid)) if (this.starUp(hid)) break;
+      if (h.star === from) continue;
+      out.push({ hid, from, to: h.star, skills: h.owned.filter(x => !had.includes(x)),
+                 token: (G.res.token || 0) - tk0 });
+    }
+    return out;
+  },
+
   /** 满星的人：手上的碎片按 CFG.fragMelt 片折一枚兵符，零头留着。
    *  返回折出来的兵符数 */
   melt(hid) {
@@ -2450,36 +2475,74 @@ const Grow = {
     if (e.slot === 'weapon' && e.pct.int && !e.pct.atk && !mage) v -= 2500;
     return v;
   },
-  /** 只动阵上九人，只从背包里拿，不从别人身上扒 */
+  /** V10.6.1 起面向全体：阵上九人先挑，再轮到板凳上的人，各自按战力从高到低。
+   *  只从背包里拿，不从别人身上扒。专属先发给本人，不管在不在阵上。 */
   autoEquip() {
-    const team = G.team.filter(Boolean);
-    if (!team.length) return { err: '阵上没有人' };
+    const all = Object.keys(G.heroes);
+    if (!all.length) return { err: '手上没有人' };
     let put = 0, swapped = 0;
-    // 先发专属：本人穿才有特效
-    for (const hid of team) for (const e of this.bagEquips(null)) {
-      if (e.exclusive !== hid) continue;
+    const byPow = (a, b) => Stats.heroPower(b) - Stats.heroPower(a);
+    const team = G.team.filter(h => h && G.heroes[h]);
+    const order = team.slice().sort(byPow)
+      .concat(all.filter(h => !team.includes(h)).sort(byPow));
+    for (const e of this.bagEquips(null)) {
+      const hid = e.exclusive;
+      if (!hid || !G.heroes[hid]) continue;
       const cur = G.heroes[hid].equipment[e.slot];
       if (cur === e.id) continue;
       if (!this.equip(hid, e.slot, e.id)) { put++; if (cur) swapped++; }
     }
-    // 再按战力从高到低轮人，每格挑背包里最合适的一件
-    const order = team.slice().sort((a, b) => Stats.heroPower(b) - Stats.heroPower(a));
     for (const hid of order) for (const slot of SLOTS) {
       const bag = this.bagEquips(slot);
       if (!bag.length) continue;
       const best = bag.slice().sort((a, b) => this.gearScore(hid, b) - this.gearScore(hid, a))[0];
       const curId = G.heroes[hid].equipment[slot];
       const cur = DB.equip(curId);
+      // 身上是自己的专属就不换（专属另有特效，分数算不出来）
+      if (cur && cur.exclusive === hid) continue;
       if (cur && this.gearScore(hid, cur) >= this.gearScore(hid, best)) continue;
       if (!this.equip(hid, slot, best.id)) { put++; if (cur) swapped++; }
     }
     return { put, swapped };
   },
-  /** 阵上九人的装备全部回背包 */
-  stripTeam() {
+  /** 全体身上一共几人穿着、几件。卸装前的确认框用 */
+  wornCount() {
+    let men = 0, n = 0;
+    for (const hid of Object.keys(G.heroes)) {
+      const k = SLOTS.filter(sl => G.heroes[hid].equipment[sl]).length;
+      if (k) { men++; n += k; }
+    }
+    return { men, n };
+  },
+  /** 所有人的装备全部回背包 */
+  stripAll() {
     let n = 0;
-    for (const hid of G.team.filter(Boolean)) for (const slot of SLOTS) if (!this.unequip(hid, slot)) n++;
+    for (const hid of Object.keys(G.heroes)) for (const slot of SLOTS)
+      if (G.heroes[hid].equipment[slot] && !this.unequip(hid, slot)) n++;
     return { n };
+  },
+
+  /* ── V10.6.1 行囊批量出售 ───────────────────────────────────────── */
+
+  /** 一件的卖价；专属一律不能卖，返回 0 */
+  sellPrice(eid) {
+    const e = DB.equip(eid);
+    if (!e || e.exclusive) return 0;
+    return CFG.sellPrice[e.q] || 0;
+  },
+  /** 卖掉 { eid: 件数 }。只卖行囊里闲着的，穿在身上的动不了 */
+  sellEquips(pick) {
+    let n = 0, silver = 0;
+    for (const [eid, c] of Object.entries(pick || {})) {
+      const p = this.sellPrice(eid), key = 'eq_' + eid;
+      const k = Math.min(G.items[key] || 0, Math.floor(c) || 0);
+      if (!p || k <= 0) continue;
+      G.items[key] -= k;
+      if (G.items[key] <= 0) delete G.items[key];
+      n += k; silver += k * p;
+    }
+    if (n) { G.res.silver += silver; Save.write(); }
+    return { n, silver };
   },
 };
 

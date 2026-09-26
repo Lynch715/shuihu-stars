@@ -373,7 +373,10 @@ const FILTS = {
   wen:   ['文官',  h => roleOf(DB.hero(h)) !== 'wu'],
   hurt:  ['带伤',  h => !!Hurt.of(h).lv],
   up:    ['可升星', h => { const n = Grow.starNeed(h); return !!n && !n.max && n.ok; }],
+  own:   ['碎片够', h => Grow.ownReady(h)],
 };
+/* 筛选一行放不下八个，拆两行：身份一行，状态一行 */
+const FILT_ROWS = [['all', 'team', 'idle', 'wu', 'wen'], ['hurt', 'up', 'own']];
 
 /** 群将谱当下排出来的那一串人。详情页左右切换也按这一串走 */
 function heroesShown() {
@@ -473,12 +476,19 @@ VIEWS.heroes = () => {
   const bar = `<div class="picker">
     <div class="pline"><i>排序</i>${Object.entries(SORTS).map(([k, v]) =>
       `<span class="pk${k === sk ? ' on' : ''}" data-action="hsort" data-id="${k}">${v[0]}</span>`).join('')}</div>
-    <div class="pline"><i>筛选</i>${Object.entries(FILTS).map(([k, v]) =>
-      `<span class="pk${k === fk ? ' on' : ''}" data-action="hfilt" data-id="${k}">${v[0]}</span>`).join('')}</div>
+    ${FILT_ROWS.map((row, i) => `<div class="pline"><i>${i ? '' : '筛选'}</i>${row.map(k =>
+      `<span class="pk${k === fk ? ' on' : ''}" data-action="hfilt" data-id="${k}">${FILTS[k][0]}</span>`).join('')}${
+      i ? '<span class="pk ghost"></span><span class="pk ghost"></span>' : ''}</div>`).join('')}
   </div>`;
+  // 一键升星只花本人碎片，不动兵符
+  const ready = Object.keys(G.heroes).filter(h => Grow.ownReady(h)).length;
+  const upBar = `<div class="btns tight2 upbar">
+    <div class="btn${ready ? ' main' : ' off'}" data-action="star-all">一键升星${ready ? `（${ready} 人）` : ''}</div>
+  </div>
+  <div class="tip">一键升星只花本人碎片，不动兵符；够几星升几星。碎片不够、要兵符补的，进详情页自己升。</div>`;
 
   return section('heroes', `群将谱（${ids.length}${ids.length < all ? ` / ${all}` : ''}）`,
-    bar + (ids.length
+    bar + upBar + (ids.length
       ? `<div class="plates sm">${ids.map(h => plateSm(h)).join('')}</div>`
       : '<div class="empty">这一档下没人</div>'));
 };
@@ -695,7 +705,7 @@ VIEWS.team = () => {
        <div class="btn" data-action="strip-team">一键卸装</div>
        <div class="btn" data-action="go" data-id="heroes">去挑人</div>
      </div>
-     <div class="tip">按住格子拖动可以换位。前三个站第一排，单挑先打前排。血量就是兵力：血越少，伤害、治疗、护盾越弱（半血只剩六成半）。一键装备只动阵上九人、只从行囊里拿。</div>` +
+     <div class="tip">按住格子拖动可以换位。前三个站第一排，单挑先打前排。血量就是兵力：血越少，伤害、治疗、护盾越弱（半血只剩六成半）。一键装备、一键卸装管所有人：阵上九人先挑，再轮到板凳上的人；只从行囊里拿，不从别人身上扒。</div>` +
     section('teambond', `已激活羁绊（${bonds.length}）`,
     (bonds.length ? `<div class="frame tight">${bonds.map(({ b, have, tier }) =>
       `<div class="bondrow"><b>${esc(b.name)}</b>
@@ -703,6 +713,59 @@ VIEWS.team = () => {
         <span class="val">${STAT_NAME[b.attr] || b.attr}+${Math.round(b.val * tier.rate)}%</span></div>`).join('')}</div>`
       : '<div class="empty">凑齐同一羁绊的两人即可激活</div>'));
 };
+
+/* ── V10.6.1 行囊批量出售 ─────────────────────────────────────────────
+   UI.sell = { 装备id: 卖几件 }，null 表示没开出售模式。
+   只列闲置、非专属的；穿在身上的先卸下才能卖。 */
+function sellableBag() {
+  return Object.keys(G.items)
+    .filter(k => k.startsWith('eq_') && G.items[k] > 0 && Grow.sellPrice(k.slice(3)))
+    .map(k => k.slice(3));
+}
+function sellTotal() {
+  let n = 0, silver = 0;
+  for (const [eid, k] of Object.entries(UI.sell || {})) { n += k; silver += k * Grow.sellPrice(eid); }
+  return { n, silver };
+}
+function sellHtml(list, bagN) {
+  const pick = UI.sell;
+  if (!list.length) return '<div class="empty">没有能卖的闲置装备（专属不能卖，穿着的要先卸下）</div>';
+  const qs = [...new Set(list.map(e => e.q))].sort((a, b) => a - b);
+  const fullQ = q => list.filter(e => e.q === q).every(e => pick[e.id] === bagN[e.id]);
+  const { n, silver } = sellTotal();
+  return `<div class="picker sellpick"><div class="pline"><i>快选</i>${qs.map(q =>
+      `<span class="pk${fullQ(q) ? ' on' : ''}" data-action="sell-q" data-id="${q}">${QTXT[q]}</span>`).join('')}</div></div>
+    <div class="frame tight">${list.map(e => {
+      const k = pick[e.id] || 0, max = bagN[e.id];
+      return `<div class="itrow sellrow${k ? ' pick' : ''}" data-action="sell-tog" data-id="${e.id}">
+        <span class="ck">${k ? '✓' : ''}</span>
+        <span class="sinfo"><b class="${QCLS[e.q]}">${esc(e.name)}</b>
+          <span class="s">${SLOT_NAME[e.slot] || e.slot} · ${esc(eqTxt(e))}</span></span>
+        <span class="sright"><span class="pr">${Grow.sellPrice(e.id)} 两</span>${max > 1
+          ? `<span class="step"><i data-action="sell-n" data-id="${e.id}" data-d="-1">−</i><em>${k}/${max}</em><i data-action="sell-n" data-id="${e.id}" data-d="1">＋</i></span>`
+          : '<span class="n">×1</span>'}</span></div>`;
+    }).join('')}</div>
+    <div class="sellbar"><span>已选 <b>${n}</b> 件 · 得 <b>${silver}</b> 两</span>
+      <div class="btn${n ? ' main' : ' off'}" data-action="sell-do">出　售</div></div>`;
+}
+
+/* 一键升星的清单：谁从几星到几星、解锁了哪招、满星后折了几枚兵符 */
+function openStarAll(list) {
+  const tk = list.reduce((a, r) => a + r.token, 0);
+  $('modal').innerHTML = `<div class="sheet">
+    <div class="shead">升星 ${list.length} 人${tk ? ` · 折兵符 ${tk}` : ''}</div>
+    <div class="scroll">${list.map(r => {
+      const t = DB.hero(r.hid);
+      const sk = r.skills.map(id => (DB.skill(id) || {}).name).filter(Boolean);
+      return `<div class="opt" data-action="hero" data-id="${r.hid}">
+        <b class="${QCLS[t.q]}">${esc(t.name)}</b>
+        <span>★${r.from} → ★${r.to}${sk.length ? `<em>解锁 ${esc(sk.join('、'))}</em>` : ''}</span>
+        <span class="n">${r.token ? `兵符 +${r.token}` : ''}</span></div>`;
+    }).join('')}</div>
+    <div class="btns"><div class="btn" data-action="modal-close">好</div></div>
+  </div>`;
+  $('modal').classList.add('on');
+}
 
 VIEWS.items = () => {
   // 背包里的 + 已经穿在人身上的，合成一张总表，穿着的标明是谁
@@ -720,8 +783,11 @@ VIEWS.items = () => {
   const cons = Object.keys(G.items).filter(k => !k.startsWith('eq_') && G.items[k] > 0);
   const fr = Object.keys(G.frags).filter(k => G.frags[k] > 0);
   const idle = all.filter(e => bagN[e.id]).length;
+  const sellable = all.filter(e => bagN[e.id] && Grow.sellPrice(e.id));
+  const sellBtn = `<div class="btns tight2"><div class="btn${UI.sell ? ' main' : sellable.length ? '' : ' off'}"
+    data-action="sell-mode">${UI.sell ? '退出出售' : '批量出售'}</div></div>`;
   return section('bagEq', `兵器战甲（${all.length}）`,
-    (all.length ? `<div class="frame tight">${all.map(e => {
+    sellBtn + (UI.sell ? sellHtml(sellable, bagN) : all.length ? `<div class="frame tight">${all.map(e => {
       const users = worn[e.id] || [], n = bagN[e.id] || 0;
       return `<div class="itrow${users.length ? ' on' : ''}"${users.length
           ? ` data-action="hero" data-id="${users[0]}"` : ''}>
@@ -1329,7 +1395,7 @@ function render() {
   window.scrollTo(0, y);
   render.key = key;
 }
-function go(v) { UI.view = v; UI.sel = null; render.key = null; render(); }
+function go(v) { if (v !== UI.view) UI.sell = null; UI.view = v; UI.sel = null; render.key = null; render(); }
 
 /* ── 事件委托（全局唯一） ─────────────────────────────────────────────── */
 
@@ -1566,9 +1632,50 @@ document.addEventListener('click', ev => {
       render(); break;
     }
     case 'strip-team': {
-      const r = Grow.stripTeam();
-      toast(r.n ? `卸下 ${r.n} 件，都回行囊了` : '身上本来就是空的');
+      const c = Grow.wornCount();
+      if (!c.n) { toast('身上本来就是空的'); break; }
+      ask('一键卸装', `${c.men} 人身上共 ${c.n} 件装备全部卸下，放回行囊。阵上阵下的人都算。`, '全部卸下', () => {
+        const r = Grow.stripAll();
+        toast(`卸下 ${r.n} 件，都回行囊了`); render();
+      });
+      break;
+    }
+    case 'star-all': {
+      const r = Grow.starUpAllOwn();
+      if (!r.length) { toast('没有碎片够数的人'); break; }
+      render(); openStarAll(r); break;
+    }
+    case 'sell-mode': {
+      if (!UI.sell && !sellableBag().length) { toast('没有能卖的闲置装备'); break; }
+      UI.sell = UI.sell ? null : {}; render(); break;
+    }
+    case 'sell-tog': {
+      if (!UI.sell) break;
+      if (UI.sell[id]) delete UI.sell[id]; else UI.sell[id] = G.items['eq_' + id] || 0;
       render(); break;
+    }
+    case 'sell-n': {
+      if (!UI.sell) break;
+      const k = Math.max(0, Math.min(G.items['eq_' + id] || 0, (UI.sell[id] || 0) + (+el.dataset.d || 0)));
+      if (k) UI.sell[id] = k; else delete UI.sell[id];
+      render(); break;
+    }
+    case 'sell-q': {
+      if (!UI.sell) break;
+      const ids = sellableBag().filter(e => DB.equip(e).q === +id);
+      const full = ids.every(e => UI.sell[e] === G.items['eq_' + e]);
+      for (const e of ids) { if (full) delete UI.sell[e]; else UI.sell[e] = G.items['eq_' + e]; }
+      render(); break;
+    }
+    case 'sell-do': {
+      const t = sellTotal();
+      if (!t.n) { toast('还没勾'); break; }
+      ask(`出售 ${t.n} 件`, `换 ${t.silver} 两银子。卖了就没了，铁匠铺才抽得回来。`, '卖　掉', () => {
+        const r = Grow.sellEquips(UI.sell);
+        UI.sell = sellableBag().length ? {} : null;
+        toast(`卖了 ${r.n} 件，银两 +${r.silver}`); render();
+      });
+      break;
     }
     case 'reset':
       ask('重开一局', '这一局的将、银两、通关进度会全部清掉，回不来。', '清掉，重来', () => {

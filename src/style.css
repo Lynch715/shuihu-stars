@@ -731,3 +731,26 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .eqpct{font-size:.74em;color:var(--ink-3);padding:4px 0 2px;border-top:1px dashed var(--line, rgba(0,0,0,.12));margin-top:4px}
 .eqpct em{font-style:normal;color:var(--red, #a33)}
 .eqpct i{font-style:normal;float:right;color:var(--ink-4)}
+
+/* V10.6.1 群将页一键升星 */
+.upbar{margin:0 0 6px}
+.pk.ghost{visibility:hidden}
+/* V10.6.1 行囊批量出售 */
+.sellrow{cursor:pointer}
+.sellrow .ck{flex:none;width:20px;height:20px;border:1px solid var(--ink-3);display:flex;
+  align-items:center;justify-content:center;color:var(--paper);font-size:.9em;line-height:1}
+.sellrow.pick .ck{background:var(--cinnabar);border-color:var(--cinnabar)}
+.sellrow .sinfo{flex:1 1 0;min-width:0;display:flex;flex-direction:column;gap:2px}
+.sellrow .sinfo .s{flex:none;font-size:.84em;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sellrow .sright{flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:3px}
+.sellrow .pr{color:var(--gold);font-family:var(--f-title);font-size:.92em;white-space:nowrap}
+.sellrow .step{display:flex;align-items:center;gap:4px}
+.sellrow .step i{font-style:normal;width:30px;height:28px;border:1px solid var(--ink-4);
+  display:flex;align-items:center;justify-content:center;color:var(--ink-2);cursor:pointer}
+.sellrow .step em{font-style:normal;min-width:2.8em;text-align:center;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.sellbar{position:sticky;bottom:0;z-index:5;display:flex;align-items:center;gap:10px;
+  background:var(--paper);border-top:2px solid var(--ink);padding:10px 2px calc(10px + env(safe-area-inset-bottom));margin-bottom:12px}
+.sellbar>span{flex:1;font-size:.88em;color:var(--ink-2)}
+.sellbar b{font-weight:400;color:var(--cinnabar);font-family:var(--f-title);font-size:1.1em}
+.sellbar .btn{flex:none;min-width:7em}
+.sellpick{margin-top:10px}
