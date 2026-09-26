@@ -73,6 +73,9 @@ const qf = q => q >= 4 ? ` qf${q}` : '';
 
 /* 群将谱用的小牌：跟布阵的格子一个尺寸、一个版式（三列、立绘 3:4、名字在下），
    两页来回切时人不会忽大忽小。品阶印、在阵标、伤势标叠在立绘上。 */
+/** V10.6 卡片上写主属性：文官写智，武将写武（原来一律写武，罗真人一栏「武 539」） */
+function mainTxt(s) { const m = mainOf(s); return m.k === 'int' ? `智${s.int}` : `武${s.atk}`; }
+
 function plateSm(hid) {
   const t = DB.hero(hid), h = G.heroes[hid];
   if (!t) return '';
@@ -85,7 +88,7 @@ function plateSm(hid) {
     ${hurtTag(hid)}
     <div class="n">${esc(t.name)}</div>
     <div class="v">${h ? `Lv.${h.lv} <b>${'★'.repeat(h.star)}</b>` : esc(titleOf(t))}</div>
-    ${s ? `<div class="v">武${s.atk} 血${s.maxHp}</div>` : ''}
+    ${s ? `<div class="v">${mainTxt(s)} 血${s.maxHp}</div>` : ''}
   </div>`;
 }
 
@@ -358,12 +361,16 @@ const SORTS = {
   power: ['战力', (a, b) => Stats.heroPower(b) - Stats.heroPower(a)],
   q:     ['品阶', (a, b) => (DB.hero(b).q - DB.hero(a).q) || (G.heroes[b].lv - G.heroes[a].lv)],
   lv:    ['等级', (a, b) => (G.heroes[b].lv - G.heroes[a].lv) || (DB.hero(b).q - DB.hero(a).q)],
+  atk:   ['武力', (a, b) => Stats.calc(b).atk - Stats.calc(a).atk],
+  int:   ['智力', (a, b) => Stats.calc(b).int - Stats.calc(a).int],
   star:  ['星数', (a, b) => (G.heroes[b].star - G.heroes[a].star) || (DB.hero(b).q - DB.hero(a).q)],
 };
 const FILTS = {
   all:   ['全部',  () => true],
   team:  ['在阵',  h => G.team.includes(h)],
   idle:  ['未上阵', h => !G.team.includes(h)],
+  wu:    ['武将',  h => roleOf(DB.hero(h)) !== 'wen'],
+  wen:   ['文官',  h => roleOf(DB.hero(h)) !== 'wu'],
   hurt:  ['带伤',  h => !!Hurt.of(h).lv],
   up:    ['可升星', h => { const n = Grow.starNeed(h); return !!n && !n.max && n.ok; }],
 };
@@ -626,6 +633,7 @@ VIEWS.stage = () => {
     <div class="pbar"><em style="width:${clamp(my / (my + foe) * 100, 4, 96)}%"></em></div>
     <div class="meta">推荐 ${st.rec_lv ? Lap.recLv(st.rec_lv).join('–') : '?'} 级 · 敌方 ${tier.lv} 级 ${tier.star} 星 · 共 ${foes.length} 人</div>
     <div class="foelist">${foes.map(f => `<span class="${QCLS[f.q]}">${esc(f.name)}</span>`).join('')}</div>
+    ${st.theme && THEMES[st.theme] ? `<div class="theme"><b>阵势 · ${THEMES[st.theme].name}</b><span>${esc(THEMES[st.theme].tip)}</span></div>` : ''}
     ${dlg && dlg.before ? `<div class="brief">${dlg.before.map(p => `<p>${esc(p)}</p>`).join('')}</div>` : ''}
     <div class="btns">
       <div class="btn main" data-action="fight" data-id="${sid}">出　战</div>
@@ -648,7 +656,7 @@ VIEWS.team = () => {
                            : `<div class="por ph">${weaponSvg(hid)}</div>`}
         ${hurtTag(hid)}
         <div class="n">${esc(t.name)}</div>
-        <div class="v">武${s.atk} 血${s.maxHp}</div>
+        <div class="v">${mainTxt(s)} 血${s.maxHp}</div>
         <span class="x" data-action="unteam" data-id="${hid}">×</span></div>`);
     } else {
       slots.push(`<div class="tslot empty" data-action="go" data-id="heroes" data-slot="${i}">

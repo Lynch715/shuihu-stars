@@ -446,6 +446,63 @@ for hid, bio in DOWN.items():
 H['wang_huan']['title'] = '节度使'
 H['wang_huan']['bio'] = '王焕，十节度使之首，早年绿林出身，受招安后做了节度使。高俅征梁山时点为先锋，年过六旬，阵前与林冲斗了七八十合不分胜负，使一条长枪。'
 
+# ── 2e 副属性减半（Lynch 定）：武将的智、文官的武，基础值与成长各砍一半；武智差不到一成五的文武双全不动
+#   敌方 foe 快照里的面板按同一规则砍
+def role(a, i):
+    return 'mix' if min(a, i) / max(a, i, 1) >= 0.85 else ('wu' if a > i else 'wen')
+def halve(t):
+    r = role(t['atk'], t['int'])
+    k = 'int' if r == 'wu' else 'atk' if r == 'wen' else None
+    if not k: return None
+    t[k] = max(5, round(t[k] * 0.5))
+    if t.get('gr') and k in t['gr']: t['gr'] = dict(t['gr'], **{k: round(t['gr'][k] * 0.5, 4)})
+    return r
+HALVED = collections.Counter()
+for hid, t in H.items():
+    HALVED[halve(t)] += 1
+    if t.get('foe'): halve(t['foe'])
+
+# ── 2f 智力差伤害（Lynch 定）：8 招计谋改成打「武最高的敌人」，伤害 =（智×法术系数 − 目标智）× 倍率，无视防御
+GAP = {'wy1': None, 'v6_qin_hui_3': None, 'v6_he_taiping_2': None, 'v6_gai_tianxi_2': None,
+       'zw4': 'strongest', 'xr1': None, 'hmc1': None, 'v6_zhang_bangchang_3': 'strongest'}
+for sid, dispel_tg in GAP.items():
+    sk = SK[sid]
+    for f in sk['fx']:
+        if f['k'] == 'dmg':
+            f['src'] = 'gap'
+            if f['tg'] != 'hit': f['tg'] = 'strongest'
+        if f['k'] == 'dispel' and dispel_tg: f['tg'] = dispel_tg
+
+# ── 2g Boss 关阵势（Lynch 定）：35 个 Boss 关各带一种，效果写在引擎 THEMES 里
+ST = D['stages']
+THEME = {
+ 'blade':  ['ch1_boss', 'ch2_boss', 'ch7_boss', 'ch10_boss', 'ch15_boss', 'ch16_f1', 'ch20_boss', 'ch22_bossb', 'hidden_23_1', 'ch30_f2'],
+ 'shield': ['ch5_boss', 'ch6_boss', 'ch8_boss', 'ch15_f2', 'ch17_boss', 'ch20_f2', 'ch22_boss', 'ch26_f1'],
+ 'dot':    ['ch4_boss', 'ch12_boss', 'ch19_bossb', 'ch21_boss', 'ch25_boss', 'ch31_f1'],
+ 'chaos':  ['ch3_boss', 'ch13_boss', 'ch16_boss', 'ch19_boss', 'ch21_f1', 'ch25_f2'],
+ 'wen':    ['ch9_boss', 'ch11_boss', 'ch14_boss', 'ch18_boss', 'ch23_boss'],
+}
+for th, sids in THEME.items():
+    for sid in sids:
+        if sid not in ST or not ST[sid].get('is_boss'): sys.exit('!! 阵势关不存在或不是 Boss 关：' + sid)
+        ST[sid]['theme'] = th
+nb = [k for k, v in ST.items() if v.get('is_boss') and not v.get('theme')]
+if nb: sys.exit('!! 这些 Boss 关没配阵势：' + '、'.join(nb))
+# 一周目名单：谋臣关按剧情补文官；刀山关里原有的文官换成同关武将
+ROSTER = {
+ 'ch9_boss':  ['song_jiang', 'lu_junyi', 'wu_yong', 'lin_chong', 'zhu_wu', 'gongsun_sheng', 'guan_sheng', 'xiao_rang', 'jiang_jing'],
+ 'ch11_boss': ['gao_qiu', 'tong_guan', 'cai_jing', 'hao_siwen', 'xuan_zan', 'cai_jing', 'hao_siwen', 'tong_guan', 'gao_qiu'],
+ 'ch14_boss': ['wang_qing', 'li_zhu', 'duan_sanniang', 'li_zhu', 'liu_min', 'liu_min', 'wang_qing', 'duan_sanniang', 'li_zhu'],
+ 'ch18_boss': ['zhang_shuye', 'yun_tianbiao', 'chen_xizhen', 'he_taiping', 'gai_tianxi', 'liu_huiniang', 'chen_xizhen', 'he_taiping', 'yun_tianbiao'],
+ 'ch23_boss': ['qin_hui', 'wan_qixie', 'luo_ruji', 'ha_michi', 'zhang_bangchang', 'yue_fei', 'jin_wushu', 'luo_ruji', 'wan_qixie'],
+ 'ch1_boss':  ['shi_jin', 'chen_da', 'yang_chun', 'chen_da'],
+ 'ch16_f1':   ['wu_yanguang', 'a_liqi', 'qiong_yaonating', 'yeli_dezhong', 'ye_lvzonglei', 'he_chongbao', 'yeli_dezhong', 'chu_mingyu', 'han_yanshou'],
+}
+for sid, ros in ROSTER.items():
+    for h in ros:
+        if h not in H: sys.exit(f'!! {sid} 名单里的人不存在：{h}')
+    ST[sid]['enemies'] = ros
+
 # ── 敌方技能快照 ─────────────────────────────────────────────────────
 BSK = json.load(open(BASE, encoding='utf-8'))['skills']
 BH = json.load(open(BASE, encoding='utf-8'))['heroes']
@@ -484,6 +541,7 @@ R.append('\n## 技能档位校验（rework_skills 那把尺子，偏离五成以
 R += ['- ' + w for w in WARN] or ['- 全部在档内']
 dis = sorted({H[h]['name'] for h, v in H.items() for s in v['sk'] if any(f.get('k') == 'dispel' for f in SK[s].get('fx', []))})
 R.append('\n## 定标（缩放过的技能）\n'); R += ['- ' + x for x in TUNED]
+R.append(f'\n## 副属性减半\n\n' + '、'.join(f'{k}: {v}' for k, v in HALVED.items()))
 R.append(f'\n## 带驱散的人（{len(dis)}）\n\n' + '、'.join(dis))
 R.append(f'\n## 装备\n\n- 专属池：{len(base["EXCLUSIVE_POOL"])} → {len(D["EXCLUSIVE_POOL"])}\n- 通用文官装备新增 {len(GEN)} 件\n- 绝世三件套：{len(base["exc_sets"])} → {len(sets)} 套')
 R.append(f'\n## 删掉的旧技能 {len(dropped)} 个\n\n' + '、'.join(dropped))

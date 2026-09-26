@@ -64,7 +64,11 @@ const CFG = {
   lapStarBoss: 0,   // Boss 再 +1 星时 ch7 / ch15 / ch22 的 Boss 关三局三停
   lapGear: { 2: 0.15 }, lapGearStep: 0.05,
   /* 二周目起杂兵换成同阵营名将：普通关只换猛/名（≤4），Boss 与支线不限。见 Battle.roster */
-  lapRosterQ: 4,
+  lapRosterQ: 5,
+  /* V10.6 关卡强度整体上抬：普通关 ×1.25、Boss 关 ×1.5（乘在封顶与折扣之后）。Lynch 定：难度不够，Boss 关狠狠抬 */
+  foeUp: 1.25, foeUpBoss: 1.5,
+  /* V10.6 二周目起敌将品阶下限：普通关至少名将、Boss 关至少天罡 */
+  lapFloorQ: 4, lapFloorQBoss: 5,
   /* V10.3 再下调（原 1.00 / 1.06）：技能整套换过之后敌方的绝世将（孙安、邓元觉这些）指挥+护盾+治疗一套齐，
      二周目按 1.00 打，停在 ch20_f2 田虎决战·孙安，伤员 12；0.94 一轮 139 场全过。 */
   /* V10.1 下调（原 1.12 / 1.18）。人只能靠抽之后，一周目带进二周目的阵容
@@ -274,7 +278,8 @@ const SkillText = {
     const dur = f.dur ? `${f.dur}回合` : '';
     switch (f.k) {
       case 'dmg': {
-        let s = `对${tg}造成${pc(f.mult)}${f.src === 'int' ? '智力' : ''}伤害`;
+        let s = f.src === 'gap' ? `对${tg}造成智力差伤害（施术者智力减目标智力）×${pc(f.mult)}，无视防御`
+              : `对${tg}造成${pc(f.mult)}${f.src === 'int' ? '智力' : ''}伤害`;
         if (f.exec) s += `，目标血量低于${pc(f.exec.at)}时伤害×${f.exec.mul}`;
         if (f.drain) s += `，${f.drain >= 1 ? '' : pc(f.drain)}伤害转为自身回复`;
         if (f.pierce) s += `，无视${pc(f.pierce)}防御`;
@@ -843,6 +848,42 @@ function foeEase(ch, side) {
   return P[P.length - 1][1];
 }
 
+/** V10.6 出手后才倒计时的控制状态 */
+const CTRL_ST = ['stun', 'chaos', 'silence', 'disarm'];
+
+/** V10.6 Boss 关阵势。关卡数据里 theme 字段指到这里；效果只挂在敌方身上，叠在 Boss ×1.5 之上。
+ *  普攻附带状态（ponhit）会先后掷两次几率，这里填的是开过平方的数，实际命中 = 平方 */
+const THEMES = {
+  shield: { name: '铁壁', tip: '敌方全体开局带三成血量的护盾，不会消散，每三回合再加一成。带驱散的人、流血中毒（穿盾）好打得多。' },
+  dot:    { name: '毒刃', tip: '敌方普攻带毒带血，他们上的毒和流血伤害翻倍。带净化、治疗的人好打得多。' },
+  chaos:  { name: '迷阵', tip: '一开阵我方就有人发昏，敌方普攻三成几率让人混乱，控制更容易中。智高的人不容易乱，免疫混乱的装备、净化都管用。' },
+  blade:  { name: '刀山', tip: '敌方全是武将，武力加两成、暴击加一成。护盾减伤顶住，智力差伤害专打武将。' },
+  wen:    { name: '谋臣', tip: '敌方以文官为主，智加三成半、技能更常放。驱散拆他们的增益、净化解控，我方智高也不容易被乱。' },
+};
+/** 阵势对敌方面板的加成（战力估算与开打共用） */
+function themeStats(s, th) {
+  if (!s || !th) return s;
+  if (th === 'blade') s.atk = Math.round(s.atk * 1.2);
+  if (th === 'wen') s.int = Math.round(s.int * 1.35);
+  return s;
+}
+/** 阵势的战斗效果：开打时挂到每个敌将身上 */
+function themeUnit(u, th) {
+  const p = u.pas = Object.assign({}, u.pas, { onhit: (u.pas.onhit || []).slice() });
+  if (th === 'shield') { u.shield += Math.round(u.maxHp * 0.3); u.shieldDur = 99; }
+  if (th === 'dot') {
+    p.onhit.push({ k: 'ponhit', st: 'poison', chance: 0.89, dur: 2, layers: 2 }, { k: 'ponhit', st: 'bleed', chance: 0.67, dur: 2 });
+    p.dot = (p.dot || 0) + 1.0;
+  }
+  if (th === 'chaos') { p.onhit.push({ k: 'ponhit', st: 'chaos', chance: 0.55, dur: 1 }); p.ctrl = (p.ctrl || 0) + 0.20; }
+  if (th === 'blade') u.crit = (u.crit || 0) + 0.10;
+  if (th === 'wen') p.skrate = (p.skrate || 0) + 0.15;
+}
+
+/** V10.6 定位：武、智差不到一成五算文武双全；否则高的那边定。战力、卡片、筛选、武%加智都按这个分 */
+const roleOf = t => { if (!t) return 'wu'; const a = t.atk || 0, i = t.int || 0; return Math.min(a, i) / Math.max(a, i, 1) >= 0.85 ? 'mix' : a > i ? 'wu' : 'wen'; };
+/** 主属性：武，或 智×法术系数，取高的 */
+const mainOf = s => { const m = (s.int || 0) * CFG.intK; return m > (s.atk || 0) ? { k: 'int', v: s.int, eff: m, sub: s.atk || 0 } : { k: 'atk', v: s.atk, eff: s.atk || 0, sub: (s.int || 0) * CFG.intK }; };
 /** 技能威力倍数：智在「智+武」里占得越多，技能越狠。详情页和战斗共用这一条 */
 const skillPow = (int, atk) => 1 + CFG.intSk * int / Math.max(1, int + atk);
 
@@ -1002,10 +1043,13 @@ const Stats = {
         /* V10.5 智跟武吃同一份兵器加成：兵器的百分比、擅长、专属的武加成，一样给智。
            不然武一路 ×1.3 ×1.2 ×1.2 往上走，智只拿兵器上四十点固定值，法师五十级还是一千出头的智。
            羁绊取武、智两条里高的那条（封顶按武的）。敌人不穿装备，这几道对他们本来就是 1。 */
-        if (g.pct.atk) v *= 1 + clamp(g.pct.atk, 0, CFG.cap.eqPct);
-        if (g.exc.atk) v *= 1 + g.exc.atk;
-        if (g.apt) v *= 1 + CFG.favBonus;
-        v *= 1 + clamp(Math.max(bd.int, bd.atk), 0, CFG.cap.bondAtk);
+        // V10.6 这道放大只给文官和文武双全：武将的智不再被兵器、专属、擅长跟着抬（林冲五十级智 1515 就是这么来的）
+        if (roleOf(t) !== 'wu') {
+          if (g.pct.atk) v *= 1 + clamp(g.pct.atk, 0, CFG.cap.eqPct);
+          if (g.exc.atk) v *= 1 + g.exc.atk;
+          if (g.apt) v *= 1 + CFG.favBonus;
+          v *= 1 + clamp(Math.max(bd.int, bd.atk), 0, CFG.cap.bondAtk);
+        } else v *= 1 + clamp(bd.int, 0, CFG.cap.bondOther);
       } else {
         v *= 1 + clamp(bd[k], 0, CFG.cap.bondOther);
       }
@@ -1040,7 +1084,8 @@ const Stats = {
   foeMul(hid, tier) {
     // 二周目起支线关的倍率再打七五折：ch20_f2 田虎决战七个名将 ★5 ×2.0，三局三停
     const sideCut = (tier.side && Lap.now() > 1) ? 0.75 : 1;
-    return Lap.foeMulOf(tier.mul, (DB.foeHero(hid) || {}).q, tier.ch) * (tier.ease == null ? 1 : tier.ease) * sideCut;
+    return Lap.foeMulOf(tier.mul, (DB.foeHero(hid) || {}).q, tier.ch) * (tier.ease == null ? 1 : tier.ease) * sideCut
+         * (tier.boss ? CFG.foeUpBoss : CFG.foeUp);
   },
 
   calcEnemy(hid, lv, star, mul, gear) {
@@ -1066,7 +1111,9 @@ const Stats = {
   /** 战力：从上面的输出派生，绝不另写公式 */
   power(s) {
     if (!s) return 0;
-    return Math.round(s.atk * 2 + s.def * 1.5 + s.int * 1.2 + s.agi + s.maxHp * 0.05);
+    // V10.6 主属性算两倍、另一样算三成：原来武×2、智×1.2，罗真人输出和林冲一样多，战力只有他的六成
+    const m = mainOf(s);
+    return Math.round(m.eff * 2 + m.sub * 0.3 + s.def * 1.5 + s.agi + s.maxHp * 0.05);
   },
   heroPower(hid) { return this.power(this.calc(hid)); },
   teamPower() { return G.team.reduce((a, h) => a + (h ? this.heroPower(h) : 0), 0); },
@@ -1074,7 +1121,7 @@ const Stats = {
     const st = DB.stage(sid);
     if (!st) return 0;
     const t = Battle.enemyTier(sid);
-    return Battle.roster(sid).reduce((a, e) => a + this.power(this.calcEnemy(e, t.lv, t.star, this.foeMul(e, t), t.gear)), 0);
+    return Battle.roster(sid).reduce((a, e) => a + this.power(themeStats(this.calcEnemy(e, t.lv, t.star, this.foeMul(e, t), t.gear), st.theme)), 0);
   },
 };
 
@@ -1105,6 +1152,7 @@ const Battle = {
           : (CFG.lapGear[Lap.now()] != null ? CFG.lapGear[Lap.now()] : CFG.lapGear[2] + CFG.lapGearStep * (Lap.now() - 2)) + Lap.foeGear(ch),
       side,
       ch,
+      boss: !!st.is_boss,
     };
   },
 
@@ -1116,14 +1164,19 @@ const Battle = {
     const base = (st.enemies || []).slice();
     if (Lap.now() <= 1) return base;
     const side = !!st.hidden || (/_f\d+$/.test(sid) && (DB.byChapter[st.ch] || []).some(x => !/_f\d+$/.test(x) && !(DB.stage(x) || {}).hidden));
-    const named = base.filter(e => (DB.hero(e) || {}).src !== '杂兵');
+    // V10.6 二周目起：普通关名将以下、Boss 关天罡以下的敌将一律换掉
+    const qmin = st.is_boss ? CFG.lapFloorQBoss : CFG.lapFloorQ;
+    const fq = e => (DB.foeHero(e) || {}).q || 1;
+    // V10.6 阵势：刀山关只要武将，谋臣关只要文官（文武双全两边都算）
+    const rok = e => st.theme === 'blade' ? roleOf(DB.foeHero(e)) !== 'wen' : st.theme === 'wen' ? roleOf(DB.foeHero(e)) !== 'wu' : true;
+    const named = base.filter(e => (DB.hero(e) || {}).src !== '杂兵' && fq(e) >= qmin && rok(e));
     const facs = new Set(named.map(e => DB.hero(e).faction).filter(Boolean));
     const qmax = st.is_boss ? 6 : CFG.lapRosterQ;   // 支线本来就高六级，换人也只换猛名，不然 ch20_f2 三局全停
     const used = new Set(named);
     // 候选：同阵营在前，无阵营的朝廷/说岳人物垫后；同一关不重复；顺序按 sid+周目哈希定死
     const h32 = str => { let h = 2166136261; for (const c of str) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } return h; };
     const key = sid + '#' + Lap.now();
-    const cand = DB.heroIds().filter(k => { const t = DB.hero(k); return t.src !== '杂兵' && !used.has(k) && t.q <= qmax && t.q >= 2; })
+    const cand = DB.heroIds().filter(k => { const t = DB.hero(k); return t.src !== '杂兵' && !used.has(k) && fq(k) <= qmax && fq(k) >= qmin && rok(k); })
       .map(k => ({ k, f: facs.has(DB.hero(k).faction) ? 0 : !DB.hero(k).faction ? 1 : 2, r: h32(key + k) }))
       .filter(x => x.f < 2)
       .sort((a, c) => a.f - c.f || a.r - c.r).map(x => x.k);
@@ -1132,6 +1185,12 @@ const Battle = {
     // 先把杂兵一个个换掉，再补到九人
     const want = Math.max(base.length, CFG.teamSize);
     while (out.length < want && i < cand.length) out.push(cand[i++]);
+    // V10.6 品阶下限抬了之后同阵营可能凑不齐（前几章原班人马全是凡良）：再从别的阵营补
+    if (out.length < want) {
+      const more = DB.heroIds().filter(k => { const t = DB.hero(k); return t.src !== '杂兵' && !out.includes(k) && fq(k) <= qmax && fq(k) >= qmin && rok(k); })
+        .sort((a, c) => h32(key + a) - h32(key + c));
+      for (let j = 0; out.length < want && j < more.length; j++) out.push(more[j]);
+    }
     // 候选不够（阵营小又都用过）就用原有名将复制
     for (let j = 0; out.length < want && named.length; j++) out.push(named[j % named.length]);
     return out;
@@ -1187,9 +1246,11 @@ const Battle = {
     }
     const foes = elist
       .map((eid, i) => {
-        const s = Stats.calcEnemy(eid, tier.lv, tier.star, Stats.foeMul(eid, tier), tier.gear);
+        const s = themeStats(Stats.calcEnemy(eid, tier.lv, tier.star, Stats.foeMul(eid, tier), tier.gear), st.theme);
         return s ? this.unit(eid, s, false, i) : null;
       }).filter(Boolean);
+    // V10.6 Boss 关阵势
+    if (st.theme && THEMES[st.theme]) for (const u of foes) themeUnit(u, st.theme);
     // Boss 关：品质最高的那个敌将是本关的 Boss，硬撑一口气加一成减伤。数字上不大，手感上他得多挨几刀。
     if (st.is_boss && foes.length) {
       const boss = foes.reduce((a, u) => (u.q > a.q || (u.q === a.q && u.maxHp > a.maxHp)) ? u : a);
@@ -1203,8 +1264,9 @@ const Battle = {
         u.hp = Math.min(u.hp, u.maxHp);
       }
     }
-    const b = { sid, stage: st, allies, foes, round: 0, over: false, win: null, log: [], events: [] };
+    const b = { sid, stage: st, allies, foes, round: 0, over: false, win: null, log: [], events: [], theme: st.theme || null };
     this.tagNames(b);
+    if (b.theme && THEMES[b.theme]) b.log.push({ c: 'in', s: `阵势 · ${THEMES[b.theme].name}：${THEMES[b.theme].tip}` });
     return b;
   },
 
@@ -1453,14 +1515,16 @@ const Battle = {
     const hit = [];
     switch (f.k) {
       case 'dmg': {
-        const atkV = f.src === 'int' ? this.magic(u) : this.eff(u, 'atk');
+        const gap = f.src === 'gap';
+        const atkV = (f.src === 'int' || gap) ? this.magic(u) : this.eff(u, 'atk');
         for (const t of tgts) {
           if (!t.alive) continue;
           if ((f.tg === 'single' || f.tg === 'weakest' || f.tg === 'strongest' || f.tg === 'smartest') && this.dodged(b, t)) continue;
-          let base = atkV * f.mult;
+          // V10.6 智力差伤害：（施术者智×法术系数 − 目标智）× 倍率，无视防御；打文官几乎没伤害
+          let base = gap ? Math.max(0, atkV - this.eff(t, 'int')) * f.mult : atkV * f.mult;
           if (f.exec && t.hp / t.maxHp < f.exec.at) base *= f.exec.mul;
           if (f.vsCtrl && (t.status.stun || t.status.chaos || t.status.silence)) base *= 1 + f.vsCtrl;
-          const defV = this.eff(t, 'def') * (1 - (f.pierce || 0));
+          const defV = gap ? 0 : this.eff(t, 'def') * (1 - (f.pierce || 0));
           const d = this.dmg(atkV, defV, base, pw, this.critOf(u), u);
           const real = this.hurt(b, t, d.v, u, d.crit ? 'crit' : '');
           if (f.drain && real > 0 && u.alive) this.heal(b, u, Math.round(real * (f.drain >= 1 ? 1 : f.drain)), u);
@@ -1595,7 +1659,18 @@ const Battle = {
     this.hurt(b, t, d.v, u, '');
   },
 
-  /** DoT 与状态倒计时。stun / chaos 在行动阶段消费，这里只负责递减 */
+  /** V10.6 控制状态出手后才走一格：中了一回合眩晕就是实打实停一回合 */
+  afterAct(b, u) {
+    for (const k of CTRL_ST) {
+      const s = u.status[k]; if (!s) continue;
+      if (--s.dur <= 0) {
+        delete u.status[k];
+        if (k === 'silence' || k === 'disarm') b.log.push({ c: 'in', s: `${u.ln} 的${ST_NAME[k]}消退` });
+      }
+    }
+  },
+
+  /** DoT 与状态倒计时。控制状态（眩晕、混乱、沉默、缴械）不在这里减，见 afterAct */
   tick(b, u) {
     for (const k of Object.keys(u.status)) {
       const s = u.status[k];
@@ -1616,7 +1691,10 @@ const Battle = {
           }
         }
       }
-      else if (s.dur === 1 && ['stun', 'silence', 'disarm', 'chaos', 'taunt', 'vuln', 'dodge', 'wind'].includes(k) && k !== 'stun' && k !== 'chaos')
+      // V10.6 修：眩晕、混乱、沉默、缴械改到出手之后再减（见 afterAct）。原来先减再判，
+      //   一回合的控制在生效前就被清掉了——60 场里施加 42 次、生效 0 次
+      else if (CTRL_ST.includes(k)) continue;
+      else if (s.dur === 1 && ['taunt', 'vuln', 'dodge', 'wind'].includes(k))
         b.log.push({ c: 'in', s: `${u.ln} 的${ST_NAME[k]}消退` });
       s.dur--;
       if (s.dur <= 0) delete u.status[k];
@@ -1662,6 +1740,17 @@ const Battle = {
     b.round++;
     b.log.push({ c: 'r', s: `第 ${b.round} 回合` });
     b.events.push({ k: 'round', n: b.round, li: b.log.length });
+    // V10.6 铁壁：每三回合敌方全体再加一成血量的护盾
+    if (b.theme === 'shield' && b.round > 1 && (b.round - 1) % 3 === 0) {
+      for (const u of b.foes) if (u.alive) { u.shield += Math.round(u.maxHp * 0.1); u.shieldDur = 99; }
+      b.log.push({ c: 'sh', s: '铁壁：敌方全体护盾再加一成' });
+    }
+    // V10.6 迷阵：开阵时我方随机三人六成几率混乱一回合
+    if (b.theme === 'chaos' && b.round === 1) {
+      const src = this.living(b.foes)[0];
+      const live = this.living(b.allies).slice().sort(() => Math.random() - 0.5).slice(0, 3);
+      if (src) for (const t of live) this.putStatus(b, src, t, { st: 'chaos', chance: 0.6, dur: 1 });
+    }
 
     // 地灵星：每回合开头全队回一点血
     const rg = Fate.v('regen', 0);
@@ -1695,6 +1784,7 @@ const Battle = {
           this.basic(b, u);
         }
       }
+      if (u.alive) this.afterAct(b, u);
       if (this.checkEnd(b)) break;
     }
 

@@ -717,3 +717,8 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .cell .por.qf6{border-color:var(--q-jue)}
 .cell .por.qf5{border-color:var(--q-tian)}
 .cell .por.qf4{border-color:var(--q-ming)}
+
+/* V10.6 Boss 关阵势 */
+.theme{margin:8px 0 2px;padding:6px 9px;border:1px solid var(--cinnabar);background:rgba(233,226,208,.7);text-align:left;font-size:.8em;line-height:1.7}
+.theme b{display:block;font-family:var(--f-title);color:var(--cinnabar);letter-spacing:.2em;font-weight:400}
+.theme span{color:var(--ink-2)}
