@@ -1,0 +1,321 @@
+id	name	q	slot	type	owner	orole	main	mainPct	sub	subPct	fx	fxv	cur	hp	note
+w1	朴刀	凡	weapon	刀			atk	3		0			武5	0	
+w2	花枪	凡	weapon	枪			atk	3		0			武5	0	
+w3	禅杖	良	weapon	禅杖			atk	5		0			武8	0	
+w4	偃月大刀	名	weapon	刀			atk	9		0			武16	0	
+w5	丈八蛇矛	绝世	weapon	枪	林冲	wu	atk	15		0			武30	0	
+w6	开山板斧	猛	weapon	斧			atk	7		0			武12	0	
+w7	画杆方天戟	绝世	weapon	戟			atk	15	int	7			武30	0	
+w8	沥泉枪	绝世	weapon	枪	岳飞	mix	atk	15	int	7			武30	0	
+w9	雁翎刀	良	weapon	刀			atk	5		0			武8	0	
+w10	铁锏	名	weapon	鞭			atk	9	int	4			武16	0	
+w11	官造钩镰枪	猛	weapon	枪			atk	7		0			武12	0	
+w12	松纹古定剑	绝世	weapon	剑	公孙胜	wen	int	15	atk	7			智30	0	
+w13	红锦套索	良	weapon	索			atk	5	int	2			武8	0	
+w14	神臂弓	猛	weapon	弓			atk	7		0			武12	0	
+w15	铜锤	良	weapon	锤			atk	5		0			武8	0	
+a1	粗布衣	凡	armor				hp	3	def	1			防5 血6	100	
+a2	皮甲	凡	armor				def	3	hp	1			防5 血6	200	
+a3	连环铠	良	armor				def	5	hp	2			防8 血9	400	
+a4	步人甲	猛	armor				def	7	hp	3			防11 血12	600	
+a5	麒麟黄金甲	绝世	armor		卢俊义	wu	def	15	hp	7			防24 血25	1000	
+a6	铁浮屠重甲	天罡	armor				def	12	hp	6			防18 血19	800	
+a7	锦征袍	名	armor				hp	9	def	4			防14 血15	500	
+a8	山纹甲	名	armor				def	9	hp	4			防14 血15	550	
+a9	道袍	良	armor				hp	5	def	2			防8 血9	300	
+h1	束发巾	凡	helmet				hp	3	def	1			防5 血6	0	
+h2	铁幞头	良	helmet				hp	5	def	2			防8 血9	0	
+h3	凤翅盔	猛	helmet				def	7	hp	3			防11 血12	0	
+h4	三叉束发冠	名	helmet				hp	9	def	4			防14 血15	0	
+h5	金盔	天罡	helmet				def	12	hp	6			防18 血19	0	
+m1	黄骠马	凡	mount				agi	3		0			血6	0	
+m2	卷毛赤兔	绝世	mount				agi	15	atk	7			血25	0	
+m3	照夜玉狮子	绝世	mount		史文恭	wu	agi	15	atk	7			血25	0	
+m4	踢雪乌骓	绝世	mount		呼延灼	wu	agi	15	atk	7			血25	0	
+m5	青骢马	良	mount				agi	5		0			血9	0	
+m6	铁甲马	猛	mount				agi	7		0			血12	300	
+s1	智多星羽扇	天罡	special				int	12		0	pskrate	0.05	防18 血19	0	
+s2	天书	绝世	special				int	15		0	pskrate	0.05	防24 血25	0	
+s3	玉佩	凡	special				hp	3		0			防5 血6	0	
+s4	八门金锁扇	绝世	special		吴用	wen	int	15		0			防24 血25	0	
+s5	令旗	猛	special				atk	7		0			防11 血12	0	
+s6	佛珠	名	special				hp	9		0	pcut	0.05	防14 血15	0	
+s7	道符	天罡	special				int	12		0	pskrate	0.05	防18 血19	0	
+s8	精忠旗	绝世	special				atk	15		0	pcmd	0.1	防24 血25	0	
+w16	鬼头刀	良	weapon	刀			atk	5		0			武8	0	
+w17	三尖刀	名	weapon	刀			atk	9		0			武16	0	
+w18	宣花斧	猛	weapon	斧			atk	7		0			武12	0	
+w19	青龙偃月刀	绝世	weapon	刀	关胜	wu	atk	15		0			武30	0	
+w20	银杆画戟	天罡	weapon	戟	郭盛	wu	atk	12	int	6			武22	0	
+w21	混铁枪	猛	weapon	枪			atk	7		0			武12	0	
+w22	五明骏马枪	天罡	weapon	枪			atk	12		0			武22	0	
+w23	熟铁锏	良	weapon	鞭			atk	5	int	2			武8	0	
+w24	浑铁点钢枪	猛	weapon	枪			atk	7		0			武12	0	
+w25	劈风刀	绝世	weapon	刀	石宝	wu	atk	15		0			武30	0	
+w26	流星锤	名	weapon	锤			atk	9		0			武16	0	
+w27	九环大刀	猛	weapon	刀			atk	7		0			武12	0	
+w28	绿沉枪	名	weapon	枪	董平	wu	atk	9		0			武16	0	
+w29	梨花枪	名	weapon	枪	邬梨	wu	atk	9		0			武16	0	
+w30	飞石袋	猛	weapon	弓			atk	7		0			武12	0	类型 刀→弓
+w31	双戟	名	weapon	戟	曹宁	wu	atk	9	int	4			武16	0	
+w32	双铜锤	天罡	weapon	锤	狄雷	wu	atk	12		0			武22	0	
+w34	汤怀宝剑	良	weapon	剑			atk	5	int	2			武8	0	
+w36	金雀开山斧	绝世	weapon	斧	金兀术	wu	atk	15		0			武30	0	
+w37	铁锹	凡	weapon	锹			atk	3		0			武5	0	类型 刀→锹
+w38	造船斧	良	weapon	斧	孟康	wu	atk	5		0			武8	0	
+w39	飞鱼袋	猛	weapon	弓			atk	7		0			武12	0	类型 刀→弓
+w40	雁翎圈金甲	天罡	weapon	刀			atk	12		0			武22	0	
+w41	龙头铡	名	weapon	刀			atk	9		0			武16	0	
+w42	水磨八棱钢鞭	绝世	weapon	鞭	呼延灼	wu	atk	15	int	7			武30	0	
+w43	金刀	绝世	weapon	刀			atk	15		0			武30	0	
+w44	太尉官靴	名	special		高俅	wen	agi	9		0			防14 血15	0	
+w45	枢密使印	天罡	special		童贯	mix	atk	12		0			防18 血19	0	
+w46	蔡京书法	天罡	special		蔡京	wen	int	12		0			防18 血19	0	
+w47	钩镰枪	绝世	weapon	枪	徐宁	wu	atk	15		0			武30	0	
+w48	甲马	名	mount				agi	9		0			血15	0	
+w49	团牌	猛	weapon	盾			atk	7		0			武12	0	类型 刀→盾
+w50	锦袋飞石	天罡	weapon	弓	张清	wu	atk	12		0			武22	0	
+a10	雁翎甲	天罡	armor				def	12	hp	6			防18 血19	700	
+a11	连环铁甲	猛	armor				def	7	hp	3			防11 血12	550	
+a12	铁浮屠重铠	绝世	armor				def	15	hp	7			防24 血25	1200	
+a13	南军铁甲	名	armor				def	9	hp	4			防14 血15	550	
+a14	梁山泊战袍	猛	armor				hp	7	def	3			防11 血12	500	
+a15	太尉朝服	名	armor				hp	9	def	4			防14 血15	0	
+a16	蔡京官袍	天罡	armor				hp	12	def	6			防18 血19	0	
+a17	黑铁铠	良	armor				def	5	hp	2			防8 血9	380	
+a18	犀皮甲	猛	armor				def	7	hp	3			防11 血12	520	
+a19	绣花针甲	凡	armor				def	3	hp	1			防5 血6	150	
+a20	虎皮袍	良	armor				hp	5	def	2			防8 血9	350	
+a21	囚字袍	凡	armor				hp	3	def	1			防5 血6	120	
+a22	天师道袍	天罡	armor		张天师	wen	hp	12	def	6			防18 血19	600	
+a23	金国铁铠	名	armor				def	9	hp	4			防14 血15	600	
+a24	辽国连环甲	名	armor				def	9	hp	4			防14 血15	580	
+h6	红锦抹额	良	helmet				hp	5	def	2			防8 血9	0	
+h7	铁兜鍪	猛	helmet				def	7	hp	3			防11 血12	0	
+h8	凤翅紫金冠	绝世	helmet				hp	15	def	7			防24 血25	0	
+h9	银盔	天罡	helmet				def	12	hp	6			防18 血19	0	
+h10	太尉乌纱	名	helmet				hp	9	def	4			防14 血15	0	
+h11	神行头巾	猛	helmet				hp	7	def	3			防11 血12	0	
+h12	幞头巾	凡	helmet				hp	3	def	1			防5 血6	0	
+h13	铜盔	良	helmet				def	5	hp	2			防8 血9	0	
+h14	金翅盔	天罡	helmet				def	12	hp	6			防18 血19	0	
+m7	乌骓马	天罡	mount				agi	12	atk	6			血19	0	
+m8	黄鬃马	良	mount				agi	5		0			血9	0	
+m9	豹花马	猛	mount				agi	7		0			血12	0	
+m10	火龙驹	绝世	mount				agi	15	atk	7			血25	0	
+m11	青鬃马	良	mount				agi	5		0			血9	0	
+m12	铁甲战象	天罡	mount				agi	12	hp	6			血19	500	
+m13	雪白马	猛	mount				agi	7		0			血12	0	
+m14	金鞍马	名	mount				agi	9		0			血15	0	
+m15	骆驼	猛	mount				agi	7	hp	3			血12	400	
+s9	九天玄女天书	绝世	special		宋江	wen	int	15		0			防24 血25	0	
+s10	吴用羽扇	天罡	special				int	12		0	pskrate	0.05	防18 血19	0	
+s11	入云龙法印	天罡	special				int	12		0	pskrate	0.05	防18 血19	0	
+s12	青囊药箱	名	special		安道全	wen	hp	9		0			防14 血15	0	
+s13	湖笔徽墨	良	special		萧让	wen	int	5		0			防8 血9	0	
+s14	柴进丹书铁券	天罡	special		柴进	wen	hp	12		0			防18 血19	0	
+s15	林冲风雪图	名	special				atk	9		0	pcrit	0.05	防14 血15	0	
+s16	雪花镔铁戒刀	名	weapon	刀	武松	wu	atk	9		0			武16	0	
+s17	岳飞帅印	绝世	special				atk	15		0	pcmd	0.1	防24 血25	0	
+s18	金兀术狼牙旗	天罡	special				atk	12		0	pcmd	0.1	防18 血19	0	
+s19	哈迷蚩巫术杖	天罡	special				int	12		0	pskrate	0.05	防18 血19	0	
+s20	乔道清法袍	天罡	special				int	12		0	pskrate	0.05	防18 血19	0	
+s21	马灵金砖	名	special				int	9		0	pskrate	0.05	防14 血15	0	
+s22	张叔夜令箭	天罡	special				atk	12		0	pcmd	0.1	防18 血19	0	
+s23	猿臂宝剑	天罡	special		陈希真	mix	atk	12		0			防18 血19	0	
+s24	奔雷车图	名	special		刘慧娘	wen	int	9		0			防14 血15	0	
+s25	拳经枪谱	绝世	special		周侗	mix	atk	15		0			防24 血25	0	
+s26	高俅足球	凡	special				agi	3		0			防5 血6	0	
+s27	秦桧密信	良	special				int	5		0			防8 血9	0	
+s28	方腊玉玺	绝世	special				atk	15		0	pcmd	0.1	防24 血25	0	
+s29	石宝流星锤链	猛	special				atk	7		0			防11 血12	0	
+s30	庞万春飞刀囊	名	special				atk	9		0	pcrit	0.05	防14 血15	0	
+s31	凌振火炮图	名	special				atk	9		0	pcrit	0.05	防14 血15	0	
+s32	高俅御赐球	良	special				agi	5		0			防8 血9	0	
+s33	童贯帅印	名	special				atk	9		0	pcmd	0.1	防14 血15	0	
+s34	蔡京砚台	名	special				int	9		0	pskrate	0.05	防14 血15	0	
+s35	徐宁金甲	天罡	special				hp	12		0	pcut	0.05	防18 血19	0	
+s36	戴宗甲马	天罡	special				agi	12		0	pdodge	0.05	防18 血19	0	
+s37	西门庆金扇	凡	special				int	3		0			防5 血6	0	
+s38	潘金莲绣花鞋	凡	special				agi	3		0			防5 血6	0	
+s39	镇关西肉铺刀	凡	special				atk	3		0			防5 血6	0	
+s40	洪太尉圣旨	名	special				atk	9		0	pcmd	0.1	防14 血15	0	
+m16	太尉轿辇	名	mount				agi	9	hp	4			血15	0	
+zhang_bao_gun	镔铁棍	天罡	weapon	棍	张保	wu	atk	12		0			武20	0	
+wang_heng_dao	矮脚虎长枪	天罡	weapon	枪	王英	wu	atk	12		0			武20	0	
+tang_long_chui	铁瓜锤	天罡	weapon	锤	汤隆	wu	atk	12		0			武20	0	
+cao_zheng_dao	解腕尖刀	天罡	weapon	刀	曹正	wu	atk	12		0			武20	0	
+zou_run_jiao	登云山铁棍	天罡	weapon	棍	邹润	wu	atk	12		0			武20	0	
+zhu_fu_dao	沂水朴刀	天罡	weapon	刀	朱富	wu	atk	12		0			武20	0	
+zheng_tianshou_qiang	清风山长枪	天罡	weapon	枪	郑天寿	wu	atk	12		0			武20	0	
+tao_zongwang_fu	开山铁锹	天罡	weapon	锹	陶宗旺	wu	atk	12		0			武20	0	
+fang_jie_qiang	方天画戟	绝世	weapon	戟	方杰	wu	atk	15	int	7			武30	0	
+wuyan_guang_dao	朱红画杆方天戟	绝世	weapon	戟	兀颜光	mix	atk	15	int	7			武30	0	
+qiao_daoqing_jian	幻魔宝剑	绝世	weapon	剑	乔道清	wen	int	15	atk	7			智30	0	
+fan_rui_chui	流星铜锤	天罡	weapon	锤	樊瑞	wu	atk	12		0			武20	0	
+tian_hu_dao	晋王宝刀	天罡	weapon	刀	田虎	wu	atk	12		0			武20	0	
+wang_qing_dao	楚王宝刀	天罡	weapon	刀	王庆	wu	atk	12		0			武20	0	
+pang_wanchun_gong	穿杨弓	天罡	weapon	弓	庞万春	wu	atk	12		0			武20	0	
+yue_yun_chui	八十二斤银锤	绝世	weapon	锤	岳云	wu	atk	15		0			武30	0	
+gao_chong_qiang	錾金虎头枪	绝世	weapon	枪	高宠	wu	atk	15		0			武30	0	
+wang_jin_gun	齐眉熟铜棍	绝世	weapon	棍	王进	wu	atk	15		0			武30	0	
+exc_9000	祖传宝刀	名	weapon	刀	杨志	wu	atk	9		0			武16	0	类型 空→刀
+exc_9001	水磨禅杖	绝世	weapon	禅杖	鲁智深	wu	atk	15		0			武30	0	
+exc_9003	天王宝塔	天罡	special		晁盖	wu	hp	12		0			防18 血19	0	
+exc_9008	三尖两刃刀	天罡	weapon	刀	史进	wu	atk	12		0			武22	0	
+exc_9009	双板斧	天罡	weapon	斧	李逵	wu	atk	12		0			武22	0	
+exc_9016	雷部金甲	天罡	armor		云天彪	wu	def	12	hp	6			防18 血19	400	
+exc_9018	杨家银枪	天罡	weapon	枪	杨再兴	wu	atk	12		0			武22	0	
+exc_9019	狼牙棒	天罡	weapon	棍	秦明	wu	atk	12		0			武22	0	
+exc_9021	砍柴刀	天罡	weapon	刀	石秀	wu	atk	12		0			武22	0	
+exc_9022	海州知州印	天罡	special		张叔夜	mix	int	12		0			防18 血19	0	
+exc_9023	镔铁双枪	天罡	weapon	枪	陆文龙	wu	atk	12		0			武22	0	
+exc_9026	方腊龙袍	绝世	armor		方腊	mix	hp	15	def	7			防24 血25	1000	
+exc_9028	宝光禅杖	绝世	weapon	禅杖	邓元觉	wu	atk	15		0			武30	0	
+exc_9036	朱缨丈二枪	绝世	weapon	枪	史文恭	wu	atk	15		0			武30	0	
+exc_9037	五股叉	天罡	weapon	叉	阮小二	wu	atk	12		0			武22	0	
+exc_9038	分水叉	天罡	weapon	叉	阮小五	wu	atk	12		0			武22	0	
+exc_9039	揭阳朴刀	名	weapon	刀	穆春	wu	atk	9		0			武16	0	
+exc_9040	桃花山长枪	名	weapon	枪	周通	wu	atk	9		0			武16	0	
+exc_9041	大砍刀	名	weapon	刀	王贵	wu	atk	9		0			武16	0	
+exc_9042	宪字点钢枪	名	weapon	枪	张宪	wu	atk	9		0			武16	0	
+exc_9043	斩马刀	名	weapon	刀	施全	wu	atk	9		0			武16	0	
+exc_9044	铁狼牙棒	猛	weapon	棍	吉青	wu	atk	7		0			武12	0	
+exc_9045	亮银枪	名	weapon	枪	云龙	wu	atk	9		0			武16	0	
+exc_9047	锁子连环铠	天罡	armor		真祥麟	wu	def	12	hp	6			防18 血19	400	
+exc_9048	宣花大斧	名	weapon	斧	哈兰生	wu	atk	9		0			武16	0	
+exc_9049	厚背砍刀	名	weapon	刀	沙志仁	wu	atk	9		0			武16	0	
+exc_9051	镇国画戟	天罡	weapon	戟	厉天闰	wu	atk	12	int	6			武22	0	
+exc_9052	镔铁双剑	绝世	weapon	剑	孙安	wu	atk	15	int	7			武30	0	
+jx_lin_chong_a	风雪貂裘	绝世	armor		林冲	wu	hp	15	def	7			防24 血25	1000	
+jx_lin_chong_m	卷毛青鬃马	绝世	mount		林冲	wu	agi	15	atk	7			血25	0	
+jx_lu_zhishen_a	皂布直裰	绝世	armor		鲁智深	wu	hp	15	def	7			防24 血25	1000	
+jx_lu_zhishen_m	枣红马	绝世	mount		鲁智深	wu	agi	15	atk	7			血25	0	
+jx_lu_junyi_w	点钢枪	绝世	weapon	枪	卢俊义	wu	atk	15		0			武30	0	
+jx_lu_junyi_m	雪白卷毛马	绝世	mount		卢俊义	wu	agi	15	atk	7			血25	0	
+jx_yue_fei_a	岳帅明光铠	绝世	armor		岳飞	mix	def	15	hp	7			防24 血25	1000	
+jx_yue_fei_m	白龙驹	绝世	mount		岳飞	mix	agi	15	atk	7			血25	0	
+jx_luan_tingyu_w	浑铁棒	绝世	weapon	棍	栾廷玉	wu	atk	15		0			武30	0	
+jx_luan_tingyu_a	祝家庄铁叶甲	绝世	armor		栾廷玉	wu	def	15	hp	7			防24 血25	1000	
+jx_luan_tingyu_m	铁青骢	绝世	mount		栾廷玉	wu	agi	15	atk	7			血25	0	
+jx_yue_yun_a	银叶连环甲	绝世	armor		岳云	wu	def	15	hp	7			防24 血25	1000	
+jx_yue_yun_m	银鬃马	绝世	mount		岳云	wu	agi	15	atk	7			血25	0	
+jx_guan_sheng_a	绿锦战袍	绝世	armor		关胜	wu	hp	15	def	7			防24 血25	1000	
+jx_guan_sheng_m	赤兔马	绝世	mount		关胜	wu	agi	15	atk	7			血25	0	
+jx_hu_yanzhuo_a	连环马铠	绝世	armor		呼延灼	wu	def	15	hp	7			防24 血25	1000	
+jx_jin_wushu_a	四狼主金锁甲	绝世	armor		金兀术	wu	def	15	hp	7			防24 血25	1000	
+jx_jin_wushu_m	拐子马	绝世	mount		金兀术	wu	agi	15	atk	7			血25	0	
+jx_fang_la_w	明教圣火剑	绝世	weapon	剑	方腊	mix	atk	15	int	7			武30	0	类型 刀→剑
+jx_fang_la_m	帮源御马	绝世	mount		方腊	mix	agi	15	atk	7			血25	0	
+jx_shi_bao_a	南离赤焰甲	绝世	armor		石宝	wu	def	15	hp	7			防24 血25	1000	
+jx_shi_bao_m	南国赤骥	绝世	mount		石宝	wu	agi	15	atk	7			血25	0	
+jx_deng_yuanjue_a	宝光袈裟	绝世	armor		邓元觉	wu	hp	15	def	7			防24 血25	1000	
+jx_deng_yuanjue_m	菊花青	绝世	mount		邓元觉	wu	agi	15	atk	7			血25	0	
+jx_shi_wengong_a	白绫银甲	绝世	armor		史文恭	wu	def	15	hp	7			防24 血25	1000	
+jx_wang_yin_w	钢枪	绝世	weapon	枪	王寅	wu	atk	15		0			武30	0	
+jx_wang_yin_a	青罗护心甲	绝世	armor		王寅	wu	def	15	hp	7			防24 血25	1000	
+jx_wang_yin_m	转山飞	绝世	mount		王寅	wu	agi	15	atk	7			血25	0	
+jx_fang_jie_a	殿前金甲	绝世	armor		方杰	wu	def	15	hp	7			防24 血25	1000	
+jx_fang_jie_m	紫骝马	绝世	mount		方杰	wu	agi	15	atk	7			血25	0	
+jx_bian_xiang_w	开山大斧	绝世	weapon	斧	卞祥	wu	atk	15		0			武30	0	
+jx_bian_xiang_a	丞相铁叶重甲	绝世	armor		卞祥	wu	def	15	hp	7			防24 血25	1000	
+jx_bian_xiang_m	太行黑骓	绝世	mount		卞祥	wu	agi	15	atk	7			血25	0	
+jx_sun_an_a	殿帅铁甲	绝世	armor		孙安	wu	def	15	hp	7			防24 血25	1000	
+jx_sun_an_m	晋阳赤骝	绝世	mount		孙安	wu	agi	15	atk	7			血25	0	
+jx_a_liqi_w	狼尾长枪	天罡	weapon	枪	阿里奇	wu	atk	12		0			武22	0	
+jx_a_liqi_a	镀金鳞甲	天罡	armor		阿里奇	wu	def	12	hp	6			防18 血19	800	
+jx_a_liqi_m	辽东青马	天罡	mount		阿里奇	wu	agi	12	atk	6			血19	0	
+jx_wu_yanguang_a	黑铁连身铠	绝世	armor		兀颜光	mix	def	15	hp	7			防24 血25	1000	
+jx_wu_yanguang_m	统军铁骢	绝世	mount		兀颜光	mix	agi	15	atk	7			血25	0	
+jx_du_jue_w	淮西蛇矛	绝世	weapon	枪	杜壆	wu	atk	15		0			武30	0	
+jx_du_jue_a	护心镜甲	绝世	armor		杜壆	wu	def	15	hp	7			防24 血25	1000	
+jx_du_jue_m	五花马	绝世	mount		杜壆	wu	agi	15	atk	7			血25	0	
+jx_feng_tai_w	劈山刀	天罡	weapon	刀	酆泰	wu	atk	12		0			武22	0	
+jx_feng_tai_a	铁壁甲	天罡	armor		酆泰	wu	def	12	hp	6			防18 血19	800	
+jx_feng_tai_m	淮南黄骠马	天罡	mount		酆泰	wu	agi	12	atk	6			血19	0	
+jx_qiong_yaonating_w	朔方长槊	天罡	weapon	枪	琼妖纳廷	wu	atk	12		0			武22	0	
+jx_qiong_yaonating_a	银铃鳞甲	天罡	armor		琼妖纳廷	wu	def	12	hp	6			防18 血19	800	
+jx_qiong_yaonating_m	朔漠追风马	天罡	mount		琼妖纳廷	wu	agi	12	atk	6			血19	0	
+jx_zhou_ang_w	开山金蘸斧	天罡	weapon	斧	周昂	wu	atk	12		0			武22	0	
+jx_zhou_ang_a	铜筋铁甲	天罡	armor		周昂	wu	def	12	hp	6			防18 血19	800	
+jx_zhou_ang_m	枣骝马	天罡	mount		周昂	wu	agi	12	atk	6			血19	0	
+jx_wang_huan_w	浑铁枪	绝世	weapon	枪	王焕	wu	atk	15		0			武30	0	
+jx_wang_huan_a	宿将旧甲	绝世	armor		王焕	wu	def	15	hp	7			防24 血25	1000	
+jx_wang_huan_m	银合马	绝世	mount		王焕	wu	agi	15	atk	7			血25	0	
+jx_gao_chong_a	白马银铠	绝世	armor		高宠	wu	def	15	hp	7			防24 血25	1000	
+jx_gao_chong_m	照月白马	绝世	mount		高宠	wu	agi	15	atk	7			血25	0	
+jx_wang_jin_a	教头旧战袍	绝世	armor		王进	wu	hp	15	def	7			防24 血25	1000	
+jx_wang_jin_m	延安府青骢	绝世	mount		王进	wu	agi	15	atk	7			血25	0	
+w105_1	镔铁雪花刀	天罡	weapon	刀			atk	12		0			武22	0	
+w105_2	点钢蛇矛	天罡	weapon	枪			atk	12		0			武22	0	
+w105_3	泼风刀	天罡	weapon	刀			atk	12		0			武22	0	
+w105_4	乌金锏	天罡	weapon	锏			atk	12	int	6			武22	0	
+w105_5	玄铁重刀	绝世	weapon	刀			atk	15		0			武30	0	
+w105_6	乌金长枪	绝世	weapon	枪			atk	15		0			武30	0	
+jx_luo_zhenren_w	紫虚神剑	绝世	weapon	剑	罗真人	wen	int	15	atk	7			智30	0	
+jx_luo_zhenren_a	鹤氅道袍	绝世	armor		罗真人	wen	hp	15	def	7			防24 血25	1000	
+jx_luo_zhenren_m	二仙山白鹿	绝世	mount		罗真人	wen	agi	15	int	7			血25	0	
+jx_gongsun_sheng_a	皂色道袍	绝世	armor		公孙胜	wen	hp	15	def	7			防24 血25	1000	
+jx_gongsun_sheng_m	云龙青骢	绝世	mount		公孙胜	wen	agi	15	atk	7			血25	0	
+jx_wu_yong_w	铜链	绝世	weapon	鞭	吴用	wen	int	15	atk	7			智30	0	
+jx_wu_yong_a	秀才襕衫	绝世	armor		吴用	wen	hp	15	def	7			防24 血25	1000	
+jx_wu_yong_m	郓城青骡	绝世	mount		吴用	wen	agi	15	hp	7			血25	0	
+jx_song_jiang_w	宋公明佩剑	绝世	weapon	剑	宋江	wen	int	15	atk	7			智30	0	
+jx_song_jiang_a	押司青袍	绝世	armor		宋江	wen	hp	15	def	7			防24 血25	1000	
+jx_song_jiang_m	及时雨黄骠	绝世	mount		宋江	wen	agi	15	atk	7			血25	0	
+jx_qiao_daoqing_a	八卦紫袍	绝世	armor		乔道清	wen	hp	15	def	7			防24 血25	1000	
+jx_qiao_daoqing_m	妖雾黑驴	绝世	mount		乔道清	wen	agi	15	hp	7			血25	0	
+jx_liu_huiniang_w	慧娘雁翎刀	绝世	weapon	刀	刘慧娘	wen	int	15	atk	7			智30	0	
+jx_liu_huiniang_a	云锦战袍	绝世	armor		刘慧娘	wen	hp	15	def	7			防24 血25	1000	
+jx_liu_huiniang_m	胭脂马	绝世	mount		刘慧娘	wen	agi	15	atk	7			血25	0	
+jx_zong_ze_w	留守佩剑	绝世	weapon	剑	宗泽	wen	int	15	atk	7			智30	0	
+jx_zong_ze_a	紫金朝服	绝世	armor		宗泽	wen	hp	15	def	7			防24 血25	1000	
+jx_zong_ze_m	黄河骢	绝世	mount		宗泽	wen	agi	15	atk	7			血25	0	
+jx_gao_qiu_w	太尉哨棒	绝世	weapon	棍	高俅	wen	int	15	atk	7			智30	0	
+jx_gao_qiu_a	紫袍金带	绝世	armor		高俅	wen	hp	15	def	7			防24 血25	1000	
+jx_gao_qiu_m	殿帅玉骢	绝世	mount		高俅	wen	agi	15	atk	7			血25	0	
+jx_cai_jing_w	太师泥金扇	绝世	weapon	扇	蔡京	wen	int	15		0			智30	0	
+jx_cai_jing_a	太师蟒袍	绝世	armor		蔡京	wen	hp	15	def	7			防24 血25	1000	
+jx_cai_jing_m	相府金鞍马	绝世	mount		蔡京	wen	agi	15	atk	7			血25	0	
+jx_qin_hui_w	东窗折扇	绝世	weapon	扇	秦桧	wen	int	15		0			智30	0	
+jx_qin_hui_a	相国紫袍	绝世	armor		秦桧	wen	hp	15	def	7			防24 血25	1000	
+jx_qin_hui_m	东窗黑骓	绝世	mount		秦桧	wen	agi	15	atk	7			血25	0	
+jx_zhang_shuye_w	海州破虏刀	绝世	weapon	刀	张叔夜	mix	atk	15	int	7			武30	0	
+jx_zhang_shuye_a	龙图战袍	绝世	armor		张叔夜	mix	hp	15	def	7			防24 血25	1000	
+jx_zhang_shuye_m	济州紫骝	绝世	mount		张叔夜	mix	agi	15	atk	7			血25	0	
+jx_chen_xizhen_w	希真青锋剑	绝世	weapon	剑	陈希真	mix	atk	15	int	7			武30	0	
+jx_chen_xizhen_a	猿臂道袍	绝世	armor		陈希真	mix	hp	15	def	7			防24 血25	1000	
+jx_chen_xizhen_m	猿臂寨白马	绝世	mount		陈希真	mix	agi	15	atk	7			血25	0	
+w106_1	竹骨折扇	良	weapon	扇			int	5		0			智8	0	
+w106_2	桃木剑	良	weapon	剑			int	5	atk	2			智8	0	
+w106_3	铁骨扇	猛	weapon	扇			int	7		0			智12	0	
+w106_4	铁笔	猛	weapon	笔			int	7		0			智12	0	
+w106_5	判官笔	名	weapon	笔			int	9		0			智16	0	
+w106_6	马尾拂尘	名	weapon	拂尘			int	9	atk	4			智16	0	
+w106_7	鹅毛羽扇	天罡	weapon	扇			int	12		0			智22	0	
+w106_8	七星法剑	天罡	weapon	剑			int	12	atk	6			智22	0	
+w106_9	鹤羽神扇	绝世	weapon	扇			int	15		0			智30	0	
+w106_10	紫电拂尘	绝世	weapon	拂尘			int	15	atk	7			智30	0	
+a106_1	青衫	良	armor				hp	5	def	2			防8 血9	350	
+a106_2	粗布道袍	良	armor				hp	5	def	2			防8 血9	350	
+a106_3	绯罗官袍	名	armor				hp	9	def	4			防14 血15	450	
+a106_4	鹤氅	名	armor				hp	9	def	4			防14 血15	450	
+a106_5	紫绶朝服	天罡	armor				hp	12	def	6			防18 血19	700	
+a106_6	八卦仙衣	绝世	armor				hp	15	def	7			防24 血25	1000	
+h106_1	方巾	良	helmet				hp	5	def	2			防8 血9	0	
+h106_2	道冠	良	helmet				hp	5	def	2			防8 血9	0	
+h106_3	乌纱帽	名	helmet				hp	9	def	4			防14 血15	0	
+h106_4	纶巾	名	helmet				hp	9	def	4			防14 血15	0	
+h106_5	进贤冠	天罡	helmet				hp	12	def	6			防18 血19	0	
+h106_6	通天冠	绝世	helmet				hp	15	def	7			防24 血25	0	
+m106_1	青骡	良	mount				agi	5	hp	2			血9	0	
+m106_2	毛驴	良	mount				agi	5	hp	2			血9	0	
+m106_3	青牛	名	mount				agi	9	hp	4			血15	0	
+m106_4	白鹿	天罡	mount				agi	12	int	6			血19	0	
+m106_5	仙鹤	绝世	mount				agi	15	int	7			血25	0	
+s106_1	算盘	良	special				int	5		0			防8 血9	0	
+s106_2	兵书	良	special				int	5		0			防8 血9	0	
+s106_3	罗盘	名	special				int	9		0	pskrate	0.05	防14 血15	0	
+s106_4	笏板	名	special				int	9		0	pskrate	0.05	防14 血15	0	
+s106_5	官印	天罡	special				int	12		0	pskrate	0.05	防18 血19	0	
+s106_6	河图洛书	绝世	special				int	15		0	pskrate	0.05	防24 血25	0	

@@ -359,34 +359,25 @@ check('技能会轮换（非恒取第一个）', async b => {
 
 check('buff 技能有实际效果', async b => {
   const { ctx, page } = await fresh(b);
+  // V10.7 增益按来源分格、异名相加、同名刷新、合计封顶面板 50%：直接看 eff，不靠打伤害（伤害随机太大）
   const r = await page.evaluate(() => {
-    function total(withBuff) {
-      let sum = 0;
-      for (let i = 0; i < 40; i++) {
-        const bt = __api.create('ch1_1'); const s = __api.sides(bt);
-        s.foes.forEach(u => { u.maxHp = u.max_hp = 5e6; u.hp = 5e6; });
-        s.allies.forEach(u => {
-          u.maxHp = u.max_hp = 5e6; u.hp = 5e6;
-          u.status = u.status || {};
-          if (withBuff) u.status.buff_atk = { dur: 99, val: 5000 };
-        });
-        const a = s.foes.reduce((x, u) => x + u.hp, 0);
-        // 流血中毒按最大生命扣，五百万血一跳就是二十万，会把 buff 的差别淹掉：不计
-        let dot = 0; const B = window.Battle, H0 = B && B.hurt;
-        if (H0) B.hurt = function (b, t, am, src, tag) { const hp = t.hp; const r = H0.call(this, b, t, am, src, tag); if (!t.ally && (tag === 'bleed' || tag === 'poison')) dot += hp - t.hp; return r; };
-        for (let g = 0; g < 3 && !bt.over; g++) __api.round(bt);
-        if (H0) B.hurt = H0;
-        sum += a - s.foes.reduce((x, u) => x + u.hp, 0) - dot;
-      }
-      return Math.round(sum / 40);
-    }
-    return { plain: total(false), buffed: total(true) };
+    const B = window.Battle; if (!B || !B.putMod) return null;
+    const bt = __api.create('ch1_1'); const u = __api.sides(bt).allies[0];
+    u.status = {};
+    const e0 = B.eff(u, 'atk');
+    B.putMod(u, 'buff', 'atk', '甲', Math.round(u.atk * 0.2), 3); const e1 = B.eff(u, 'atk');
+    B.putMod(u, 'buff', 'atk', '甲', Math.round(u.atk * 0.1), 3); const e2 = B.eff(u, 'atk');   // 同名更低：不变
+    B.putMod(u, 'buff', 'atk', '乙', Math.round(u.atk * 0.2), 3); const e3 = B.eff(u, 'atk');   // 异名：第二条 ×0.7
+    B.putMod(u, 'buff', 'atk', '丙', Math.round(u.atk * 0.5), 3); const e4 = B.eff(u, 'atk');   // 更大的排到第一
+    B.putMod(u, 'debuff', 'atk', '丁', Math.round(u.atk * 0.1), 3); const e5 = B.eff(u, 'atk'); // 削弱另算
+    return { base: u.atk, e0, e1, e2, e3, e4, e5, k: CFG.cap.stackK };
   });
   await ctx.close();
-  if (!r || !r.plain) return ['warn', '取样失败 ' + JSON.stringify(r)];
-  const k = r.buffed / r.plain;
-  return k > 1.5 ? [true, `buff_atk +5000 后三回合总伤 ${r.plain}→${r.buffed}（${k.toFixed(1)}×）`]
-    : [false, `buff_atk +5000 后总伤 ${r.plain}→${r.buffed}（${k.toFixed(2)}×）——status.buff_* 无人读取`];
+  if (!r) return ['warn', '这一版没有 putMod'];
+  const near = (a, b) => Math.abs(a - b) <= 3;
+  const k = r.k, B = r.base;
+  const ok = near(r.e1, B * 1.2) && r.e2 === r.e1 && near(r.e3, B * (1 + .2 + .2 * k)) && near(r.e4, B * (1 + .5 + .2 * k + .2 * k * k)) && near(r.e5, B * (1 + .5 + .2 * k + .2 * k * k - .1));
+  return [ok, `武 ${B}：+20% → ${r.e1}，同名+10% → ${r.e2}，异名+20%（×${k}）→ ${r.e3}，再+50%（排第一）→ ${r.e4}，削弱 10% → ${r.e5}`];
 });
 
 check('护盾能抵挡伤害', async b => {

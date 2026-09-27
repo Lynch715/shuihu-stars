@@ -444,7 +444,9 @@ function nb(s) {
 function eqTxt(e) {
   const p = [];
   for (const k of ['atk', 'def', 'int', 'agi', 'hp']) if (e.flat[k]) p.push(`${STAT_NAME[k]}+${e.flat[k]}`);
-  for (const k of ['atk', 'int', 'def', 'hp']) if (e.pct[k]) p.push(`${STAT_NAME[k]}+${Math.round(e.pct[k] * 100)}%`);
+  for (const k of ['atk', 'int', 'def', 'agi', 'hp']) if (e.pct[k]) p.push(`${STAT_NAME[k]}+${Math.round(e.pct[k] * 100)}%`);
+  // V10.7 普通宝物的特殊属性谁穿都有，写在面板后面
+  if (!e.exclusive && e.fx && e.fx.length) p.push(...e.fx.map(f => SkillText.fx(f)));
   return nb(p.join(' '));
 }
 const OB_NAME = { atk: '武', def: '防', int: '智', agi: '捷', hp: '血', crit: '暴击', all: '全属性' };
@@ -460,9 +462,9 @@ function obTxt(e) {
 /** V10.6 装备百分比合计与上限：每项单独封顶 CFG.cap.eqPct */
 function eqPctHtml(meta) {
   const p = (meta && meta.pct) || {}, cap = CFG.cap.eqPct;
-  const nm = { atk: '武', int: '智', def: '防', hp: '血' };
-  const on = ['atk', 'int', 'def', 'hp'].filter(k => p[k] > 0);
-  return `<div class="eqpct">装备百分比 ${on.length ? on.map(k => `${nm[k]} +${Math.round(p[k] * 100)}%${p[k] > cap ? `<em>（按 ${Math.round(cap * 100)}% 计）</em>` : ''}`).join('　') : '无'}<i>每项上限 ${Math.round(cap * 100)}%</i></div>`;
+  const nm = { atk: '武', int: '智', def: '防', agi: '捷', hp: '血' };
+  const on = ['atk', 'int', 'def', 'agi', 'hp'].filter(k => p[k] > 0);
+  return `<div class="eqpct">装备百分比 ${on.length ? on.map(k => `${nm[k]} +${Math.round(p[k] * 100)}%`).join('　') : '无'}</div>`;   // V10.7 不再设上限
 }
 /** 绝世三件套一行：「套装·逼上梁山 2/3｜效果」，没齐灰显 */
 function setRowHtml(hid, meta) {
@@ -727,7 +729,7 @@ VIEWS.team = () => {
   return sectionTitle('布阵', `<span class="tp">总战力 ${p}</span>`) +
     (wounded.length ? `<div class="woundbar">养伤 ${wounded.length} 人` +
       (heavy.length ? `，其中 ${heavy.length} 人重伤上不得阵` : '') +
-      `　<i>没上阵的人每打一场恢复一场</i></div>` : '') +
+      `　<i>没上阵的人每打一场恢复一场；轻伤上阵打赢也算一场</i></div>` : '') +
     `<div class="tgrid" id="tgrid">${
        [0, 1, 2].map(r => `<div class="rowtag${r === 0 ? ' front' : ''}">
          <b>${['前排', '中排', '后排'][r]}</b>${r === 0 ? '<i>先挨打</i>' : ''}</div>` +
@@ -1058,6 +1060,7 @@ const ST_MARK = {
   stun:  ['眩', 'ctl'], chaos: ['乱', 'ctl'], silence: ['沉', 'ctl'], disarm: ['缚', 'ctl'],
   taunt: ['嘲', 'bf up'], vuln: ['伤', 'dot'], dodge: ['闪', 'bf up'],
   bleed: ['血', 'dot'], burn:  ['灼', 'dot'], poison: ['毒', 'dot'], wind: ['风', 'dot'],
+  guard: ['护', 'bf up'], regen: ['愈', 'bf up'], rate: ['振', 'bf up'],   // V10.7
 };
 function stHtml(u) {
   if (!u.alive) return '';
@@ -1065,9 +1068,10 @@ function stHtml(u) {
   for (const k of Object.keys(ST_MARK))
     if (u.status[k]) h += `<i class="sm ${ST_MARK[k][1]}">${ST_MARK[k][0]}${k === 'poison' && u.status[k].n > 1 ? u.status[k].n : ''}</i>`;
   for (const k of ['atk', 'def', 'int', 'agi']) {
-    const v = u.status['buff_' + k], d = u.status['debuff_' + k], lo = u.status['low_' + k];
-    if ((v && v.val > 0) || (lo && lo.val > 0)) h += `<i class="sm bf up">${STAT_NAME[k]}▲</i>`;
-    if (d && d.val > 0) h += `<i class="sm bf dn">${STAT_NAME[k]}▼</i>`;
+    // V10.7 增益按来源分格（buff_atk|技能名），看有没有就行
+    const ks = Object.keys(u.status), lo = u.status['low_' + k];
+    if (ks.some(x => x.startsWith('buff_' + k + '|')) || (lo && lo.val > 0)) h += `<i class="sm bf up">${STAT_NAME[k]}▲</i>`;
+    if (ks.some(x => x.startsWith('debuff_' + k + '|'))) h += `<i class="sm bf dn">${STAT_NAME[k]}▼</i>`;
   }
   return h;
 }

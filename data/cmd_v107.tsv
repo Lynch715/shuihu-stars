@@ -1,0 +1,153 @@
+sid	hero	q	role	slot	name	cat	old	stat	val	from	every	rate
+zw3	朱武	4	wen	2	阵法精通	D	防+14%	def	0.1	0	0	
+zw5	朱武	4	wen	4	谋士之智	E	智+23%	int	0.08	0	0	
+cd5n	陈达	2	wu	4	少华山头领	B	防+15%	def	0.1	0	0	
+yoc3	杨春	2	wu	3	蛇毒暗算	E	智+13%	int	0.05	0	0	
+r24	阮小二	4	wu	4	梁山泊水军	G	武+13%	atk	0.5	0	1	0.5
+r55	阮小五	4	wu	4	梁山泊水军	G	防+20%	def	0.5	0	1	0.5
+bsg3	白胜	1	mix	3	智取生辰纲	E	智+12%	int	0.04	0	0	
+zb2	祝彪	2	wu	2	三杰联手	A	武+6%	atk	0.07	0	0	
+zb4	祝彪	2	wu	4	祝家豪气	A	武+9%	atk	0.07	0	0	
+dzb4	邓宗弼	3	wu	4	雷将统帅	A	捷+24%	agi	0.08	0	0	
+ng4	牛皋	4	wu	4	岳家福将	A	武+13%	atk	0.1	0	0	
+zhx4	张宪	3	wu	4	岳家军魂	A	捷+26%	agi	0.08	0	0	
+ly3	李应	4	wu	3	李家庄主	A	武+12%	atk	0.1	0	0	
+zt4	朱仝	4	wu	4	忠义堂	A	武+13%	atk	0.1	0	0	
+yx4	杨雄	4	wu	4	两院押狱	A	武+14%	atk	0.1	0	0	
+jz5n	解珍	3	wu	4	登州猎户	G	捷+23%	agi	0.45	0	1	0.5
+zq4	朱贵	2	wen	4	情报网	F	捷+18%	agi	0.07	0	0	
+dq4	杜迁	2	wu	4	梁山元老	A	武+9%	atk	0.07	0	0	
+sw4	宋万	2	wu	4	梁山元老	A	武+10%	atk	0.07	0	0	
+wl4	王伦	2	wen	4	白衣秀士	E	防+15%	def	0.05	0	0	
+xr3	萧让	4	wen	3	圣手书生	E	武+12%	atk	0.08	0	0	
+zh2	粘罕	4	wu	2	铁骑冲锋	G	武+10%	atk	0.5	0	1	0.5
+zh3	粘罕	4	wu	3	金国大军	G	防+17%	def	0.5	0	1	0.5
+hmc2	哈迷蚩	4	wen	2	狡猾窃谋	E	智+17%	int	0.08	0	0	
+hmc3	哈迷蚩	4	wen	3	军师妙计	E	防+17%	def	0.08	0	0	
+wg4	王贵	3	wu	4	并肩作战	A	武+12%	atk	0.08	0	0	
+th4	汤怀	3	wu	4	同门情谊	A	武+13%	atk	0.08	0	0	
+zb2_3	张保	3	wu	3	忠心耿耿	A	武+10%	atk	0.08	0	0	
+tg2	童贯	1	mix	2	十万大军	G	武+7%	atk	0.35	0	1	0.5
+tg3	童贯	1	mix	3	朝廷庇护	B	防+10%	def	0.08	0	0	
+tg4	童贯	1	mix	4	枢密使威严	E	防+12%	def	0.04	0	0	
+tth2	田虎	4	wu	2	河北称王	A	武+10%	atk	0.1	0	0	
+xzj4	穆弘	4	wu	4	穆家兄弟	A	捷+29%	agi	0.1	0	0	
+lj3	李俊	3	wu	3	水军头领	G	武+9%	atk	0.45	0	1	0.5
+lj4	李俊	3	wu	4	梁山水军	G	防+16%	def	0.45	0	1	0.5
+lw4	雷横	4	wu	4	步兵头领	A	防+19%	def	0.1	0	0	
+ht3	韩滔	3	wu	3	官军教头	A	武+9%	atk	0.08	0	0	
+xjs2	萧嘉穗	4	wen	2	算无遗策	E	智+17%	int	0.08	0	0	
+xjs3	萧嘉穗	4	wen	3	河北义士	A	武+12%	atk	0.1	0	0	
+ybs3	郁保四	2	wu	3	梁山旗手	A	武+7%	atk	0.07	0	0	
+mk3	孟康	2	wu	3	梁山工匠	D	武+8%	atk	0.06	0	0	
+tzw3	陶宗旺	2	wu	3	梁山农夫	C	捷+15%	agi	0.03	2	0	
+sq3_n	宋清	2	wu	2	宋家宴会	C	捷+14%	agi	0.03	2	0	
+hx3	洪信	2	wu	3	朝廷命官	E	武+8%	atk	0.05	0	0	
+zct2	曾涂	3	wu	2	曾头市教头	A	防+14%	def	0.08	0	0	
+zct3	曾涂	3	wu	3	曾家五虎	A	武+10%	atk	0.08	0	0	
+lf4	吕方	4	wu	4	宋江亲随	G	捷+28%	agi	0.5	0	1	0.5
+gs6_n	郭盛	3	wu	4	梁山护卫	B	防+18%	def	0.12	0	0	
+hfd2	皇甫端	4	wen	2	宝马良驹	E	武+10%	atk	0.08	0	0	
+jj2	蒋敬	4	wen	2	算无遗策	E	智+18%	int	0.08	0	0	
+jj3	蒋敬	4	wen	3	精打细算	E	智+18%	int	0.08	0	0	
+px2	裴宣	4	mix	2	法度严明	E	武+11%	atk	0.08	0	0	
+cl4	曹正	2	wu	4	梁山厨师	C	捷+20%	agi	0.03	2	0	
+gs4n	顾大嫂	3	wu	4	孙新顾大嫂	A	武+13%	atk	0.08	0	0	
+sx4	孙新	3	wu	4	登州系	A	武+13%	atk	0.08	0	0	
+kh2n4	孔明	2	wu	4	白虎山寨	B	武+10%	atk	0.1	0	0	
+kl4	孔亮	2	wu	4	白虎山寨	B	武+9%	atk	0.1	0	0	
+cb4	童威	2	wu	4	水军精锐	G	捷+20%	agi	0.4	0	1	0.5
+tm4	童猛	2	wu	4	水军骁将	G	防+14%	def	0.4	0	1	0.5
+lzs2n2	梁中书	1	mix	2	大名府铁骑	G	捷+12%	agi	0.35	0	1	0.5
+lzs2n3	梁中书	1	mix	3	府尹权威	E	捷+15%	agi	0.04	0	0	
+lzs2n4	梁中书	1	mix	4	守城将令	B	捷+18%	agi	0.08	0	0	
+dj4	张都监	1	mix	4	朝廷命官	E	捷+16%	agi	0.04	0	0	
+hl4	何九叔	2	wen	4	阳谷县街坊	C	武+10%	atk	0.03	2	0	
+bq4	黄文炳	1	mix	4	江州通判	E	武+9%	atk	0.04	0	0	
+lm4	刘高	1	mix	4	清风寨主	B	捷+18%	agi	0.08	0	0	
+cwg4	程万里	1	mix	4	东平府尹	E	捷+18%	agi	0.04	0	0	
+hwl4	贺太守	1	mix	4	华州太守	E	防+12%	def	0.04	0	0	
+liu_tang_s4	刘唐	4	wu	4	梁山聚义	A	防+20%	def	0.1	0	0	
+shan_tinggui_s3	单廷圭	3	wu	3	水神庇护	B	捷+21%	agi	0.12	0	0	
+yan_shun_s4	燕顺	3	wu	4	清风山主	B	防+17%	def	0.12	0	0	
+wang_ying_s4	王英	2	wu	4	夫妻同心	A	武+10%	atk	0.07	0	0	
+bao_xu_s4	鲍旭	4	wu	4	枯树山主	B	防+18%	def	0.15	0	0	
+ma_lin_s4	马麟	2	wu	4	黄门山将	B	防+14%	def	0.1	0	0	
+zheng_tianshou_s4	郑天寿	2	wu	4	清风寨将	B	武+10%	atk	0.1	0	0	
+gong_wang_s4	龚旺	3	wu	4	东昌骁将	G	防+17%	def	0.45	0	1	0.5
+ding_desun_s4	丁得孙	3	wu	4	东昌副将	G	捷+26%	agi	0.45	0	1	0.5
+xue_yong_s4	薛永	2	wu	4	江湖卖艺	F	防+13%	def	0.07	0	0	
+shi_en_s4	施恩	2	wu	4	孟州小管营	C	武+10%	atk	0.03	2	0	
+li_zhong_s4	李忠	2	wu	4	桃花山将	B	捷+18%	agi	0.1	0	0	
+zhou_tong_xiao_s4	周通	3	wu	4	抢亲被殴	F	武+12%	atk	0.08	0	0	
+tang_long_s4	汤隆	2	wu	4	徐宁表弟	A	武+10%	atk	0.07	0	0	
+du_xing_s2	杜兴	2	wu	2	李家庄管事	C	捷+15%	agi	0.03	2	0	
+zou_yuan_s4	邹渊	2	wu	4	登州好汉	A	武+9%	atk	0.07	0	0	
+zou_run_s4	邹润	2	wu	4	登州好汉	A	防+13%	def	0.07	0	0	
+zhu_fu_s2	朱富	2	wu	2	江湖酒肆	C	防+10%	def	0.03	2	0	
+zhu_fu_s3	朱富	2	wu	3	智取生辰纲	E	智+14%	int	0.05	0	0	
+zhu_fu_s4	朱富	2	wu	4	朱贵之弟	A	捷+19%	agi	0.07	0	0	
+jiao_ting_s4	焦挺	2	wu	4	中山大汉	A	捷+19%	agi	0.07	0	0	
+shi_yong_s4	石勇	2	wu	4	大名府客	F	武+10%	atk	0.07	0	0	
+zhang_qing_cai_s4	张青	2	wu	4	光明寺种菜	C	防+14%	def	0.03	2	0	
+sun_erniang_s4	孙二娘	2	wu	4	张青之妻	A	防+14%	def	0.07	0	0	
+wang_dingliu_s4	王定六	2	wu	4	扬子江边	G	武+10%	atk	0.4	0	1	0.5
+shi_qian_s4	时迁	3	wu	4	梁山探子	F	武+12%	atk	0.08	0	0	
+lv_shi_nang_s4	吕师囊	4	wu	4	江南谋臣	E	智+23%	int	0.08	0	0	
+zu_shiyuan_s3	祖士远	4	wu	3	江南谋将	E	智+20%	int	0.08	0	0	
+zu_shiyuan_s4	祖士远	4	wu	4	守城防御	B	捷+28%	agi	0.15	0	0	
+lou_minzhong_s2	娄敏中	4	wu	2	方腊太尉	E	武+10%	atk	0.08	0	0	
+lou_minzhong_s4	娄敏中	4	wu	4	辅国重臣	E	防+19%	def	0.08	0	0	
+gao_yu_s2	高玉	4	wu	2	御林统领	A	武+11%	atk	0.1	0	0	
+gao_yu_s4	高玉	4	wu	4	殿前护驾	B	武+15%	atk	0.15	0	0	
+bo_shuying_s4	卜树英	4	wu	4	厉天闰妻	A	捷+26%	agi	0.1	0	0	
+fang_tianshou_s2	方天寿	3	wu	2	方腊族叔	A	武+8%	atk	0.08	0	0	
+fang_tianshou_s4	方天寿	3	wu	4	内政安抚	C	防+18%	def	0.035	2	0	
+qian_zhenpeng_s4	钱振鹏	4	wu	4	太湖水寨	G	武+15%	atk	0.5	0	1	0.5
+wu_su_s4	伍肃	3	wu	4	厉天闰副	G	武+13%	atk	0.45	0	1	0.5
+he_xun_s4	何埙	3	wu	4	守城先锋	B	防+17%	def	0.12	0	0	
+fang_mao_s4	方貌	4	mix	4	皇族亲征	A	捷+30%	agi	0.1	0	0	
+he_tong_s3	和潼	3	wu	3	水军都统	G	武+10%	atk	0.45	0	1	0.5
+he_tong_s4	和潼	3	wu	4	江上水战	G	捷+25%	agi	0.45	0	1	0.5
+shen_gang_s4	沈刚	3	wu	4	帮源洞守	B	捷+23%	agi	0.12	0	0	
+ni_lin_s4	倪麟	3	wu	4	步军骁将	G	捷+26%	agi	0.45	0	1	0.5
+yu_yulin_s4	于玉麟	4	wu	4	守城作战	B	武+14%	atk	0.15	0	0	
+an_shirong_s2	安士荣	4	wu	2	田虎枢密	E	武+11%	atk	0.08	0	0	
+an_shirong_s3	安士荣	4	wu	3	河北谋臣	E	智+20%	int	0.08	0	0	
+an_shirong_s4	安士荣	4	wu	4	守城防御	B	武+14%	atk	0.15	0	0	
+sheng_ben_s4	盛本	3	wu	4	守城先锋	B	防+18%	def	0.12	0	0	
+teng_kan_s4	滕戡	4	wu	4	守城作战	B	防+20%	def	0.15	0	0	
+du_zhao_s4	杜炤	2	wu	4	守城先锋	B	防+15%	def	0.1	0	0	
+liu_min_s2	刘敏	4	wu	2	王庆军师	E	防+14%	def	0.08	0	0	
+liu_min_s3	刘敏	4	wu	3	淮西谋臣	E	智+18%	int	0.08	0	0	
+liu_min_s4	刘敏	4	wu	4	辅国重臣	E	武+13%	atk	0.08	0	0	
+pan_xu_s4	潘旭	2	wu	4	守城作战	B	捷+21%	agi	0.1	0	0	
+ye_lvzonglin_s4	耶律宗霖	4	wu	4	守城护驾	B	捷+28%	agi	0.15	0	0	
+chu_mingyu_s4	楚明玉	4	wu	4	守京护驾	B	防+21%	def	0.15	0	0	
+fang_fei_s2	方肥	4	mix	2	辅国安邦	C	武+10%	atk	0.04	2	0	
+fang_fei_s3	方肥	4	mix	3	治国良策	C	智+18%	int	0.04	2	0	
+fang_fei_s4	方肥	4	mix	4	尚书令	E	捷+27%	agi	0.08	0	0	
+tian_biao_s3	田彪	4	wu	3	兄弟同心	A	武+11%	atk	0.1	0	0	
+tian_bao_s3	田豹	4	wu	3	河北骁将	G	武+11%	atk	0.5	0	1	0.5
+niu_wenzhong_s3	钮文忠	4	wu	3	晋军士气	A	防+15%	def	0.1	0	0	
+ye_lvdehua_s3	耶律得华	4	wu	3	大辽铁骑	G	武+11%	atk	0.5	0	1	0.5
+yufu_s4	方裕	3	wu	4	方裕·激励	A	捷+25%	agi	0.08	0	0	
+jiao_s4	方皭	3	wu	4	方皭·激励	A	武+11%	atk	0.08	0	0	
+ru_s4	庄儒	2	mix	4	庄儒·激励	A	武+10%	atk	0.07	0	0	
+wan_s4	程万	2	wu	4	程万·激励	A	武+10%	atk	0.07	0	0	
+qiong_s4	田琼	3	wu	4	田琼·号令	A	防+18%	def	0.08	0	0	
+wen_s4	耿文	2	mix	4	耿文·号令	E	防+13%	def	0.05	0	0	
+wy2_n	韩延寿	4	wu	2	辽国第一将	A	武+11%	atk	0.1	0	0	
+xuan_zan_v5s4	宣赞	4	wu	4	郡马号令	A	武+10%	atk	0.1	0	0	
+hao_siwen_v5s3	郝思文	4	mix	3	蒲东同袍	A	武+10%	atk	0.1	0	0	
+jin_dajian_v5s3	金大坚	2	wen	3	伪造印信	D	智+12%	int	0.06	0	0	
+hou_jian_v5s4	侯健	3	wen	4	缝衣制旗	D	防+10%	def	0.08	0	0	
+he_tao_v5s3	何涛	2	wu	3	差役号令	A	捷+10%	agi	0.07	0	0	
+wang_po_v5s3	王婆	1	wen	3	茶坊耳目	C	捷+8%	agi	0.025	2	0	
+shi_quan_v5s3	施全	4	wu	3	岳家旧部	A	武+8%	atk	0.1	0	0	
+sha_zhiren_v5s3	沙志仁	4	wu	3	沙家号令	A	捷+22%	agi	0.1	0	0	
+bao_daoyi_v5s2	包道乙	4	wen	2	灵应天师	H	智+15%	int	0.45	0	1	0.45
+tian_shi_v5s3	田实	4	wu	3	晋王宗亲	A	防+10%	def	0.1	0	0	
+v6_gai_tianxi_4	盖天锡	4	wen	4	盖青天	E	智+24%	int	0.08	0	0	
+v6_jin_chengying_2	金成英	4	wu	2	议复曹州	A	武+10%	atk	0.1	0	0	
+v6_luo_ruji_4	罗汝楫	4	wen	4	党附	E	智+23%	int	0.08	0	0	

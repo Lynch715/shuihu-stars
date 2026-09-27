@@ -99,7 +99,12 @@ const CFG = {
      被当成良品宝物白送 —— 第一章就能捡到一件武 +60 的东西。
      这两样都拿掉之后照原表打，一周目要打上千场、末章撞满级墙。
      这张折线是拿 playthrough.js 跑出来的，只动一周目；二周目起人已经攒齐了，照旧。 */
-  foeEase: [[1, 0.65], [8, 0.74], [20, 0.80], [27, 0.86], [33, 0.72]],
+  /* V10.7 装备百分比收窄、固定血量减半之后我方面板矮了一截，按本章推荐等级、本章装备打 Boss 的参考队
+     胜率从 72% 掉到 57%（史文恭 88%→0、辽国覆灭 66%→3）。折线整体往下拉，前八章拉得最多（×0.72），
+     中段 ×0.85、后段 ×0.87：参考队 Boss 胜率回到 72%，逐关对得上（test/bosscheck.js）。
+     练级练到推荐级两倍的模拟玩家反而更轻松（平均通关 25 → 81 关），因为增益叠加帮的是人多指挥多的一方；
+     以贴着推荐级打的手感为准。改前：[[1,.65],[8,.74],[20,.80],[27,.86],[33,.72]] */
+  foeEase: [[1, 0.47], [8, 0.55], [20, 0.68], [27, 0.75], [33, 0.63]],
   /* V10.3.2：主线尾段不再打折。原来 27 章 .74、33 章 .64 是为了末章隐藏关不成墙，
      结果主线 25–31 章一局下来一次重试都没有。支线与隐藏关单独一条（foeEaseSide），照旧打折。 */
   foeEaseSide: [[1, 0.65], [8, 0.74], [20, 0.80], [27, 0.74], [33, 0.64]],
@@ -117,9 +122,14 @@ const CFG = {
   hpMult: 10,             // 体力 → 血量
   lvGrow: 0.015,          // 每级通用成长
   favBonus: 0.20,         // 擅长武器加攻
-  cap: { eqPct: 0.50, bondAtk: 0.25, bondHp: 0.25, bondOther: 0.20 },
+  /* V10.7 装备百分比不再设上限（Lynch 定：每件一主一副之后一项最多 37%，是玩家自己堆的；敌人不穿装备，这条线只管玩家，去掉）。
+     eqPct 留 1.0 当暗线防 bug，界面不写。
+     战斗中增益、削弱按来源分格，异名叠加递减（第一条全额，之后每条 ×0.7），同名刷新（见 Battle.modSum）；
+     Lynch 定：不设硬上限，九条 13% 的指挥技叠出来约 42%，三条 20% 约 44%。夺取所得不超过自身面板 30%。 */
+  cap: { eqPct: 1.0, bondAtk: 0.25, bondHp: 0.25, bondOther: 0.20, stackK: 0.7, steal: 0.30 },
   /* V10.4 被动汇总封顶：绝世三件套 + 技能被动叠起来不许成墙 */
-  pasCap: { cut: 0.35, dodge: 0.30, skrate: 0.25, pierce: 0.40, heal: 0.40, ctrl: 0.20, buff: 0.35, dot: 1.0 },
+  pasCap: { cut: 0.35, dodge: 0.30, skrate: 0.25, pierce: 0.40, heal: 0.40, ctrl: 0.20, buff: 0.35, dot: 1.0,
+            stat: 0.30 },   // V10.7 被动属性加成（技能被动 + 专属特效 + 套装）每项加总封顶 30%，原来没上限
 
   /* 暴击跟着捷走。原来挂在魅上，魅又不在详情页上显示 —— 玩家看到一个
      「魅」不知道干什么用，V10.1 把魅整个删了，暴击交给捷。
@@ -170,7 +180,7 @@ const CFG = {
   loseSilver: 0.35,
   /* 伤势。原来一场仗打完什么都不留下 —— 全员满血复活，输了重来一遍就是，
      于是难度形同虚设，一百单八将也只用得着最强的九个。
-     现在阵亡的人要养伤，而且「只有没上阵的人才恢复」——想让主力缓过来，
+     现在阵亡的人要养伤，而且「重伤只有没上阵才恢复」（轻伤打赢也算休养，见 Hurt.settle）——想让主力缓过来，
      就得派别人去打。二梯队这才有了用处。 */
   hurtHeavyRest: 3,       // 阵亡 → 重伤，休养几场
   hurtLightRest: 2,       // 残血 → 轻伤，休养几场
@@ -266,7 +276,8 @@ const $ = id => document.getElementById(id);
    纯字符串函数，视图和数据校验脚本都只认这一份。 */
 
 const ST_NAME = { stun: '眩晕', silence: '沉默', disarm: '缴械', chaos: '混乱', taunt: '嘲讽',
-                  vuln: '易伤', bleed: '流血', burn: '灼烧', poison: '中毒', dodge: '闪避', wind: '狂风' };
+                  vuln: '易伤', bleed: '流血', burn: '灼烧', poison: '中毒', dodge: '闪避', wind: '狂风',
+                  guard: '减伤', regen: '回血', rate: '振奋' };   // V10.7 指挥技新增三种增益：受伤减免、每回合回血、主动技发动率
 const TG_NAME = { single: '敌方单体', row: '敌方一横排', col: '敌方一竖列', all: '敌方全体', back: '敌方后排', front: '敌方前排',
                   weakest: '当前生命最低的敌人', strongest: '武力最高的敌人', smartest: '智力最高的敌人',
                   rand2: '随机两名敌人', rand3: '随机三名敌人',
@@ -280,7 +291,9 @@ const ST_RULE = {
   taunt: '敌方单体攻击优先指向自身', vuln: '受到的伤害提高',
   bleed: `每回合损失最大生命的 ${pc(CFG.bleedPct)}`, burn: '每回合受到灼烧伤害', poison: '每回合按层数损失当前生命',
   dodge: '有几率闪避单体攻击', wind: '受到的灼烧伤害提高，灼烧向同排蔓延',
+  guard: '受到的伤害降低', regen: '每回合回复最大生命的一部分', rate: '主动技发动率提高',
 };
+const GAIN_ST = ['dodge', 'taunt', 'guard', 'regen', 'rate'];   // 给自己人的状态：驱散会拿掉，格子上画 ▲
 
 const SkillText = {
   cat(sk) {
@@ -306,17 +319,20 @@ const SkillText = {
         if (f.st === 'vuln') return `${ch}使${tg}陷入【易伤】（受到的伤害 +${pc(f.val || 0.2)}）${dur}`;
         if (f.st === 'dodge') return `${tg}获得【闪避】（${pc(f.val || 0.2)} 几率闪避单体攻击）${dur}`;
         if (f.st === 'taunt') return `${tg}获得【嘲讽】（敌方单体攻击优先指向自身）${dur}`;
+        if (f.st === 'guard') return `${tg}获得【减伤】（受到的伤害 −${pc(f.val || 0.15)}）${dur}`;
+        if (f.st === 'regen') return `${tg}获得【回血】（每回合回复最大生命的 ${pc(f.val || 0.05)}）${dur}`;
+        if (f.st === 'rate') return `${tg}获得【振奋】（主动技发动率 +${pc(f.val || 0.1)}）${dur}`;
         if (f.st === 'wind') return `使${tg}陷入【狂风】（受到的灼烧伤害 +${pc(CFG.windBurn - 1)}，灼烧向同排蔓延）${dur}`;
         if (f.st === 'bleed') return `${ch}使${tg}陷入【流血】（每回合损失最大生命的 ${pc(CFG.bleedPct)}，真实伤害，无视护盾）${dur}`;
         if (f.st === 'poison') return `${ch}使${tg}陷入【中毒】${f.layers > 1 ? ` ${f.layers} 层` : ''}（每层每回合损失当前生命的 ${pc(CFG.poisonPct)}，真实伤害，无视护盾）${dur}`;
         if (f.st === 'burn') return `${ch}使${tg}陷入【灼烧】（每回合受到施术者攻击 ${pc(CFG.burnK)} 的伤害）${dur}`;
         return `${ch}使${tg}陷入【${n}】（${ST_RULE[f.st] || ''}）${dur}`;
       }
-      case 'buff':   return `${tg}${STAT_NAME[f.stat] || f.stat} +${pc(f.pct)}${dur}（同属性增益不叠加，取最高值）`;
-      case 'debuff': return `${tg}${STAT_NAME[f.stat] || f.stat} −${pc(f.pct)}${dur}（同属性削弱不叠加，取最高值）`;
+      case 'buff':   return `${tg}${STAT_NAME[f.stat] || f.stat} +${pc(f.pct)}${dur}（异名叠加递减，同名刷新）`;
+      case 'debuff': return `${tg}${STAT_NAME[f.stat] || f.stat} −${pc(f.pct)}${dur}（异名叠加递减，同名刷新）`;
       case 'heal':   return f.pct ? `${tg}回复最大生命的 ${pc(f.pct)}` : `为${tg}回复生命，数值为智力 ×${+(f.mult * CFG.healK).toFixed(2)}`;
       case 'shield': return `${tg}获得护盾，数值为最大生命的 ${pc(f.pct)}，持续 ${CFG.shieldDur} 回合（护盾可叠加）`;
-      case 'steal':  return `夺取${tg} ${pc(f.pct)} 的${STAT_NAME[f.stat] || f.stat}${dur}（自身所得等于目标实际减少值）`;
+      case 'steal':  return `夺取${tg} ${pc(f.pct)} 的${STAT_NAME[f.stat] || f.stat}${dur}（自身所得等于目标实际减少值，且不超过自身面板值的 ${pc(CFG.cap.steal)}）`;
       case 'cleanse':return `解除${tg}的负面状态`;
       case 'dispel': return `驱散${tg}的增益状态与护盾`;
       // 被动
@@ -347,7 +363,10 @@ const SkillText = {
   },
   desc(sk) {
     const parts = (sk.fx || []).map(f => this.fx(f)).filter(Boolean);
-    return parts.join('；') || '—';
+    // V10.7 指挥技时限：默认开战时发动一次；from = 第 N 回合开始时发动一次；every = 每回合开始时按几率发动
+    const when = sk.cat !== 'cmd' ? '' : sk.every ? `每回合开始时${sk.rate != null && sk.rate < 1 ? ` ${pc(sk.rate)} 几率` : ''}：`
+               : sk.from ? `第 ${sk.from} 回合开始时：` : '';
+    return when + (parts.join('；') || '—');
   },
   full(sk) { return `【${this.cat(sk)}】${this.desc(sk)}`; },
 };
@@ -371,7 +390,7 @@ const DB = (() => {
       weaponType: e.weapon_type || '',
       flat: { atk: e.atk || 0, def: e.def || 0, int: e.int || 0,
               agi: e.agi || 0, hp: e.hp || 0 },
-      pct:  { atk: e.pct_atk || 0, def: e.pct_def || 0, hp: e.pct_hp || 0, int: e.pct_int || 0 },   // V10.6 文官兵器吃智%
+      pct:  { atk: e.pct_atk || 0, def: e.pct_def || 0, hp: e.pct_hp || 0, int: e.pct_int || 0, agi: e.pct_agi || 0 },   // V10.7 每件一主一副，坐骑给捷%
       exclusive: e.exclusive || null,
       // 专属加成：只有本人穿才有。键是 atk/def/int/agi/hp/crit/all
       ownerBonus: e.exclusive ? (e.owner_bonus || { atk: 0.25 }) : null,
@@ -949,6 +968,7 @@ function passivesOf(ids, extra) {
     }
   }
   const cp = CFG.pasCap;
+  for (const k of Object.keys(p.stat)) p.stat[k] = Math.min(p.stat[k], cp.stat);   // V10.7
   p.cut = Math.min(p.cut, cp.cut); p.dodge = Math.min(p.dodge, cp.dodge);
   p.skrate = Math.min(p.skrate, cp.skrate); p.pierce = Math.min(p.pierce, cp.pierce);
   p.heal = Math.min(p.heal, cp.heal); p.ctrl = Math.min(p.ctrl, cp.ctrl); p.buff = Math.min(p.buff, cp.buff); p.dot = Math.min(p.dot, cp.dot);
@@ -997,7 +1017,7 @@ const Stats = {
     const t = DB.hero(hid) || {};
     const fav = t.fav_weapon || '';
     const flat = { atk: 0, def: 0, int: 0, agi: 0, hp: 0 };
-    const pct = { atk: 0, def: 0, hp: 0, int: 0 };   // V10.6 修：原来没有 int，文官装备上的智% 一直没算进去
+    const pct = { atk: 0, def: 0, hp: 0, int: 0, agi: 0 };   // V10.7 加 agi（坐骑捷%）
     // 专属加成按件上写的来。原来只认武力，天王宝塔写着血防，给的却是武 +25%
     const exc = { atk: 0, def: 0, int: 0, agi: 0, hp: 0, crit: 0 };
     let apt = false, excOn = null, list = [];
@@ -1009,6 +1029,8 @@ const Stats = {
       for (const k in flat) flat[k] += e.flat[k] || 0;
       for (const k in pct) pct[k] += e.pct[k] || 0;
       if (e.weaponType && fav && e.weaponType === fav) apt = true;
+      // V10.7 普通宝物也可以带一条特殊属性，谁穿都有；专属的特效仍只给本人
+      if (!e.exclusive && e.fx.length) fx.push(...e.fx.map(f => Object.assign({}, f, { from: `装备·${e.name}` })));
       if (e.exclusive === hid && e.ownerBonus) {        // 非本人穿：只拿面板
         excOn = excOn || e;
         excList.push(e);
@@ -1076,8 +1098,8 @@ const Stats = {
            不然武一路 ×1.3 ×1.2 ×1.2 往上走，智只拿兵器上四十点固定值，法师五十级还是一千出头的智。
            羁绊取武、智两条里高的那条（封顶按武的）。敌人不穿装备，这几道对他们本来就是 1。 */
         // V10.6 这道放大只给文官和文武双全：武将的智不再被兵器、专属、擅长跟着抬（林冲五十级智 1515 就是这么来的）
+        // V10.7 装备百分比改成一主一副之后智% 自己有来源了，兵器的武% 不再顺带给智（专属武加成、擅长照旧）
         if (roleOf(t) !== 'wu') {
-          if (g.pct.atk) v *= 1 + clamp(g.pct.atk, 0, CFG.cap.eqPct);
           if (g.exc.atk) v *= 1 + g.exc.atk;
           if (g.apt) v *= 1 + CFG.favBonus;
           v *= 1 + clamp(Math.max(bd.int, bd.atk), 0, CFG.cap.bondAtk);
@@ -1339,7 +1361,7 @@ const Battle = {
     const NM = k => k === 'hp' ? '血' : STAT_NAME[k] || k;
     const P = x => `${+(x * 100).toFixed(1)}%`;
     const ob = o => Object.keys(o || {}).filter(k => o[k]).map(k => k === 'all' ? `全属性 +${P(o[k])}` : k === 'crit' ? `暴击率 +${P(o[k])}` : `${NM(k)} +${P(o[k])}`);
-    b.log.push({ c: 'in', s: `【整备】装备、羁绊加成明细（装备百分比每项上限 ${pc(CFG.cap.eqPct)}；羁绊上限：武/智 ${pc(CFG.cap.bondAtk)}，血 ${pc(CFG.cap.bondHp)}，其余 ${pc(CFG.cap.bondOther)}）` });
+    b.log.push({ c: 'in', s: `【整备】装备、羁绊加成明细（羁绊上限：武/智 ${pc(CFG.cap.bondAtk)}，血 ${pc(CFG.cap.bondHp)}，其余 ${pc(CFG.cap.bondOther)}；被动属性加成每项上限 ${pc(CFG.pasCap.stat)}。战斗中增益、削弱按来源技能分别计：同名刷新，异名按大小排、第一条全额、之后每条再 ×${CFG.cap.stackK}）` });
     for (const u of b.allies) {
       const h = G.heroes[u.hid], t = DB.hero(u.hid);
       if (!h || !t) continue;
@@ -1366,8 +1388,8 @@ const Battle = {
       }
       if (m.apt) b.log.push({ c: 'ps', s: `　擅长兵器（${m.fav}）：武 +${pc(CFG.favBonus)}${roleOf(t) !== 'wu' ? `，智 +${pc(CFG.favBonus)}` : ''}` });
       else if (m.fav && m.gear.some(e => e.slot === 'weapon')) b.log.push({ c: 'ps', s: `　擅长兵器为「${m.fav}」，当前兵器不符，无加成` });
-      const pp = ['atk', 'int', 'def', 'hp'].filter(k => m.pct[k]).map(k => `${NM(k)} +${P(m.pct[k])}${m.pct[k] > CFG.cap.eqPct ? `（超出上限，按 ${pc(CFG.cap.eqPct)} 计）` : ''}`);
-      if (pp.length) b.log.push({ c: 'ps', s: `　装备百分比合计：${pp.join('、')}${roleOf(t) !== 'wu' && m.pct.atk ? `；武% 同时作用于智` : ''}` });
+      const pp = ['atk', 'int', 'def', 'agi', 'hp'].filter(k => m.pct[k]).map(k => `${NM(k)} +${P(m.pct[k])}`);
+      if (pp.length) b.log.push({ c: 'ps', s: `　装备百分比合计：${pp.join('、')}` });
       if (m.set) {
         const need = m.set.items.length;
         b.log.push({ c: 'ps', s: m.setOn ? `　套装·${m.set.name} ${m.setHave}/${need} 已生效：${m.set.fx.map(f => SkillText.fx(f)).join('；')}`
@@ -1386,16 +1408,39 @@ const Battle = {
   other(b, u) { return u.ally ? b.foes : b.allies; },
   living(list) { return list.filter(x => x.alive); },
 
-  /** 有效属性：底子 + 增益 − 减益。增减益分开记（buff_x / debuff_x），
-   *  同一属性可以同时挨一个加一个减，互不覆盖。 */
+  /** V10.7 增益按来源分格：键 `buff_atk|豹头环眼`、`debuff_def|夺魂`。
+   *  同名只刷新回合与数值（取高），异名按大小叠加递减（cap.stackK）。
+   *  残血激发（low_）并入增益一起封顶，但不被驱散、不到期。 */
+  mods(u, kind, k) {
+    const out = [], pre = kind + '_' + k + '|';
+    for (const key of Object.keys(u.status)) if (key.startsWith(pre)) out.push({ key, src: key.slice(pre.length), val: u.status[key].val || 0, dur: u.status[key].dur });
+    return out;
+  },
+  /** 某属性的增益或削弱：按大小排，第一条全额，之后每条再 ×stackK（0.7、0.49、0.34……）。
+   *  返回 { raw 各格原值之和, val 递减后生效值, list 按大小排、带 w 权重与 eff 生效值 } */
+  modSum(u, kind, k) {
+    const list = this.mods(u, kind, k);
+    if (kind === 'buff') { const lo = u.status['low_' + k]; if (lo) list.push({ key: 'low_' + k, src: '残血', val: lo.val, dur: 999 }); }
+    list.sort((a, b) => b.val - a.val);
+    let raw = 0, val = 0, w = 1;
+    for (const m of list) { raw += m.val; m.w = w; m.eff = Math.round(m.val * w); val += m.eff; w *= CFG.cap.stackK; }
+    return { raw, val, list };
+  },
+  /** 写一格增益/削弱：同名取高并刷新回合，异名另起一格。返回 { add 写入后的格值, old 原格值, key } */
+  putMod(u, kind, k, src, val, dur) {
+    const key = kind + '_' + k + '|' + (src || '其他');
+    const cur = u.status[key];
+    const old = cur ? cur.val : 0;
+    u.status[key] = { dur: Math.max(dur, cur ? cur.dur : 0), val: Math.max(val, old) };
+    return { key, add: Math.max(val, old), old };
+  },
+  /** 有效属性：底子 + 增益（封顶） − 削弱（封顶） */
   eff(u, k) {
     let v = u[k] || 0;
-    const s = u.status['buff_' + k];
-    if (s) v += s.val;
-    const d = u.status['debuff_' + k];
-    if (d) v -= d.val;
-    const lo = u.status['low_' + k];      // V10.6 残血加成单独一格：不参与增益比大小，不被驱散，不到期
-    if (lo) v += lo.val;
+    if (Object.keys(u.status).length) {
+      v += this.modSum(u, 'buff', k).val;
+      v -= this.modSum(u, 'debuff', k).val;
+    }
     return Math.max(1, Math.round(v));
   },
 
@@ -1446,6 +1491,7 @@ const Battle = {
     // 只有「别人打的」才吃易伤和减伤；流血中毒这种持续伤害照原样扣
     if (src) {
       if (tgt.status.vuln) amount *= 1 + (tgt.status.vuln.val || 0.2);
+      if (tgt.status.guard) amount *= 1 - Math.min(0.5, tgt.status.guard.val || 0.15);   // V10.7 减伤状态
       if (tgt.pas.cut) amount *= 1 - Math.min(0.5, tgt.pas.cut);
     }
     amount = Math.max(1, Math.round(amount));
@@ -1507,7 +1553,7 @@ const Battle = {
       // V10.6 修：原来并进 buff_ 且 dur 设 99，会把已有的限时增益变成永久，之后的增益还会把它顶掉
       const cur = u.status['low_' + f.stat];
       u.status['low_' + f.stat] = { dur: 999, val: (cur ? cur.val : 0) + add };
-      b.log.push({ c: 'ps', s: `${u.ln} 触发【残血】：生命低于 ${pc(f.at)}，${STAT_NAME[f.stat]} ${num(before)}→${num(this.eff(u, f.stat))}（+${num(add)}，持续至战斗结束，不可驱散）（来源：${f.from || '被动'}）` });
+      b.log.push({ c: 'ps', s: `${u.ln} 触发【残血】：生命低于 ${pc(f.at)}，${STAT_NAME[f.stat]} ${num(before)}→${num(this.eff(u, f.stat))}（+${num(add)}，持续至战斗结束，不可驱散，与其他增益叠加递减）（来源：${f.from || '被动'}）` });
     }
   },
 
@@ -1618,6 +1664,9 @@ const Battle = {
     // 灼烧是固定值 = 施术者攻击值 × burnK，唯一随施术者成长的一种，狂风放大它。
     let val = f.val || 0;
     if (f.st === 'burn') val = Math.max(1, Math.round((f.base || 0) * CFG.burnK));
+    if (!val && f.st === 'guard') val = 0.15;
+    if (!val && f.st === 'regen') val = 0.05;
+    if (!val && f.st === 'rate') val = 0.1;
     const cur = t.status[f.st];
     const n = f.st === 'poison' ? Math.min(CFG.poisonMax, (cur ? cur.n || 1 : 0) + (f.layers || 1)) : 0;
     // V10.6 pdot：施术者的流血中毒加成记在状态上，取高的那个
@@ -1629,12 +1678,13 @@ const Battle = {
     const what = {
       stun: '无法行动', silence: '无法施放主动技与必中技', disarm: '无法普攻', chaos: '行动时随机攻击一名友方',
       taunt: '敌方单体攻击优先指向自身', vuln: `受到的伤害 +${pc(f.val || 0.2)}`, dodge: `${pc(f.val || 0.2)} 几率闪避单体攻击`,
+      guard: `受到的伤害 −${pc(f.val || 0.15)}`, regen: `每回合回复最大生命的 ${pc(f.val || 0.05)}`, rate: `主动技发动率 +${pc(f.val || 0.1)}`,
       bleed: `每回合损失最大生命的 ${pc(CFG.bleedPct)}，真实伤害${pm}`, burn: `每回合受到 ${num(val)} 点伤害`,
       poison: `每回合损失当前生命的 ${pc(CFG.poisonPct * n)}，真实伤害${pm}`, wind: `受到的灼烧伤害 +${pc(CFG.windBurn - 1)}，灼烧向同排蔓延`,
     }[f.st] || '';
     const tag = f.st === 'poison' ? `中毒 ${n} 层` : ST_NAME[f.st] || f.st;
     const T = t.status[f.st].dur;
-    const gain = f.st === 'dodge' || f.st === 'taunt';
+    const gain = GAIN_ST.includes(f.st);
     if (!quiet) b.log.push({ c: 'st', s: `${t.ln} ${gain ? '获得' : '陷入'}【${tag}】：${what}，持续 ${T} 回合${cur && cur.dur >= dur ? '（持续回合不叠加，取较长者）' : ''}${fromTxt}` });
     this.ev(b, { k: 'st', t: t.idx, ally: t.ally, st: f.st });
   },
@@ -1674,34 +1724,39 @@ const Battle = {
         const group = f.chance == null && live.length > 1;
         for (const t of tgts) this.putStatus(b, u, t, f.base != null ? f : { ...f, base }, group);
         if (group) {
-          const mine = f.st === 'dodge' || f.st === 'taunt' ? u.ally : !u.ally;
-          b.log.push({ c: 'st', s: `${sideLabel(f.tg, mine)} ${f.st === 'dodge' || f.st === 'taunt' ? '获得' : '陷入'}【${ST_NAME[f.st] || f.st}】：${ST_RULE[f.st] || ''}，持续 ${f.dur || 1} 回合` });
+          const gainSt = GAIN_ST.includes(f.st), mine = gainSt ? u.ally : !u.ally;
+          const ruleTxt = f.st === 'guard' ? `受到的伤害 −${pc(f.val || 0.15)}` : f.st === 'regen' ? `每回合回复最大生命的 ${pc(f.val || 0.05)}` : f.st === 'rate' ? `主动技发动率 +${pc(f.val || 0.1)}` : (ST_RULE[f.st] || '');
+          b.log.push({ c: 'st', s: `${sideLabel(f.tg, mine)} ${gainSt ? '获得' : '陷入'}【${ST_NAME[f.st] || f.st}】：${ruleTxt}，持续 ${f.dur || 1} 回合` });
         }
         return tgts;
       }
       case 'buff':
       case 'debuff': {
-        // V10.6 群体先一句总述，再每人一行写前后数值（Lynch：战报越细越好，属性变化要见数）
-        const key = f.k + '_' + f.stat, sign = f.k === 'buff' ? '+' : '−';
-        const nm = STAT_NAME[f.stat] || f.stat, dur = f.dur || 2;
+        // V10.7 异名相加、同名刷新、加总封顶（Lynch 定 ±50%）。群体先一句总述，再每人一行写前后数值
+        const sign = f.k === 'buff' ? '+' : '−';
+        const nm = STAT_NAME[f.stat] || f.stat, dur = f.dur || 2, src = u.castName || '其他';
         const live = tgts.filter(t => t.alive);
         if (live.length > 1) {
           const mine = f.k === 'buff' ? u.ally : !u.ally;     // 增益给自己人，减益给对面
           b.log.push({ c: 'sk', s: `${sideLabel(f.tg, mine)} ${nm} ${sign}${pc(f.pct * mod)}，持续 ${dur} 回合` });
         }
-        const kn = f.k === 'buff' ? '增益' : '削弱', skip = [];
+        const kn = f.k === 'buff' ? '增益' : '削弱';
         for (const t of live) {
           const bm = f.k === 'buff' && u.pas && u.pas.buff ? 1 + u.pas.buff : 1;   // V10.6 pbuff
           const add = Math.round((t[f.stat] || 10) * f.pct * mod * bm);
-          const cur = t.status[key];
           const before = this.eff(t, f.stat);
-          t.status[key] = { dur, val: Math.max(add, cur ? cur.val : 0) };
-          if (cur && cur.val >= add) skip.push(`${t.ln} ${sign}${num(add)}（现有 ${sign}${num(cur.val)}）`);
-          else
-            b.log.push({ c: 'sk', s: `　${t.ln} ${nm} ${num(before)}→${num(this.eff(t, f.stat))}（${cur ? `${kn} ${sign}${num(cur.val)}→${sign}${num(add)}，覆盖原值` : `${sign}${num(add)}`}），持续 ${dur} 回合` });
+          const r = this.putMod(t, f.k, f.stat, src, add, dur);
+          const after = this.eff(t, f.stat), m = this.modSum(t, f.k, f.stat);
+          let how;
+          if (r.old >= add) how = `同名${kn}已有 ${sign}${num(r.old)}，不叠加，持续回合刷新为 ${dur}`;
+          else if (r.old) how = `同名${kn} ${sign}${num(r.old)}→${sign}${num(add)}`;
+          else how = `${sign}${num(add)}`;
+          const mine = m.list.find(x => x.src === src);
+          const rank = mine ? m.list.indexOf(mine) + 1 : 0;
+          const capTxt = mine && mine.w < 1 ? `；同属性第 ${rank} 条，按 ${pc(mine.w)} 计为 ${sign}${num(mine.eff)}` : '';
+          b.log.push({ c: 'sk', s: `　${t.ln} ${nm} ${num(before)}→${num(after)}（${src}：${how}${capTxt}），持续 ${dur} 回合` });
           this.ev(b, { k: 'st', t: t.idx, ally: t.ally, st: f.k });
         }
-        if (skip.length) b.log.push({ c: 'sk', s: `　未生效（同属性${kn}不叠加，已有${kn}不低于本次，仅持续回合刷新为 ${dur}）：${skip.join('、')}` });
         return tgts;
       }
       case 'heal':
@@ -1725,23 +1780,24 @@ const Battle = {
         for (const t of tgts) {
           if (!t.alive) continue;
           const v = Math.round((t[f.stat] || 10) * f.pct * mod);
-          const dur = f.dur || 2, nm = STAT_NAME[f.stat] || f.stat;
+          const dur = f.dur || 2, nm = STAT_NAME[f.stat] || f.stat, src = u.castName || '夺取';
           const t0 = this.eff(t, f.stat), u0 = this.eff(u, f.stat);
-          // V10.6 夺取：目标的削弱照「同属性取最高」，自己只拿目标实际少掉的那部分（原来目标不掉、自己照样加）
-          const dOld = t.status['debuff_' + f.stat]?.val || 0;
-          t.status['debuff_' + f.stat] = { dur: Math.max(dur, t.status['debuff_' + f.stat]?.dur || 0), val: Math.max(v, dOld) };
-          const t1 = this.eff(t, f.stat), got = Math.max(0, t0 - t1);
-          const bOld = u.status['buff_' + f.stat];
-          if (got > 0 && (!bOld || bOld.val < got)) u.status['buff_' + f.stat] = { dur, val: got };
-          else if (got > 0) bOld.dur = Math.max(bOld.dur, dur);
+          // V10.7 目标的削弱按来源分格（同名刷新、异名相加、封顶）；自己只拿目标实际少掉的那部分，
+          //   再不超过自身面板的 cap.steal（文官夺武将的武原来能翻三倍）
+          this.putMod(t, 'debuff', f.stat, src, v, dur);
+          const t1 = this.eff(t, f.stat), got0 = Math.max(0, t0 - t1);
+          const lim = Math.round((u[f.stat] || 0) * CFG.cap.steal);
+          const got = Math.min(got0, lim);
+          if (got > 0) this.putMod(u, 'buff', f.stat, src, got, dur);
           const u1 = this.eff(u, f.stat);
-          b.log.push({ c: 'sk', s: `${u.ln} 夺取 ${t.ln} ${nm} ${num(v)}：${t.ln} ${num(t0)}→${num(t1)}（−${num(got)}${got < v ? `；已有削弱 −${num(dOld)}，同属性削弱取最高值` : ''}）；${u.ln} ${num(u0)}→${num(u1)}（${u1 > u0 ? `+${num(u1 - u0)}` : `未生效：同属性已有更高增益 +${num(bOld ? bOld.val : 0)}`}${bOld && u1 > u0 ? `，覆盖原增益 +${num(bOld.val)}` : ''}；所得不超过目标实际减少值），持续 ${dur} 回合` });
+          const dm = this.modSum(t, 'debuff', f.stat);
+          b.log.push({ c: 'sk', s: `${u.ln} 夺取 ${t.ln} ${nm} ${num(v)}：${t.ln} ${num(t0)}→${num(t1)}（−${num(got0)}${dm.raw > dm.val ? `；同属性削弱叠加递减` : ''}）；${u.ln} ${num(u0)}→${num(u1)}（${u1 > u0 ? `+${num(u1 - u0)}` : '未生效'}${got0 > lim ? `；所得封顶为自身 ${pc(CFG.cap.steal)} 即 ${num(lim)}` : ''}），持续 ${dur} 回合` });
         }
         return tgts;
       case 'cleanse':
         for (const t of tgts) {
           const bad = Object.keys(t.status).filter(k => k.startsWith('debuff_') || ['stun', 'silence', 'disarm', 'chaos', 'vuln', 'bleed', 'burn', 'poison', 'wind'].includes(k));
-          const what = bad.map(k => k.startsWith('debuff_') ? `${STAT_NAME[k.slice(7)] || k.slice(7)}−${num(t.status[k].val)}`
+          const what = bad.map(k => k.startsWith('debuff_') ? `${STAT_NAME[k.slice(7).split('|')[0]] || k.slice(7)}−${num(t.status[k].val)}（${k.split('|')[1] || ''}）`
                                    : k === 'poison' ? `中毒×${t.status[k].n || 1}` : (ST_NAME[k] || k));
           for (const k of bad) delete t.status[k];
           if (bad.length) b.log.push({ c: 'he', s: `${t.ln} 负面状态被解除：${what.join('、')}` });
@@ -1749,9 +1805,9 @@ const Battle = {
         return tgts;
       case 'dispel':
         for (const t of tgts) {
-          const good = Object.keys(t.status).filter(k => k.startsWith('buff_') || k === 'dodge' || k === 'taunt');
-          const what = good.map(k => k.startsWith('buff_') ? `${STAT_NAME[k.slice(5)] || k.slice(5)}+${num(t.status[k].val)}`
-                                    : k === 'dodge' ? `闪避+${pc(t.status[k].val || 0.2)}` : '嘲讽');
+          const good = Object.keys(t.status).filter(k => k.startsWith('buff_') || GAIN_ST.includes(k));
+          const what = good.map(k => k.startsWith('buff_') ? `${STAT_NAME[k.slice(5).split('|')[0]] || k.slice(5)}+${num(t.status[k].val)}（${k.split('|')[1] || ''}）`
+                                    : k === 'dodge' ? `闪避+${pc(t.status[k].val || 0.2)}` : (ST_NAME[k] || k));
           for (const k of good) delete t.status[k];
           const hadShield = t.shield > 0, sh = t.shield;
           if (hadShield) { t.shield = 0; t.shieldDur = 0; what.push(`护盾 ${num(sh)}`); }
@@ -1774,6 +1830,7 @@ const Battle = {
     b.log.push({ c: 'sk', s: `${u.ln} · ${sk.name}${tagTxt}${tp < 0.995 ? `（兵力 ${pc(tp)}）` : ''}｜${SkillText.desc(sk)}` });
     this.ev(b, { k: 'cast', t: u.idx, ally: u.ally, name: sk.name });
     let hit = [], src = null;
+    u.castName = sk.name;   // V10.7 增益按来源分格：格子用技能名标
     for (const f of sk.fx || []) {
       if (b.over) break;
       const r = this.applyFx(b, u, f, hit, mod, src);
@@ -1845,16 +1902,18 @@ const Battle = {
       // V10.6 修：眩晕、混乱、沉默、缴械改到出手之后再减（见 afterAct）。原来先减再判，
       //   一回合的控制在生效前就被清掉了——60 场里施加 42 次、生效 0 次
       else if (CTRL_ST.includes(k)) continue;
-      else if (s.dur === 1 && ['taunt', 'vuln', 'dodge', 'wind'].includes(k))
+      else if (k === 'regen' && u.hp < u.maxHp) this.heal(b, u, Math.max(1, Math.round(u.maxHp * (s.val || 0.05))), null);   // V10.7 回血状态
+      if (s.dur === 1 && ['taunt', 'vuln', 'dodge', 'wind', 'guard', 'regen', 'rate'].includes(k))
         b.log.push({ c: 'in', s: `${u.ln} 的【${ST_NAME[k]}】结束` });
       s.dur--;
       if (s.dur <= 0) {
         // V10.6 增减益到期也写数：「林冲 武+378 消退（3079→2701）」
         const isB = k.startsWith('buff_'), isD = k.startsWith('debuff_');
-        const stat = isB ? k.slice(5) : isD ? k.slice(7) : null;
+        const stat = isB ? k.slice(5).split('|')[0] : isD ? k.slice(7).split('|')[0] : null;
+        const srcN = k.split('|')[1] || '';
         const before = stat ? this.eff(u, stat) : 0;
         delete u.status[k];
-        if (stat && s.val) b.log.push({ c: 'in', s: `${u.ln} ${STAT_NAME[stat] || stat}${isB ? '增益 +' : '削弱 −'}${num(s.val)} 到期：${STAT_NAME[stat] || stat} ${num(before)}→${num(this.eff(u, stat))}` });
+        if (stat && s.val) b.log.push({ c: 'in', s: `${u.ln} ${STAT_NAME[stat] || stat}${isB ? '增益 +' : '削弱 −'}${num(s.val)}（${srcN}）到期：${STAT_NAME[stat] || stat} ${num(before)}→${num(this.eff(u, stat))}` });
       }
     }
     if (u.shieldDur > 0 && u.shieldDur < 99 && --u.shieldDur === 0 && u.shield > 0) {
@@ -1873,7 +1932,7 @@ const Battle = {
     }
     for (const s of u.actives) {
       if (s.cat !== 'active') continue;
-      if (chance(s.rate + (u.pas.skrate || 0)) && this.usable(b, u, s)) return s;
+      if (chance(s.rate + (u.pas.skrate || 0) + (u.status.rate ? u.status.rate.val || 0 : 0)) && this.usable(b, u, s)) return s;   // V10.7 振奋
     }
     return null;
   },
@@ -1886,7 +1945,21 @@ const Battle = {
     const order = cmds.map(u => ({ u, k: this.eff(u, 'agi') })).sort((a, c) => c.k - a.k).map(x => x.u);
     for (const u of order) for (const sk of u.cmds) {
       if (b.over || !u.alive) break;
+      if (sk.from || sk.every) continue;          // V10.7 有时限的指挥技在 roundCmds 里发
       if (this.usable(b, u, sk)) this.cast(b, u, sk);
+    }
+  },
+
+  /** V10.7 回合开始时的指挥技：from = 第 N 回合发一次；every = 每回合按 rate 掷一次 */
+  roundCmds(b) {
+    const list = [...b.allies, ...b.foes].filter(u => u.alive && u.cmds.some(sk => sk.from || sk.every));
+    if (!list.length) return;
+    const order = list.map(u => ({ u, k: this.eff(u, 'agi') })).sort((a, c) => c.k - a.k).map(x => x.u);
+    for (const u of order) for (const sk of u.cmds) {
+      if (b.over || !u.alive) break;
+      if (u.status.silence && sk.every) continue;
+      if (sk.from && sk.from === b.round && this.usable(b, u, sk)) this.cast(b, u, sk);
+      else if (sk.every && chance(sk.rate == null ? 1 : sk.rate) && this.usable(b, u, sk)) this.cast(b, u, sk);
     }
   },
 
@@ -1898,6 +1971,7 @@ const Battle = {
     b.round++;
     b.log.push({ c: 'r', s: `第 ${b.round} 回合` });
     b.events.push({ k: 'round', n: b.round, li: b.log.length });
+    this.roundCmds(b);   // V10.7 有时限的指挥技
     // V10.6 铁壁：每三回合敌方全体再加一成血量的护盾
     if (b.theme === 'shield' && b.round > 1 && (b.round - 1) % 3 === 0) {
       b.log.push({ c: 'sh', s: '阵势·铁壁：敌方全体获得护盾，数值为最大生命的 10%' });
@@ -2500,19 +2574,17 @@ const Grow = {
 
   /* ── V10.5 布阵页一键装备 / 一键卸装 ─────────────────────────── */
 
-  /** 一件装备对这个人值多少：品阶优先；兵器对上擅长比一档品阶还值钱；再看面板，武将看武、谋士看智 */
+  /** V10.7 一件装备对这个人值多少：真穿上算一遍战力，看涨多少。
+   *  装备百分比改成一主一副之后（兵器有武%也有智%，宝物四样都有），按品阶或按「有没有武%」都挑不准；
+   *  直接用 Stats.calc 走一遍，擅长、专属本人加成、套装、上限全都在里面。同分取品阶高的。 */
   gearScore(hid, e) {
-    const t = DB.hero(hid) || {};
-    let v = e.q * 1000;
-    if (e.exclusive === hid) v += 5000;
-    if (e.slot === 'weapon' && e.weaponType && e.weaponType === t.fav_weapon) v += 800;
-    const mage = (t.int || 0) > (t.atk || 0);
-    v += (e.flat.atk || 0) * (mage ? 1 : 3) + (e.flat.int || 0) * (mage ? 3 : 1)
-       + (e.flat.def || 0) * 2 + (e.flat.agi || 0) * 2 + (e.flat.hp || 0) / 20
-       + ((e.pct.atk || 0) * (mage ? 300 : 900)) + ((e.pct.int || 0) * (mage ? 900 : 100)) + ((e.pct.def || 0) + (e.pct.hp || 0)) * 600;
-    // V10.6 文官兵器（只加智%）武将拿着吃亏：扣掉两档品阶，高两档以上才考虑
-    if (e.slot === 'weapon' && e.pct.int && !e.pct.atk && !mage) v -= 2500;
-    return v;
+    const h = G.heroes[hid];
+    if (!h) return 0;
+    const eq = Object.assign({}, h.equipment, { [e.slot]: e.id });
+    const eq0 = Object.assign({}, h.equipment, { [e.slot]: null });
+    const with_ = Stats.power(Stats.calc(hid, { hero: Object.assign({}, h, { equipment: eq }) }));
+    const without = Stats.power(Stats.calc(hid, { hero: Object.assign({}, h, { equipment: eq0 }) }));
+    return (with_ - without) * 100 + e.q + (e.exclusive === hid ? 1e6 : 0);
   },
   /** V10.6.1b 只管阵上九人，要把最好的给他们：
    *  阵上的人身上的先全收回来重排；板凳上的人身上的也拿来挑，
@@ -2547,7 +2619,8 @@ const Grow = {
       if (G.heroes[hid].equipment[slot]) continue;
       const bag = this.bagEquips(slot);
       if (!bag.length) continue;
-      const best = bag.slice().sort((a, b) => this.gearScore(hid, b) - this.gearScore(hid, a))[0];
+      let best = null, bs = -Infinity;
+      for (const e of bag) { const sc = this.gearScore(hid, e); if (sc > bs) { bs = sc; best = e; } }   // 每件只算一次
       take(hid, slot, best.id);
     }
     // 板凳上的人：没被挑走的原样穿回去
@@ -2635,6 +2708,7 @@ const Hurt = {
       .sort((x, y) => Stats.heroPower(y.hid) - Stats.heroPower(x.hid))
       .slice(0, spare).map(u => u.hid));
 
+    const healed = [], fieldHealed = new Set();
     for (const u of b.allies) {
       const h = G.heroes[u.hid];
       if (!h) continue;
@@ -2645,7 +2719,17 @@ const Hurt = {
         lv = soft ? 1 : 2;
         rest = soft ? CFG.hurtLightRest : CFG.hurtHeavyRest;
       } else if (u.hp / u.maxHp < CFG.hurtLightAt) { lv = 1; rest = CFG.hurtLightRest; }
-      if (!lv) continue;
+      if (!lv) {
+        // V10.6.3 轻伤带伤上阵也能好：打赢了、这一仗又没再挂彩，休养场数减一。
+        // 原来只有没上阵的人才恢复，主力按战力排永远在场，轻伤一挂就是整周目，
+        // 全队吃 0.8 折扣打到底。重伤仍旧必须下场休养。
+        if (b.win && h.hurt && h.hurt.lv === 1) {
+          h.hurt.rest--;
+          fieldHealed.add(u.hid);
+          if (h.hurt.rest <= 0) { h.hurt = { lv: 0, rest: 0 }; healed.push(u.hid); }
+        }
+        continue;
+      }
       // 天寿星：休养少一场
       rest = Math.max(1, rest + Fate.v('rest', 0));
       const old = h.hurt || { lv: 0, rest: 0 };
@@ -2657,9 +2741,9 @@ const Hurt = {
     // 但手上人数还不够摆一阵时根本换不下来 —— 那样伤只会越积越死，
     // 开局两个人打十场，朱武会一直挂着轻伤好不了。这种时候人人都算休养。
     const noBench = Object.keys(G.heroes).length <= CFG.teamSize;
-    const healed = [];
     for (const hid of Object.keys(G.heroes)) {
       if (!noBench && onField.has(hid)) continue;
+      if (fieldHealed.has(hid)) continue;   // 场上已经算过这一场了
       const h = G.heroes[hid];
       if (!h.hurt || !h.hurt.lv) continue;
       h.hurt.rest--;
