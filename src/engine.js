@@ -328,8 +328,8 @@ const SkillText = {
         if (f.st === 'burn') return `${ch}使${tg}陷入【灼烧】（每回合受到施术者攻击 ${pc(CFG.burnK)} 的伤害）${dur}`;
         return `${ch}使${tg}陷入【${n}】（${ST_RULE[f.st] || ''}）${dur}`;
       }
-      case 'buff':   return `${tg}${STAT_NAME[f.stat] || f.stat} +${pc(f.pct)}${dur}（异名叠加递减，同名刷新）`;
-      case 'debuff': return `${tg}${STAT_NAME[f.stat] || f.stat} −${pc(f.pct)}${dur}（异名叠加递减，同名刷新）`;
+      case 'buff':   return `${tg}${STAT_NAME[f.stat] || f.stat} +${pc(f.pct)}${dur}`;
+      case 'debuff': return `${tg}${STAT_NAME[f.stat] || f.stat} −${pc(f.pct)}${dur}`;
       case 'heal':   return f.pct ? `${tg}回复最大生命的 ${pc(f.pct)}` : `为${tg}回复生命，数值为智力 ×${+(f.mult * CFG.healK).toFixed(2)}`;
       case 'shield': return `${tg}获得护盾，数值为最大生命的 ${pc(f.pct)}，持续 ${CFG.shieldDur} 回合（护盾可叠加）`;
       case 'steal':  return `夺取${tg} ${pc(f.pct)} 的${STAT_NAME[f.stat] || f.stat}${dur}（自身所得等于目标实际减少值，且不超过自身面板值的 ${pc(CFG.cap.steal)}）`;
@@ -1484,7 +1484,7 @@ const Battle = {
     const NM = k => k === 'hp' ? '血' : STAT_NAME[k] || k;
     const P = x => `${+(x * 100).toFixed(1)}%`;
     const ob = o => Object.keys(o || {}).filter(k => o[k]).map(k => k === 'all' ? `全属性 +${P(o[k])}` : k === 'crit' ? `暴击率 +${P(o[k])}` : `${NM(k)} +${P(o[k])}`);
-    b.log.push({ c: 'in', s: `【整备】装备、羁绊加成明细（羁绊上限：武/智 ${pc(CFG.cap.bondAtk)}，血 ${pc(CFG.cap.bondHp)}，其余 ${pc(CFG.cap.bondOther)}；被动属性加成每项上限 ${pc(CFG.pasCap.stat)}。战斗中增益、削弱按来源技能分别计：同名刷新，异名按大小排、第一条全额、之后每条再 ×${CFG.cap.stackK}）` });
+    b.log.push({ c: 'in', s: `【整备】装备、羁绊加成明细（羁绊上限：武/智 ${pc(CFG.cap.bondAtk)}，血 ${pc(CFG.cap.bondHp)}，其余 ${pc(CFG.cap.bondOther)}；被动属性加成每项上限 ${pc(CFG.pasCap.stat)}）` });
     for (const u of b.allies) {
       const h = G.heroes[u.hid], t = DB.hero(u.hid);
       if (!h || !t) continue;
@@ -1677,7 +1677,7 @@ const Battle = {
       // V10.6 修：原来并进 buff_ 且 dur 设 99，会把已有的限时增益变成永久，之后的增益还会把它顶掉
       const cur = u.status['low_' + f.stat];
       u.status['low_' + f.stat] = { dur: 999, val: (cur ? cur.val : 0) + add };
-      b.log.push({ c: 'ps', s: `${u.ln} 触发【残血】：生命低于 ${pc(f.at)}，${STAT_NAME[f.stat]} ${num(before)}→${num(this.eff(u, f.stat))}（+${num(add)}，持续至战斗结束，不可驱散，与其他增益叠加递减）（来源：${f.from || '被动'}）` });
+      b.log.push({ c: 'ps', s: `${u.ln} 触发【残血】：生命低于 ${pc(f.at)}，${STAT_NAME[f.stat]} ${num(before)}→${num(this.eff(u, f.stat))}（+${num(add)}，持续至战斗结束，不可驱散）（来源：${f.from || '被动'}）` });
     }
   },
 
@@ -1916,7 +1916,7 @@ const Battle = {
           (b.ach = b.ach || { dotKills: 0, dispels: 0, steals: 0, counters: 0 }).steals++;   // V10.8
           const u1 = this.eff(u, f.stat);
           const dm = this.modSum(t, 'debuff', f.stat);
-          b.log.push({ c: 'sk', s: `${u.ln} 夺取 ${t.ln} ${nm} ${num(v)}：${t.ln} ${num(t0)}→${num(t1)}（−${num(got0)}${dm.raw > dm.val ? `；同属性削弱叠加递减` : ''}）；${u.ln} ${num(u0)}→${num(u1)}（${u1 > u0 ? `+${num(u1 - u0)}` : '未生效'}${got0 > lim ? `；所得封顶为自身 ${pc(CFG.cap.steal)} 即 ${num(lim)}` : ''}），持续 ${dur} 回合` });
+          b.log.push({ c: 'sk', s: `${u.ln} 夺取 ${t.ln} ${nm} ${num(v)}：${t.ln} ${num(t0)}→${num(t1)}（−${num(got0)}）；${u.ln} ${num(u0)}→${num(u1)}（${u1 > u0 ? `+${num(u1 - u0)}` : '未生效'}${got0 > lim ? `；所得封顶为自身 ${pc(CFG.cap.steal)} 即 ${num(lim)}` : ''}），持续 ${dur} 回合` });
         }
         return tgts;
       case 'cleanse':
