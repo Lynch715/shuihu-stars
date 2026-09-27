@@ -510,8 +510,22 @@ const DB = (() => {
 
 /* ── 3  存档 ─────────────────────────────────────────────────────────── */
 
+/* base64 与字节互转。分段拼字符串，几十 KB 的存档也不会把调用栈撑爆 */
+function b64enc(u8) {
+  let s = '';
+  for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+function b64dec(b) {
+  const s = atob(b);
+  const u8 = new Uint8Array(s.length);
+  for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i);
+  return u8;
+}
+
 const Save = {
   write() {
+    if (Save.locked) return false;   // 导入/撤回之后、刷新之前，别让 beforeunload 拿旧局面盖回去
     if (!G.heroes || !Object.keys(G.heroes).length || !Array.isArray(G.team)) return false;
     try { if (typeof Achv !== 'undefined' && DB.stageIds) Achv.check(); } catch (e) {}   // V10.8 每次存档前补判功名（发奖、记新达成）
     try {
@@ -537,6 +551,102 @@ const Save = {
     } catch (e) { return null; }
   },
   wipe() { try { localStorage.removeItem(CFG.saveKey); } catch (e) {} },
+
+  /* ── V10.7.1 存档导入导出 ────────────────────────────────────────
+     存档码 = 'SHXL1:' + 'z:' + base64(gzip(存档 JSON))
+     浏览器没有 CompressionStream 就不压，写成 'p:' + base64(utf8)。
+     导入认这两种，也认直接贴进来的 JSON 原文。
+     导入前把当前存档留一份在 bakKey，可以撤回一次。 */
+  locked: false,
+  bakKey: CFG.saveKey + '_bak',
+  codeHead: 'SHXL1:',
+
+  /** 存档概况，给界面写「2 周目 · 传统 · 42 将 · 通关 37 关」用 */
+  brief(d) {
+    if (!d) return '';
+    return `${d.lap || 1} 周目 · ${d.mode === 'chaos' ? '混乱' : '传统'} · ${Object.keys(d.heroes || {}).length} 将 · 通关 ${Object.keys(d.cleared || {}).length} 关`;
+  },
+
+  async exportCode() {
+    Save.write();
+    let raw = null;
+    try { raw = localStorage.getItem(CFG.saveKey); } catch (e) {}
+    if (!raw) return null;
+    const bytes = new TextEncoder().encode(raw);
+    if (typeof CompressionStream === 'function') {
+      try {
+        const z = await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+        return Save.codeHead + 'z:' + b64enc(new Uint8Array(z));
+      } catch (e) {}
+    }
+    return Save.codeHead + 'p:' + b64enc(bytes);
+  },
+
+  /** 解析存档码或 JSON 原文。成功 { raw, d }，失败 { err } */
+  async parseCode(text) {
+    let t = String(text || '').trim();
+    if (!t) return { err: '没有内容' };
+    let raw;
+    if (t[0] === '{') raw = t;
+    else {
+      t = t.replace(/\s+/g, '');     // 微信、备忘录转一道可能插进换行
+      if (!t.startsWith(Save.codeHead)) return { err: '这不是群星录的存档码（应以 SHXL1: 开头）' };
+      const body = t.slice(Save.codeHead.length);
+      const kind = body.slice(0, 2), b = body.slice(2);
+      let bytes;
+      try { bytes = b64dec(b); } catch (e) { return { err: '存档码不完整，可能复制时少了一截' }; }
+      try {
+        if (kind === 'z:') {
+          if (typeof DecompressionStream !== 'function') return { err: '这个浏览器版本太旧，解不开压缩的存档码' };
+          const u = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+          raw = new TextDecoder().decode(u);
+        } else if (kind === 'p:') raw = new TextDecoder().decode(bytes);
+        else return { err: '存档码格式不认识' };
+      } catch (e) { return { err: '存档码不完整，可能复制时少了一截' }; }
+    }
+    let d;
+    try { d = JSON.parse(raw); } catch (e) { return { err: '存档内容损坏，读不出来' }; }
+    if (!d || typeof d !== 'object') return { err: '存档内容损坏，读不出来' };
+    if (d.v !== CFG.saveVersion) return { err: `存档版本对不上（存档 ${d.v}，游戏要 ${CFG.saveVersion}）` };
+    if (!d.heroes || typeof d.heroes !== 'object' || !Object.keys(d.heroes).length) return { err: '存档里一个将也没有' };
+    if (!Array.isArray(d.team)) return { err: '存档缺少阵容，读不出来' };
+    if (!Object.keys(d.heroes).some(h => DB.hero(h) || DB.heroRemap[h])) return { err: '存档里的人这个版本一个都不认识' };
+    return { raw, d };
+  },
+
+  /** 覆盖当前存档。调用方随后刷新页面 */
+  importRaw(raw) {
+    try {
+      const cur = localStorage.getItem(CFG.saveKey);
+      if (cur) localStorage.setItem(Save.bakKey, JSON.stringify({ t: Date.now(), raw: cur }));
+      localStorage.setItem(CFG.saveKey, raw);
+    } catch (e) { return '写不进本地存储（可能是空间满了或无痕模式）'; }
+    Save.locked = true;
+    return null;
+  },
+
+  /** 上次导入前留的那份：{ t, d } 或 null */
+  backup() {
+    try {
+      const b = JSON.parse(localStorage.getItem(Save.bakKey) || 'null');
+      if (!b || !b.raw) return null;
+      return { t: b.t, d: JSON.parse(b.raw) };
+    } catch (e) { return null; }
+  },
+
+  /** 换回导入前的存档。刚导入的那份和备份对调，所以撤回也能再撤回 */
+  undoImport() {
+    try {
+      const b = JSON.parse(localStorage.getItem(Save.bakKey) || 'null');
+      if (!b || !b.raw) return '没有可撤回的存档';
+      const cur = localStorage.getItem(CFG.saveKey);
+      localStorage.setItem(CFG.saveKey, b.raw);
+      if (cur) localStorage.setItem(Save.bakKey, JSON.stringify({ t: Date.now(), raw: cur }));
+      else localStorage.removeItem(Save.bakKey);
+    } catch (e) { return '写不进本地存储'; }
+    Save.locked = true;
+    return null;
+  },
 
   /** V10.0 → V10.1 的存档就地折算，重复跑不出事。
    *   · 三种无主碎片按片数折成兵符（1/3/5）
