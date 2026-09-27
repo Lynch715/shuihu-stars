@@ -608,6 +608,27 @@ check('伤势记账与休养', async b => {
     `休养 ${r.n} 场痊愈，薄名册覆没后仍可上阵 ${r.able}/${r.need}`];
 });
 
+check('功名补判与不重复发放', async b => {
+  const { ctx, page } = await fresh(b);
+  const r = await page.evaluate(() => {
+    const W = window; if (!W.Achv) return { skip: true };
+    W.initGame(); W.G.res.silver = 1e9; while (Object.keys(W.G.heroes).length < 40) W.Grow.recruit(10);
+    // 模拟老存档：清掉已达成，再补判一次 —— 麾下 36 人该直接给「三十六天罡」，且只给一次
+    W.G.achv = {}; W.G.achvNew = []; const t0 = W.G.res.token;
+    const first = W.Achv.check().map(a => a.id);
+    const t1 = W.G.res.token;
+    const again = W.Achv.check().length;
+    const has36 = first.includes('own36') && first.includes('own9');
+    // 隐藏功名达成前进度不显示
+    const hid = W.Achv.list().find(a => a.hidden);
+    return { first: first.length, again, has36, tokenGain: t1 - t0, hidden: !!hid && !W.G.achv[hid.id] };
+  });
+  await ctx.close();
+  if (r.skip) return [null, '这一版没有功名'];
+  const ok = r.has36 && r.again === 0 && r.tokenGain >= 4;
+  return [ok, `补判达成 ${r.first} 条（含初上梁山、三十六天罡 ${r.has36 ? '是' : '否'}），再判重复发放 ${r.again} 条，兵符 +${r.tokenGain}`];
+});
+
 check('无定时器强制重绘', async b => {
   const ctx = await b.newContext({ viewport: { width: 430, height: 900 } });
   const page = await ctx.newPage();

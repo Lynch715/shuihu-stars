@@ -8,20 +8,21 @@
 const { chromium } = require('playwright');
 const HTML = process.argv[2];
 const arg = (k, d) => { const a = process.argv.find(x => x.startsWith('--' + k + '=')); return a ? a.slice(k.length + 3) : d; };
-const N = +arg('n', 20), EASE = arg('ease', null), SEEDS = +arg('seed', 3);
+const N = +arg('n', 20), EASE = arg('ease', null), SEEDS = +arg('seed', 3), ONLY = arg('only', ''), MUL = arg('mul', '');
 (async () => {
   const b = await chromium.launch(); const p = await b.newPage();
   p.on('pageerror', e => console.log('ERR', e.message));
   await p.goto('file://' + require('path').resolve(HTML)); await p.waitForTimeout(1200);
   if (EASE) await p.evaluate(`CFG.foeEase = ${EASE}`);
-  const r = await p.evaluate(([N, SEEDS]) => {
+  const r = await p.evaluate(([N, SEEDS, ONLY, MUL]) => {
+    if (MUL) for (const kv of MUL.split(',')) { const [sid, m] = kv.split('='); DB.stage(sid).enemy_mul = +m; }
     const out = {};
     for (let seed = 0; seed < SEEDS; seed++) {
       initGame(); G.res.silver = 1e9;
       // 固定名册：按品阶从高到低取 80 人（去掉杂兵），不抽卡，去掉抽卡的随机
       const pool = DB.heroIds().filter(h => DB.hero(h).src !== '杂兵').sort((a, b) => DB.hero(b).q - DB.hero(a).q || a.localeCompare(b)).slice(40 + seed * 10, 40 + seed * 10 + 80);
       G.heroes = {}; for (const h of pool) G.heroes[h] = makeHero(h);
-      const bosses = DB.stageIds().filter(s => Stages.kindOf(s) === 'boss' && !DB.stage(s).side);
+      const bosses = DB.stageIds().filter(s => Stages.kindOf(s) === 'boss' && !DB.stage(s).side && (!ONLY || ONLY.split(',').includes(s)));
       for (const sid of bosses) {
         const st = DB.stage(sid), ch = st.ch, L = (st.rec_lv || [1, 5])[1] + 3;
         const star = Math.min(5, 1 + Math.floor(ch / 7));
@@ -39,7 +40,7 @@ const N = +arg('n', 20), EASE = arg('ease', null), SEEDS = +arg('seed', 3);
       }
     }
     return out;
-  }, [N, SEEDS]);
+  }, [N, SEEDS, ONLY, MUL]);
   let tot = 0, cnt = 0;
   for (const [sid, v] of Object.entries(r)) { const pct = Math.round(100 * v.w / v.n); tot += pct; cnt++; console.log(`${String(v.ch).padStart(2)} ${sid.padEnd(11)} ${v.name.padEnd(12)} ${String(pct).padStart(3)}%`); }
   console.log(`平均 ${Math.round(tot / cnt)}%`);

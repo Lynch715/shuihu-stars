@@ -240,7 +240,6 @@ VIEWS.mode = () => `<div class="modepick">
       <b>混　乱</b>
       <span>每个人入伙那一刻随机摇四招，谁也不知道自己会什么。开局送的两个也一样。</span>
     </div>
-    <div class="mp-imp" data-action="save-io">已有存档？<b>导入</b></div>
   </div>`;
 
 /* 入伙卡：开篇字幕走完，把开局随机送的两个人亮出来 —— 不然玩家不知道自己多了谁 */
@@ -305,7 +304,10 @@ VIEWS.main = () => {
   <div class="hero-banner">
     <div class="bt">水浒群星录</div>
     <div class="bs">九人对阵 · 星宿聚义 · ${G.mode === 'chaos' ? '混乱' : '传统'}</div>
+    ${G.title && Achv.titleOf(G.title) ? `<div class="btitle">「${esc(Achv.titleOf(G.title))}」</div>` : ''}
   </div>
+  ${(G.achvNew || []).length ? `<div class="achvnew" data-action="go" data-id="codex"><b>功名 +${G.achvNew.length}</b>
+    ${esc(G.achvNew.slice(0, 3).map(id => (Achv.list().find(a => a.id === id) || {}).name).filter(Boolean).join('、'))}${G.achvNew.length > 3 ? ' 等' : ''}，奖励已入账，点开功名簿看</div>` : ''}
   <div class="stat3">
     <div><b>${Object.keys(G.heroes).length}</b><i>已收将</i></div>
     <div><b>${G.team.length}/${CFG.teamSize}</b><i>出战</i></div>
@@ -333,9 +335,6 @@ VIEWS.main = () => {
     <div class="btn" data-action="replay-intro">重看开篇</div>
     ${G.seenEpi ? '<div class="btn" data-action="epilogue">重看尾声</div>' : ''}
     ${window.Pwa && Pwa.available() ? '<div class="btn" data-action="pwa-offer">装到桌面</div>' : ''}
-  </div>
-  <div class="btns">
-    <div class="btn" data-action="save-io">存档导入导出</div>
     <div class="btn warn" data-action="reset">重开一局</div>
   </div>
   <div class="contact" data-action="copy-wx">有 bug、有想法，加微信说一声：<b>lynchrrr</b><i>点一下复制</i></div>`;
@@ -817,90 +816,6 @@ function openBooks(hid) {
   $('modal').classList.add('on');
 }
 
-/* ── V10.7.1 存档卡：导出（复制码 / 下载文件）、导入（粘贴 / 选文件）、撤回上次导入 ──
-   选模式那一屏也能打开，那时本机没有存档，只给导入。
-   存档码在打开时就生成好，点「复制」时同步写剪贴板 —— iOS 要求写剪贴板必须紧跟着手指那一下。 */
-function openSaveSheet() {
-  const has = UI.view !== 'mode' && Save.write();
-  const cur = has ? Save.read() : null;
-  const bak = Save.backup();
-  UI.sioCode = null;
-  $('modal').innerHTML = `<div class="sheet saveio">
-    <div class="shead">存　档</div>
-    <div class="scroll">
-      ${cur ? `<div class="sio-h">导　出</div>
-      <div class="sio-m">当前：${esc(Save.brief(cur))}</div>
-      <textarea id="sio-out" readonly placeholder="正在生成存档码…"></textarea>
-      <div class="btns"><div class="btn" data-action="sio-copy">复制存档码</div><div class="btn" data-action="sio-down">下载文件</div></div>
-      <div class="sio-tip">发到微信、存进备忘录都行。换手机、清了浏览器数据，把码贴回来就能接着玩。</div>` : ''}
-      <div class="sio-h">导　入</div>
-      <textarea id="sio-in" placeholder="把存档码粘贴到这里"></textarea>
-      <div class="btns"><label class="btn" for="sio-file">选文件</label><div class="btn main" data-action="sio-import">导　入</div></div>
-      <input type="file" id="sio-file" class="sio-file" accept=".txt,.json,text/plain,application/json">
-      <div class="sio-tip">导入会覆盖${cur ? '当前这一局，覆盖前自动留一份备份，可以换回' : '本机存档'}。</div>
-      ${bak ? `<div class="sio-bak">
-        <div>上次导入前的存档（${esc(fmtStamp(bak.t, true))}）：${esc(Save.brief(bak.d))}</div>
-        <div class="btns"><div class="btn" data-action="sio-undo">换回这一份</div></div>
-      </div>` : ''}
-    </div>
-    <div class="btns"><div class="btn" data-action="modal-close">关　闭</div></div>
-  </div>`;
-  $('modal').classList.add('on');
-  if (cur) Save.exportCode().then(c => {
-    UI.sioCode = c;
-    const o = $('sio-out');
-    if (o) o.value = c || '生成失败';
-  });
-}
-
-/* 0927_1253；long 为 9月27日 12:53 */
-function fmtStamp(t, long) {
-  const d = new Date(t || Date.now()), z = n => String(n).padStart(2, '0');
-  return long ? `${d.getMonth() + 1}月${d.getDate()}日 ${z(d.getHours())}:${z(d.getMinutes())}`
-    : `${z(d.getMonth() + 1)}${z(d.getDate())}_${z(d.getHours())}${z(d.getMinutes())}`;
-}
-
-async function sioImport(text) {
-  const r = await Save.parseCode(text);
-  if (r.err) { toast(r.err); return; }
-  const cur = UI.view !== 'mode' ? Save.read() : null;
-  ask('导入存档', cur
-      ? `当前 ${Save.brief(cur)}，导入后变成 ${Save.brief(r.d)}。当前这一份会留作备份，存档卡里能换回来。`
-      : `导入 ${Save.brief(r.d)}。`,
-    '导入并刷新', () => {
-      const e = Save.importRaw(r.raw);
-      if (e) { toast(e); return; }
-      toast('导入好了，正在刷新');
-      setTimeout(() => location.reload(), 500);
-    });
-}
-
-function sioCopy() {
-  const code = UI.sioCode;
-  if (!code) { toast('存档码还在生成，稍等一下'); return; }
-  const kb = Math.max(1, Math.round(code.length / 1024));
-  const fallback = () => {
-    const o = $('sio-out');
-    let ok = false;
-    if (o) { o.focus(); o.select(); o.setSelectionRange(0, code.length); try { ok = document.execCommand('copy'); } catch (e) {} }
-    toast(ok ? `存档码复制好了（${kb}KB）` : '已全选，长按框里的字手动复制');
-  };
-  if (navigator.clipboard && navigator.clipboard.writeText)
-    navigator.clipboard.writeText(code).then(() => toast(`存档码复制好了（${kb}KB）`), fallback);
-  else fallback();
-}
-
-function sioDownload() {
-  const code = UI.sioCode;
-  if (!code) { toast('存档码还在生成，稍等一下'); return; }
-  const url = URL.createObjectURL(new Blob([code], { type: 'text/plain' }));
-  const a = document.createElement('a');
-  a.href = url; a.download = `群星录存档_${fmtStamp()}.txt`;
-  document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 4000);
-  toast('存档文件已下载');
-}
-
 function openStarAll(list) {
   const tk = list.reduce((a, r) => a + r.token, 0);
   $('modal').innerHTML = `<div class="sheet">
@@ -1079,6 +994,7 @@ VIEWS.codex = () => {
     <div class="st-s">伏魔殿下掘出，字先刻好，人后来到${G.mode === 'chaos' ? '<br>本局混乱模式：人人的本事都是入伙时随机得来的' : ''}</div>
     <div class="st-n"><b>${own}</b> / ${all.length}</div>
   </div>`;
+  html += achvHtml();
   for (const [src, ids] of Object.entries(bySrc)) {
     const o = ids.filter(k => G.heroes[k]).length;
     html += section('cx:' + src, `${src} ${o}/${ids.length}`,
@@ -1093,6 +1009,33 @@ VIEWS.codex = () => {
   }
   return html + excCodexHtml();
 };
+
+/* V10.8 功名簿：按类分节，阶梯进度、奖励、称号。隐藏的达成前只画「？」 */
+function achvHtml() {
+  const all = Achv.list(), done = Achv.doneCount();
+  const cats = Object.entries(Achv.cat);
+  const titleNow = G.title && Achv.titleOf(G.title);
+  let body = `<div class="achvbar"><span>已成 <b>${done}</b> / ${all.length}</span>
+    <span>称号：${titleNow ? `「${esc(titleNow)}」` : '无'}${titleNow ? ` <i data-action="achv-title" data-id="">摘下</i>` : ''}</span></div>`;
+  for (const [cat, cn] of cats) {
+    const rows = all.filter(a => a.cat === cat);
+    const n = rows.filter(a => G.achv[a.id]).length;
+    body += `<div class="achvcat">${cn} <i>${n}/${rows.length}</i></div>`;
+    for (const a of rows) {
+      const p = Achv.prog(a), got = !!G.achv[a.id], fresh = (G.achvNew || []).includes(a.id);
+      if (a.hidden && !got) { body += `<div class="achv hid"><div class="an">？</div><div class="ad">隐藏功名</div></div>`; continue; }
+      const bar = a.test || p.need <= 1 ? '' : `<div class="ap"><s style="width:${Math.round(100 * p.cur / p.need)}%"></s></div>`;
+      const cnt = a.test || p.need <= 1 ? '' : `<i>${num(p.cur)} / ${num(p.need)}</i>`;
+      const tt = a.title ? (got ? `<em class="at${G.title === a.id ? ' on' : ''}" data-action="achv-title" data-id="${a.id}">${G.title === a.id ? '戴着' : '戴上'}「${esc(a.title)}」</em>` : `<em class="at off">称号「${esc(a.title)}」</em>`) : '';
+      body += `<div class="achv${got ? ' got' : ''}${fresh ? ' fresh' : ''}">
+        <div class="an">${esc(a.name)}${got ? `<b>${G.achv[a.id] > 1 ? `${G.achv[a.id]} 周目` : '已成'}</b>` : ''}</div>
+        <div class="ad">${esc(a.desc)}${cnt}</div>${bar}
+        <div class="ar">奖 ${esc(Achv.rewardTxt(a).replace(/、称号.*$/, ''))} ${tt}</div>
+      </div>`;
+    }
+  }
+  return section('achv', `功名簿 ${done}/${all.length}`, `<div class="achvbox">${body}</div>`);
+}
 
 /* V10.5 专属神兵图鉴：按主人分行，件名做成小牌，拿到的上色、没拿到的灰。点一件看面板与效果。 */
 function ownedEq() {
@@ -1133,7 +1076,7 @@ function openEquipInfo(eid) {
       <div>${esc(eqTxt(e)) || '—'}</div>
       ${e.exclusive ? `<div class="mine">${esc(obTxt(e))}</div>` : ''}
       ${set ? `<div class="dim">套装 · ${esc(set.name)}（${set.items.filter(id => have.has(id)).length}/${set.items.length}）：${nb(esc(set.fx.map(f => SkillText.fx(f)).join('；')))}</div>` : ''}
-      <div class="dim">${worn.length ? worn.map(h => DB.hero(h).name).join('、') + ' 在用' : n ? `行囊里 ×${n}` : e.exclusive ? '还没拿到。Boss 关 3% 掉，铁匠铺也能碰运气' : '还没拿到'}</div>
+      <div class="dim">${worn.length ? worn.map(h => DB.hero(h).name).join('、') + ' 在用' : n ? `行囊里 ×${n}` : e.exclusive ? '还没拿到。Boss 关、支线关 3% 掉，铁匠铺也能碰运气' : '还没拿到'}</div>
     </div>
     <div class="btns"><div class="btn" data-action="modal-close">关　闭</div></div>
   </div>`;
@@ -1547,7 +1490,7 @@ function render() {
   window.scrollTo(0, y);
   render.key = key;
 }
-function go(v) { if (v !== UI.view) UI.sell = null; UI.view = v; UI.sel = null; render.key = null; render(); }
+function go(v) { if (v !== UI.view) UI.sell = null; UI.view = v; UI.sel = null; render.key = null; render(); if (v === 'codex' && (G.achvNew || []).length) { Achv.seen(); Save.write(); } }
 
 /* ── 事件委托（全局唯一） ─────────────────────────────────────────────── */
 
@@ -1646,6 +1589,7 @@ document.addEventListener('click', ev => {
 
   switch (a) {
     case 'go': go(id); break;
+    case 'achv-title': Achv.setTitle(id || null); render(); break;
     case 'hero': openHero(id); break;
     case 'hero-step': stepHero(+id); break;
     case 'stage': {
@@ -1848,36 +1792,8 @@ document.addEventListener('click', ev => {
         Save.wipe(); UI.view = 'mode'; render(); toast('重开了，选个模式');
       });
       break;
-    case 'save-io': openSaveSheet(); break;
-    case 'sio-copy': sioCopy(); break;
-    case 'sio-down': sioDownload(); break;
-    case 'sio-import': { const t = $('sio-in'); sioImport(t ? t.value : ''); break; }
-    case 'sio-undo': {
-      const b = Save.backup();
-      if (!b) { toast('没有可撤回的存档'); break; }
-      ask('换回导入前的存档', `换回 ${Save.brief(b.d)}。刚导入的这一份会留作备份，还能再换回来。`, '换回并刷新', () => {
-        const e = Save.undoImport();
-        if (e) { toast(e); return; }
-        toast('换回来了，正在刷新');
-        setTimeout(() => location.reload(), 500);
-      });
-      break;
-    }
     case 'ask-yes': { const fn = askYes; askYes = null; closeModal(); if (fn) fn(); break; }
   }
-});
-
-/* 存档卡里选了文件：读成文字直接走导入 */
-document.addEventListener('change', ev => {
-  if (ev.target.id !== 'sio-file') return;
-  const f = ev.target.files && ev.target.files[0];
-  if (!f) return;
-  if (f.size > 5 * 1024 * 1024) { toast('文件太大，不像是存档'); return; }
-  const rd = new FileReader();
-  rd.onload = () => sioImport(String(rd.result || ''));
-  rd.onerror = () => toast('文件读不出来');
-  rd.readAsText(f);
-  ev.target.value = '';
 });
 
 /* ── 详情页左右切换：手机横滑、电脑方向键 ─────────────────────────────
@@ -1917,6 +1833,8 @@ function boot() {
       lap: s.lap || 1, fates: s.fates || [], everCleared: s.everCleared || {},
       // V10.3：模式与开局赠将。老存档按传统读，没有入伙卡可看
       mode: s.mode === 'chaos' ? 'chaos' : 'classic', startGift: s.startGift || null, giftShown: !!(s.giftShown || !s.startGift),
+      // V10.8 功名：老存档补零；读进来之后 Save.write 会补判一次，该有的直接给
+      stats: s.stats || {}, achv: s.achv || {}, title: s.title || null, achvNew: s.achvNew || [],
     });
     for (const h of Object.values(G.heroes)) {
       const t = DB.hero(h.hid) || {};
@@ -1941,6 +1859,6 @@ window.DB = DB; window.Stats = Stats; window.Battle = Battle;
 window.Grow = Grow; window.Stages = Stages; window.Save = Save;
 window.render = render; window.go = go; window.makeHero = makeHero; window.initGame = initGame;
 window.grownBase = grownBase; window.growStep = growStep; window.GROW_KEYS = GROW_KEYS;
-window.Hurt = Hurt; window.Guide = Guide; window.Lap = Lap; window.Fate = Fate;
+window.Hurt = Hurt; window.Guide = Guide; window.Lap = Lap; window.Fate = Fate; window.Achv = Achv;
 
 document.addEventListener('DOMContentLoaded', boot);

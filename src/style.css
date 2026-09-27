@@ -565,7 +565,7 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .ritem .sk{color:var(--q-tian)}.ritem .he{color:var(--q-meng)}
 
 /* 弹层与提示 */
-#modal{position:fixed;inset:0;background:rgba(42,37,31,.4);z-index:65;display:none;
+#modal{position:fixed;inset:0;background:rgba(42,37,31,.4);z-index:50;display:none;
   align-items:flex-end;justify-content:center}
 #modal.on{display:flex}
 /* 抽屉是贴着屏幕下缘弹出来的，底下得给 iPhone 的小黑条让位。
@@ -584,7 +584,7 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .opt span{color:var(--ink-3);font-size:.88em;flex:1}
 .opt .n{color:var(--ink-2);flex:none}
 #toast{position:fixed;left:50%;bottom:64px;transform:translateX(-50%);background:var(--ink);
-  color:var(--paper);font-size:.84em;padding:8px 18px;z-index:70;opacity:0;pointer-events:none;
+  color:var(--paper);font-size:.84em;padding:8px 18px;z-index:60;opacity:0;pointer-events:none;
   transition:opacity .25s;font-family:var(--f-title);letter-spacing:.06em;white-space:nowrap}
 #toast.on{opacity:.96}
 
@@ -808,17 +808,27 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .excdrop.off b{color:var(--ink-3)}
 .sk.lock>span{white-space:nowrap}
 
-/* V10.7.1 存档卡。弹层压过选模式那一屏（60），提示条再压过弹层 */
-.saveio .sio-h{font-family:var(--f-title);letter-spacing:.2em;color:var(--ink-2);font-size:.92em;margin:12px 0 4px}
-.saveio .sio-m{font-size:.82em;color:var(--ink-2);margin-bottom:6px}
-.saveio textarea{display:block;width:100%;box-sizing:border-box;height:74px;resize:none;
-  border:1px solid var(--ink-4);background:var(--paper-2);color:var(--ink-2);
-  font:12px/1.4 ui-monospace,Menlo,monospace;padding:6px 8px;word-break:break-all;border-radius:0;-webkit-appearance:none}
-.saveio textarea:focus{outline:none;border-color:var(--ink-2)}
-.saveio .btns{margin-top:8px}
-.saveio label.btn{display:block}
-.saveio .sio-tip{font-size:.74em;color:var(--ink-3);line-height:1.7;margin-top:6px}
-.saveio .sio-bak{margin-top:14px;border-top:1px dashed var(--ink-4);padding-top:10px;font-size:.8em;color:var(--ink-2);line-height:1.7}
-.sio-file{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
-.mp-imp{margin-top:18px;font-size:.8em;color:var(--ink-3);letter-spacing:.08em;cursor:pointer;padding:6px 10px}
-.mp-imp b{font-weight:400;color:var(--ink-1);border-bottom:1px dashed var(--ink-3);margin-left:2px}
+/* V10.8 功名 */
+.btitle{font-family:var(--f-title);font-size:.9em;color:var(--cinnabar);letter-spacing:.2em;margin-top:6px}
+.achvnew{border:1px solid var(--cinnabar);background:var(--paper-2);padding:8px 11px;margin-bottom:12px;font-size:.82em;color:var(--ink-2);cursor:pointer}
+.achvnew b{color:var(--cinnabar);margin-right:6px}
+.achvbox{font-size:.82em}
+.achvbar{display:flex;justify-content:space-between;padding:4px 2px 8px;color:var(--ink-2)}
+.achvbar b{color:var(--cinnabar);font-size:1.2em}
+.achvbar i{font-style:normal;border:1px solid var(--ink-4);padding:0 6px;margin-left:4px;cursor:pointer}
+.achvcat{font-family:var(--f-title);letter-spacing:.2em;color:var(--ink-2);border-bottom:1px solid var(--ink-4);margin:10px 0 6px;padding-bottom:3px}
+.achvcat i{font-style:normal;font-size:.8em;color:var(--ink-3);letter-spacing:0;margin-left:6px}
+.achv{border:1px solid var(--ink-4);background:var(--paper-2);padding:7px 10px;margin-bottom:6px;opacity:.72}
+.achv.got{opacity:1;border-color:var(--ink-3)}
+.achv.fresh{border-color:var(--cinnabar);box-shadow:inset 0 0 0 1px var(--cinnabar)}
+.achv.hid{opacity:.5;text-align:center}
+.achv .an{font-weight:600;color:var(--ink-1);display:flex;justify-content:space-between}
+.achv .an b{font-weight:400;font-size:.85em;color:var(--cinnabar)}
+.achv .ad{color:var(--ink-2);margin-top:2px;display:flex;justify-content:space-between}
+.achv .ad i{font-style:normal;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.achv .ap{height:3px;background:var(--ink-4);margin:5px 0 2px}
+.achv .ap s{display:block;height:100%;background:var(--gold);text-decoration:none}
+.achv .ar{color:var(--ink-3);margin-top:3px;font-size:.92em;display:flex;justify-content:space-between;flex-wrap:wrap}
+.achv .at{font-style:normal;color:var(--cinnabar);border:1px solid var(--cinnabar);padding:0 6px;cursor:pointer}
+.achv .at.on{background:var(--cinnabar);color:var(--paper)}
+.achv .at.off{color:var(--ink-3);border-color:var(--ink-4);cursor:default}

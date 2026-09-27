@@ -510,23 +510,10 @@ const DB = (() => {
 
 /* ── 3  存档 ─────────────────────────────────────────────────────────── */
 
-/* base64 与字节互转。分段拼字符串，几十 KB 的存档也不会把调用栈撑爆 */
-function b64enc(u8) {
-  let s = '';
-  for (let i = 0; i < u8.length; i += 0x8000) s += String.fromCharCode.apply(null, u8.subarray(i, i + 0x8000));
-  return btoa(s);
-}
-function b64dec(b) {
-  const s = atob(b);
-  const u8 = new Uint8Array(s.length);
-  for (let i = 0; i < s.length; i++) u8[i] = s.charCodeAt(i);
-  return u8;
-}
-
 const Save = {
   write() {
-    if (Save.locked) return false;   // 导入/撤回之后、刷新之前，别让 beforeunload 拿旧局面盖回去
     if (!G.heroes || !Object.keys(G.heroes).length || !Array.isArray(G.team)) return false;
+    try { if (typeof Achv !== 'undefined' && DB.stageIds) Achv.check(); } catch (e) {}   // V10.8 每次存档前补判功名（发奖、记新达成）
     try {
       localStorage.setItem(CFG.saveKey, JSON.stringify({
         v: CFG.saveVersion,
@@ -536,6 +523,7 @@ const Save = {
         seenIntro: G.seenIntro, seenCh: G.seenCh, fold: G.fold, seenEpi: G.seenEpi,
         lap: G.lap, fates: G.fates, everCleared: G.everCleared,
         mode: G.mode, startGift: G.startGift, giftShown: G.giftShown,
+        stats: G.stats, achv: G.achv, title: G.title, achvNew: G.achvNew,   // V10.8 功名
       }));
       return true;
     } catch (e) { return false; }
@@ -549,102 +537,6 @@ const Save = {
     } catch (e) { return null; }
   },
   wipe() { try { localStorage.removeItem(CFG.saveKey); } catch (e) {} },
-
-  /* ── V10.7.1 存档导入导出 ────────────────────────────────────────
-     存档码 = 'SHXL1:' + 'z:' + base64(gzip(存档 JSON))
-     浏览器没有 CompressionStream 就不压，写成 'p:' + base64(utf8)。
-     导入认这两种，也认直接贴进来的 JSON 原文。
-     导入前把当前存档留一份在 bakKey，可以撤回一次。 */
-  locked: false,
-  bakKey: CFG.saveKey + '_bak',
-  codeHead: 'SHXL1:',
-
-  /** 存档概况，给界面写「2 周目 · 传统 · 42 将 · 通关 37 关」用 */
-  brief(d) {
-    if (!d) return '';
-    return `${d.lap || 1} 周目 · ${d.mode === 'chaos' ? '混乱' : '传统'} · ${Object.keys(d.heroes || {}).length} 将 · 通关 ${Object.keys(d.cleared || {}).length} 关`;
-  },
-
-  async exportCode() {
-    Save.write();
-    let raw = null;
-    try { raw = localStorage.getItem(CFG.saveKey); } catch (e) {}
-    if (!raw) return null;
-    const bytes = new TextEncoder().encode(raw);
-    if (typeof CompressionStream === 'function') {
-      try {
-        const z = await new Response(new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
-        return Save.codeHead + 'z:' + b64enc(new Uint8Array(z));
-      } catch (e) {}
-    }
-    return Save.codeHead + 'p:' + b64enc(bytes);
-  },
-
-  /** 解析存档码或 JSON 原文。成功 { raw, d }，失败 { err } */
-  async parseCode(text) {
-    let t = String(text || '').trim();
-    if (!t) return { err: '没有内容' };
-    let raw;
-    if (t[0] === '{') raw = t;
-    else {
-      t = t.replace(/\s+/g, '');     // 微信、备忘录转一道可能插进换行
-      if (!t.startsWith(Save.codeHead)) return { err: '这不是群星录的存档码（应以 SHXL1: 开头）' };
-      const body = t.slice(Save.codeHead.length);
-      const kind = body.slice(0, 2), b = body.slice(2);
-      let bytes;
-      try { bytes = b64dec(b); } catch (e) { return { err: '存档码不完整，可能复制时少了一截' }; }
-      try {
-        if (kind === 'z:') {
-          if (typeof DecompressionStream !== 'function') return { err: '这个浏览器版本太旧，解不开压缩的存档码' };
-          const u = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
-          raw = new TextDecoder().decode(u);
-        } else if (kind === 'p:') raw = new TextDecoder().decode(bytes);
-        else return { err: '存档码格式不认识' };
-      } catch (e) { return { err: '存档码不完整，可能复制时少了一截' }; }
-    }
-    let d;
-    try { d = JSON.parse(raw); } catch (e) { return { err: '存档内容损坏，读不出来' }; }
-    if (!d || typeof d !== 'object') return { err: '存档内容损坏，读不出来' };
-    if (d.v !== CFG.saveVersion) return { err: `存档版本对不上（存档 ${d.v}，游戏要 ${CFG.saveVersion}）` };
-    if (!d.heroes || typeof d.heroes !== 'object' || !Object.keys(d.heroes).length) return { err: '存档里一个将也没有' };
-    if (!Array.isArray(d.team)) return { err: '存档缺少阵容，读不出来' };
-    if (!Object.keys(d.heroes).some(h => DB.hero(h) || DB.heroRemap[h])) return { err: '存档里的人这个版本一个都不认识' };
-    return { raw, d };
-  },
-
-  /** 覆盖当前存档。调用方随后刷新页面 */
-  importRaw(raw) {
-    try {
-      const cur = localStorage.getItem(CFG.saveKey);
-      if (cur) localStorage.setItem(Save.bakKey, JSON.stringify({ t: Date.now(), raw: cur }));
-      localStorage.setItem(CFG.saveKey, raw);
-    } catch (e) { return '写不进本地存储（可能是空间满了或无痕模式）'; }
-    Save.locked = true;
-    return null;
-  },
-
-  /** 上次导入前留的那份：{ t, d } 或 null */
-  backup() {
-    try {
-      const b = JSON.parse(localStorage.getItem(Save.bakKey) || 'null');
-      if (!b || !b.raw) return null;
-      return { t: b.t, d: JSON.parse(b.raw) };
-    } catch (e) { return null; }
-  },
-
-  /** 换回导入前的存档。刚导入的那份和备份对调，所以撤回也能再撤回 */
-  undoImport() {
-    try {
-      const b = JSON.parse(localStorage.getItem(Save.bakKey) || 'null');
-      if (!b || !b.raw) return '没有可撤回的存档';
-      const cur = localStorage.getItem(CFG.saveKey);
-      localStorage.setItem(CFG.saveKey, b.raw);
-      if (cur) localStorage.setItem(Save.bakKey, JSON.stringify({ t: Date.now(), raw: cur }));
-      else localStorage.removeItem(Save.bakKey);
-    } catch (e) { return '写不进本地存储'; }
-    Save.locked = true;
-    return null;
-  },
 
   /** V10.0 → V10.1 的存档就地折算，重复跑不出事。
    *   · 三种无主碎片按片数折成兵符（1/3/5）
@@ -731,6 +623,8 @@ const G = {
      everCleared 跨周目不清 —— 上一周目打过的关，这一周目可以直接速战，
      不然重看一遍 139 段关前白很烦。 */
   lap: 1, fates: [], everCleared: {},
+  /* V10.8 功名：计数器、已达成 { id: 周目 }、戴着的称号、新达成未看的 */
+  stats: {}, achv: {}, title: null, achvNew: [],
   /* V10.3 模式：classic 传统（技能按图鉴）/ chaos 混乱（每人入手时随机四个技能，记在 h.sk）。
      老存档没这个字段，按传统读。 */
   mode: 'classic',
@@ -800,6 +694,7 @@ function initGame(mode) {
   G.log = []; G.clearCount = 0; G.pity = { ten: 0, fifty: 0, forge: 0 }; G.speed = G.speed || 'normal';
   G.seenIntro = false; G.seenCh = {}; G.fold = G.fold || {}; G.seenEpi = false;
   G.lap = 1; G.fates = []; G.everCleared = {};
+  G.stats = {}; G.achv = {}; G.title = null; G.achvNew = [];
   G.startGift = rollStartGift(); G.giftShown = false;
   for (const hid of G.startGift) {
     const h = makeHero(hid);
@@ -872,6 +767,7 @@ const Lap = {
     G.cleared = {};
     for (const h of Object.values(G.heroes)) h.hurt = { lv: 0, rest: 0 };
     G.lap = this.now() + 1;
+    Achv.add('lapsDone', 1);
     G.seenCh = {};
     Fate.roll();
     Save.write();
@@ -1333,7 +1229,11 @@ const Battle = {
     const fq = e => (DB.foeHero(e) || {}).q || 1;
     // V10.6 阵势：刀山关只要武将，谋臣关只要文官（文武双全两边都算）
     const rok = e => st.theme === 'blade' ? roleOf(DB.foeHero(e)) !== 'wen' : st.theme === 'wen' ? roleOf(DB.foeHero(e)) !== 'wu' : true;
-    const named = base.filter(e => (DB.hero(e) || {}).src !== '杂兵' && fq(e) >= qmin && rok(e));
+    // V10.7.1 本关原班里按武将表品阶最高的两个人一律保留（本关首领不会被换走）：
+    //   原来按快照品阶筛，高俅、蔡京的快照还是老数据，二周目起「生擒高俅」里没有高俅
+    const hq = e => (DB.hero(e) || {}).q || 1;
+    const keep = new Set([...new Set(base.filter(e => (DB.hero(e) || {}).src !== '杂兵'))].sort((a, c) => hq(c) - hq(a)).slice(0, 2));
+    const named = [...new Set(base.filter(e => (DB.hero(e) || {}).src !== '杂兵' && (keep.has(e) || (fq(e) >= qmin && rok(e)))))];
     const facs = new Set(named.map(e => DB.hero(e).faction).filter(Boolean));
     const qmax = st.is_boss ? 6 : CFG.lapRosterQ;   // 支线本来就高六级，换人也只换猛名，不然 ch20_f2 三局全停
     const used = new Set(named);
@@ -1382,6 +1282,7 @@ const Battle = {
       cmds: skills.filter(s => s.cat === 'cmd'),
       pas, skillMod: CFG.starSk[stats.star] || 1,
       shield: 0, shieldDur: 0, status: {}, chaosHit: 0, alive: true, tough: pas.tough, toughFrom: pas.toughFrom, lowDone: {},
+      kills: 0, ff: 0, killsRound: {},   // V10.8 功名计数：击杀、误伤友方、每回合击杀
     };
     if (pas.shield > 0) { u.shield = Math.round(u.maxHp * pas.shield); u.shieldDur = 99; }
     return u;
@@ -1638,6 +1539,10 @@ const Battle = {
                  s: src ? src.idx : null, sa: src ? src.ally : null });
     if (tgt.hp <= 0 && tgt.alive) {
       tgt.alive = false;
+      // V10.8 功名计数
+      b.ach = b.ach || { dotKills: 0, dispels: 0, steals: 0, counters: 0 };
+      if (kind === 'bleed' || kind === 'poison') b.ach.dotKills++;
+      if (src && src.alive !== undefined) { src.kills++; src.killsRound[b.round] = (src.killsRound[b.round] || 0) + 1; }
       b.log.push({ c: 'dm', s: `${tgt.ln} 阵亡` });
       this.ev(b, { k: 'die', t: tgt.idx, ally: tgt.ally });
     } else if (tgt.alive && src) {
@@ -1646,6 +1551,7 @@ const Battle = {
       const c = tgt.pas.counter;
       if (c && src.alive && !tgt.status.stun && !tgt.status.chaos && kind !== 'counter' && chance(c.chance)) {
         const d = this.dmg(this.eff(tgt, 'atk'), this.eff(src, 'def'), this.eff(tgt, 'atk') * c.mult, 1, this.critOf(tgt), tgt);
+        (b.ach = b.ach || { dotKills: 0, dispels: 0, steals: 0, counters: 0 }).counters++;   // V10.8
         this.hurt(b, src, d.v, tgt, d.crit ? 'crit' : '', 'counter', c.from);
       }
     }
@@ -1899,6 +1805,7 @@ const Battle = {
           const lim = Math.round((u[f.stat] || 0) * CFG.cap.steal);
           const got = Math.min(got0, lim);
           if (got > 0) this.putMod(u, 'buff', f.stat, src, got, dur);
+          (b.ach = b.ach || { dotKills: 0, dispels: 0, steals: 0, counters: 0 }).steals++;   // V10.8
           const u1 = this.eff(u, f.stat);
           const dm = this.modSum(t, 'debuff', f.stat);
           b.log.push({ c: 'sk', s: `${u.ln} 夺取 ${t.ln} ${nm} ${num(v)}：${t.ln} ${num(t0)}→${num(t1)}（−${num(got0)}${dm.raw > dm.val ? `；同属性削弱叠加递减` : ''}）；${u.ln} ${num(u0)}→${num(u1)}（${u1 > u0 ? `+${num(u1 - u0)}` : '未生效'}${got0 > lim ? `；所得封顶为自身 ${pc(CFG.cap.steal)} 即 ${num(lim)}` : ''}），持续 ${dur} 回合` });
@@ -1922,6 +1829,7 @@ const Battle = {
           const hadShield = t.shield > 0, sh = t.shield;
           if (hadShield) { t.shield = 0; t.shieldDur = 0; what.push(`护盾 ${num(sh)}`); }
           if (good.length || hadShield) {
+            (b.ach = b.ach || { dotKills: 0, dispels: 0, steals: 0, counters: 0 }).dispels++;   // V10.8
             b.log.push({ c: 'in', s: `${t.ln} 增益状态被驱散：${what.join('、')}` });
             this.ev(b, { k: 'st', t: t.idx, ally: t.ally, st: 'dispel' });
           }
@@ -1975,6 +1883,7 @@ const Battle = {
     const t = pick(mates);
     const d = this.dmg(this.eff(u, 'atk'), this.eff(t, 'def'), this.eff(u, 'atk') * 0.8, 1, this.critOf(u), u);
     this.hurt(b, t, d.v, u, d.crit ? 'crit' : '', 'chaos');
+    u.ff++;   // V10.8 功名：误伤友方次数
   },
 
   /** V10.6 控制状态出手后才走一格：中了一回合眩晕就是实打实停一回合 */
@@ -2262,7 +2171,7 @@ const Grow = {
     while ((G.items[key] || 0) > 0 && h.lv < Lap.maxLv() && (!max || n < max)) {
       this.gainExp(h, it.v || 0);
       if (--G.items[key] <= 0) delete G.items[key];
-      n++;
+      n++; Achv.add('books', 1);
     }
     Save.write();
     return { n, ups: h.lv - lv0, lv: h.lv, exp: n * (it.v || 0) };
@@ -2305,6 +2214,7 @@ const Grow = {
     const cost = this.drillCost(hid);
     if (G.res.silver < cost) return `需 ${cost} 银两`;
     G.res.silver -= cost;
+    Achv.add('drills', 1); Achv.add('silverSpent', cost);
     this.gainExp(h, Math.max(1, CFG.expNeed(h.lv) - h.exp));
     Save.write();
     return null;
@@ -2419,6 +2329,7 @@ const Grow = {
     if (!G.frags[hid]) delete G.frags[hid];
     G.res.token -= n.token;
     h.star++;
+    Achv.add('starUps', 1);
     const all = skillIdsOf(hid, h);
     const locked = all.filter(s => !h.owned.includes(s));
     if (locked.length) h.owned.push(locked[0]);
@@ -2589,6 +2500,7 @@ const Grow = {
 
   recruit(times) {
     const cost = times === 1 ? CFG.recruitCost1 : CFG.recruitCost10;
+    if (G.res.silver >= cost) { Achv.add('pulls', times); if (times === 10) Achv.add('pulls10', 1); Achv.add('silverSpent', cost); }
     if (G.res.silver < cost) return { err: `需 ${cost} 银两` };
     G.res.silver -= cost;
     const out = [];
@@ -2661,6 +2573,7 @@ const Grow = {
     const cost = times === 1 ? CFG.forgeCost1 : CFG.forgeCost10;
     if (G.res.silver < cost) return { err: `需 ${cost} 银两` };
     G.res.silver -= cost;
+    Achv.add('forgePulls', times); if (times === 10) Achv.add('forge10', 1); Achv.add('silverSpent', cost);
     G.pity.forge = G.pity.forge || 0;
     const out = [];
     for (let i = 0; i < times; i++) {
@@ -2677,6 +2590,7 @@ const Grow = {
         || Object.values(G.heroes).some(h => SLOTS.some(sl => h.equipment[sl] === eid));
       G.items['eq_' + eid] = (G.items['eq_' + eid] || 0) + 1;
       out.push({ eid, q: e.exclusive ? 7 : e.q, had });
+      if (e.exclusive) Achv.add('forgeExc', 1);
     }
     Save.write();
     return { list: out };
@@ -2828,6 +2742,7 @@ const Hurt = {
         const soft = relief.has(u.hid) && !Fate.has('allHeavy');
         lv = soft ? 1 : 2;
         rest = soft ? CFG.hurtLightRest : CFG.hurtHeavyRest;
+        if (!soft) Achv.add('heavyWounds', 1);
       } else if (u.hp / u.maxHp < CFG.hurtLightAt) { lv = 1; rest = CFG.hurtLightRest; }
       if (!lv) {
         // V10.6.3 轻伤带伤上阵也能好：打赢了、这一仗又没再挂彩，休养场数减一。
@@ -2892,6 +2807,7 @@ const Hurt = {
     const c = this.cureCost(hid);
     if (G.res.silver < c) return `需 ${c} 银两`;
     G.res.silver -= c;
+    Achv.add('cureCount', 1); Achv.add('silverSpent', c);
     h.hurt = { lv: 0, rest: 0 };
     Save.write();
     return null;
@@ -3073,7 +2989,7 @@ const Stages = {
   /** V10.6.2 关卡页的掉落提示，跟 rollExclusive 同一套先后：
    *  foe = 这一关敌将还有专属没拿到；mine = 改掉麾下武将缺的；any = 改掉其余的；done = 全齐 */
   excInfo(sid) {
-    if (this.kindOf(sid) !== 'boss') return null;
+    if (!['boss', 'side'].includes(this.kindOf(sid))) return null;   // V10.7.1 支线关也掉专属
     const pool = DB.exclusivePool;
     if (!pool.length) return null;
     const have = this.excHave();
@@ -3135,6 +3051,8 @@ const Stages = {
       const ls = Math.round(CFG.stageSilver(L0) * CFG.loseSilver * Fate.v('silver', 1));
       if (ls > 0) { G.res.silver += ls; out.push({ icon: '银', text: `收拢残局 +${ls}`, c: '' }); }
       this.woundReport(b, out);   // 输了更该挂彩
+      Achv.onBattle(b, sid, this.kindOf(sid), false);   // V10.8
+      for (const a of Achv.check()) out.push({ icon: '功', text: `功名「${a.name}」达成，奖 ${Achv.rewardTxt(a)}`, c: 'sk' });
       Save.write();
       return out;
     }
@@ -3211,7 +3129,7 @@ const Stages = {
 
     // Boss 关极低概率掉一件专属。先从这一关的敌将里找，
     // 这一关的人没有专属，就从自己手上的人里找还没拿到的
-    if (kind === 'boss' && chance(CFG.excDrop)) {
+    if ((kind === 'boss' || kind === 'side') && chance(CFG.excDrop)) {   // V10.7.1 支线关也掉专属
       const eid = this.rollExclusive(st, sid);
       if (eid) {
         G.items['eq_' + eid] = (G.items['eq_' + eid] || 0) + 1;
@@ -3233,8 +3151,200 @@ const Stages = {
       }
     }
     this.woundReport(b, out);
+    Achv.onBattle(b, sid, kind, first);   // V10.8 功名计数与发奖
+    for (const a of Achv.check()) out.push({ icon: '功', text: `功名「${a.name}」达成，奖 ${Achv.rewardTxt(a)}`, c: 'sk' });
     G.log = [...out.slice(0, 3).map(o => o.text), ...G.log].slice(0, 20);
     Save.write();
     return out;
   },
+};
+
+/* ── 12  功名（V10.8） ─────────────────────────────────────────────────
+ * 记玩家干过什么，给点黄金兵符银两，给个称号。不送人、不送专属。
+ * 计数器在 G.stats；已达成在 G.achv { id: 达成时的周目 }；新达成未看的在 G.achvNew。
+ * 条件分两种：n = 计数器/状态取数（阶梯用 need），或 test = 谓词。
+ * 读档时补判一次：老存档该有的直接给（Lynch 定）。 */
+
+const ACHV_REWARD = {
+  s: { silver: 2000 },                 // 小
+  m: { token: 4 },                     // 中
+  l: { gold: 2, token: 8 },            // 大
+  x: { gold: 5, token: 16 },           // 特（带称号）
+};
+const ACHV_CAT = { own: '聚义', map: '推图', boss: '破阵', arms: '神兵', grow: '养成', play: '打法', hid: '隐藏' };
+
+/** 计数器以外的取数：都是纯函数 */
+const AQ = {
+  owned: () => Object.keys(G.heroes).filter(h => DB.hero(h)).length,
+  ownedQ: q => Object.keys(G.heroes).filter(h => (DB.hero(h) || {}).q === q).length,
+  codexAll: () => DB.heroIds().filter(k => DB.hero(k).src !== '杂兵'),
+  codexDone: () => AQ.codexAll().every(k => G.heroes[k]),
+  cleared: sid => !!(G.cleared[sid] || (G.everCleared || {})[sid]),
+  chDone: ch => (DB.byChapter[ch] || []).filter(x => !DB.stage(x).hidden && !/_f\d+$/.test(x)).every(AQ.cleared),
+  allKind: kind => DB.stageIds().filter(x => Stages.kindOf(x) === kind).every(AQ.cleared),
+  everCount: () => Object.keys(G.everCleared || {}).length + Object.keys(G.cleared).filter(x => !(G.everCleared || {})[x]).length,
+  sets: () => { const have = Stages.excHave(); let n = 0; for (const hid of DB.heroIds()) { const st = DB.excSet(hid); if (st && st.items.every(id => have.has(id))) n++; } return n; },
+  setsAll: () => DB.heroIds().filter(h => DB.excSet(h)).length,
+  excGot: () => { const have = Stages.excHave(); return DB.exclusivePool.filter(k => have.has(k)).length; },
+  starMax: () => Object.values(G.heroes).filter(h => (h.star || 1) >= Lap.maxStar()).length,
+  teamMaxStar: () => G.team.length >= CFG.teamSize && G.team.every(h => G.heroes[h] && G.heroes[h].star >= Lap.maxStar()),
+  star5: () => Object.values(G.heroes).filter(h => (h.star || 1) >= 5).length,
+  bonds: () => { const names = new Set(); for (const h of G.team) for (const b of Stats.bondList(h, G.team)) names.add(b.name); return names.size; },
+  st: k => (G.stats || {})[k] || 0,
+  theme: t => ((G.stats || {}).themeWins || {})[t] || 0,
+};
+
+/* 名 / 描述 / 类 / 条件 / 奖 / 称号 / 隐藏。阶梯写成多条，need 递增。 */
+const ACHV = [
+  // 聚义
+  { id: 'own9',   cat: 'own', name: '初上梁山',   desc: '麾下 9 人', n: AQ.owned, need: 9, r: 's' },
+  { id: 'own36',  cat: 'own', name: '三十六天罡', desc: '麾下 36 人', n: AQ.owned, need: 36, r: 'm' },
+  { id: 'own72',  cat: 'own', name: '七十二地煞', desc: '麾下 72 人', n: AQ.owned, need: 72, r: 'm' },
+  { id: 'own108', cat: 'own', name: '一百单八将', desc: '麾下 108 人', n: AQ.owned, need: 108, r: 'l' },
+  { id: 'own180', cat: 'own', name: '群星毕至',   desc: '麾下 180 人', n: AQ.owned, need: 180, r: 'l' },
+  { id: 'codex',  cat: 'own', name: '石碣重光',   desc: '图鉴收齐', test: AQ.codexDone, r: 'x', title: '替天行道' },
+  { id: 'tg10',   cat: 'own', name: '天罡星主',   desc: '拥有 10 个天罡', n: () => AQ.ownedQ(5), need: 10, r: 'm' },
+  { id: 'js5',    cat: 'own', name: '绝世无双',   desc: '拥有 5 个绝世', n: () => AQ.ownedQ(6), need: 5, r: 'm' },
+  { id: 'js15',   cat: 'own', name: '绝世如云',   desc: '拥有 15 个绝世', n: () => AQ.ownedQ(6), need: 15, r: 'l' },
+  { id: 'jsall',  cat: 'own', name: '山寨之主',   desc: '绝世收齐', n: () => AQ.ownedQ(6), need: () => DB.heroIds().filter(k => DB.hero(k).q === 6 && DB.hero(k).src !== '杂兵').length, r: 'x', title: '山寨之主' },
+  // 推图
+  { id: 'ch1',    cat: 'map', name: '史家村出身', desc: '通过第 1 章', test: () => AQ.chDone(1), r: 's' },
+  { id: 'ch3',    cat: 'map', name: '智取生辰纲', desc: '通过第 3 章', test: () => AQ.cleared('ch3_boss'), r: 's' },
+  { id: 'ch5',    cat: 'map', name: '三打祝家庄', desc: '通过生擒扈三娘', test: () => AQ.cleared('ch5_boss'), r: 'm' },
+  { id: 'ch9',    cat: 'map', name: '忠义堂',     desc: '通过梁山聚义', test: () => AQ.cleared('ch9_boss'), r: 'm' },
+  { id: 'ch11',   cat: 'map', name: '招安',       desc: '通过生擒高俅', test: () => AQ.cleared('ch11_boss'), r: 'm' },
+  { id: 'four',   cat: 'map', name: '四寇平',     desc: '辽、田虎、王庆、方腊四个 Boss 关全过', test: () => ['ch12_boss', 'ch13_boss', 'ch14_boss', 'ch16_boss'].every(AQ.cleared), r: 'l' },
+  { id: 'ch18',   cat: 'map', name: '荡寇',       desc: '通过荡平梁山', test: () => AQ.cleared('ch18_boss'), r: 'm' },
+  { id: 'ch19b',  cat: 'map', name: '靖康',       desc: '通过靖康之变', test: () => AQ.cleared('ch19_bossb'), r: 'm' },
+  { id: 'lap1',   cat: 'map', name: '风波亭',     desc: '一周目 139 关全通', test: () => DB.stageIds().every(AQ.cleared), r: 'l', title: '精忠' },
+  { id: 'lap2',   cat: 'map', name: '重整旗鼓',   desc: '开二周目', test: () => Lap.now() >= 2, r: 'm' },
+  { id: 'lap3',   cat: 'map', name: '三周目',     desc: '三周目通关', test: () => Lap.now() >= 3 && Lap.done(), r: 'x', title: '不死鸟' },
+  { id: 'hidden', cat: 'map', name: '秘藏尽出',   desc: '隐藏关全过', test: () => AQ.allKind('hidden'), r: 'l' },
+  { id: 'side',   cat: 'map', name: '外传',       desc: '支线关全过', test: () => AQ.allKind('side'), r: 'l' },
+  // 破阵
+  { id: 'th_shield', cat: 'boss', name: '破铁壁', desc: '赢一场铁壁 Boss 关', n: () => AQ.theme('shield'), need: 1, r: 'm' },
+  { id: 'th_dot',    cat: 'boss', name: '破毒刃', desc: '赢一场毒刃 Boss 关', n: () => AQ.theme('dot'), need: 1, r: 'm' },
+  { id: 'th_chaos',  cat: 'boss', name: '破迷阵', desc: '赢一场迷阵 Boss 关', n: () => AQ.theme('chaos'), need: 1, r: 'm' },
+  { id: 'th_blade',  cat: 'boss', name: '破刀山', desc: '赢一场刀山 Boss 关', n: () => AQ.theme('blade'), need: 1, r: 'm' },
+  { id: 'th_wen',    cat: 'boss', name: '破谋臣', desc: '赢一场谋臣 Boss 关', n: () => AQ.theme('wen'), need: 1, r: 'm' },
+  { id: 'th_all',    cat: 'boss', name: '五阵皆破', desc: '五种阵势都赢过', test: () => ['shield', 'dot', 'chaos', 'blade', 'wen'].every(t => AQ.theme(t) >= 1), r: 'l', title: '破阵先锋' },
+  { id: 'oneround',  cat: 'boss', name: '一合之将', desc: '一回合内结束一场 Boss 战', n: () => AQ.st('oneRoundBoss'), need: 1, r: 'm' },
+  { id: 'nodown',    cat: 'boss', name: '全须全尾', desc: 'Boss 战无人阵亡 20 次', n: () => AQ.st('noDownBoss'), need: 20, r: 'm' },
+  { id: 'win100',    cat: 'boss', name: '百战',   desc: '胜 100 场', n: () => AQ.st('wins'), need: 100, r: 's' },
+  { id: 'win500',    cat: 'boss', name: '五百战', desc: '胜 500 场', n: () => AQ.st('wins'), need: 500, r: 'm' },
+  { id: 'win1000',   cat: 'boss', name: '千战',   desc: '胜 1000 场', n: () => AQ.st('wins'), need: 1000, r: 'l' },
+  // 神兵
+  { id: 'exc1',    cat: 'arms', name: '神兵在手', desc: '拿到第一件专属', n: AQ.excGot, need: 1, r: 's' },
+  { id: 'set1',    cat: 'arms', name: '三件套',   desc: '集齐第一套三件套', n: AQ.sets, need: 1, r: 'm' },
+  { id: 'set5',    cat: 'arms', name: '神兵谱',   desc: '集齐 5 套', n: AQ.sets, need: 5, r: 'm' },
+  { id: 'set15',   cat: 'arms', name: '神兵满堂', desc: '集齐 15 套', n: AQ.sets, need: 15, r: 'l' },
+  { id: 'setall',  cat: 'arms', name: '兵器谱',   desc: '三件套全部集齐', n: AQ.sets, need: AQ.setsAll, r: 'x', title: '兵器谱' },
+  { id: 'forge10', cat: 'arms', name: '铁匠铺常客', desc: '铁匠铺十连 10 次', n: () => AQ.st('forge10'), need: 10, r: 's' },
+  { id: 'forgeexc', cat: 'arms', name: '打铁出神兵', desc: '铁匠铺抽到专属', n: () => AQ.st('forgeExc'), need: 1, r: 'm' },
+  // 养成
+  { id: 'star5',   cat: 'grow', name: '五星',     desc: '第一个 ★5', n: AQ.star5, need: 1, r: 's' },
+  { id: 'starmax', cat: 'grow', name: '满星',     desc: '第一个本周目满星', n: AQ.starMax, need: 1, r: 'm' },
+  { id: 'star9',   cat: 'grow', name: '九星连珠', desc: '阵上九人全满星', test: AQ.teamMaxStar, r: 'l' },
+  { id: 'drill100', cat: 'grow', name: '督练',    desc: '操练 100 级', n: () => AQ.st('drills'), need: 100, r: 's' },
+  { id: 'drill500', cat: 'grow', name: '千锤百炼', desc: '操练 500 级', n: () => AQ.st('drills'), need: 500, r: 'm' },
+  { id: 'books',   cat: 'grow', name: '读书人',   desc: '读经验书 50 本', n: () => AQ.st('books'), need: 50, r: 's' },
+  { id: 'spend',   cat: 'grow', name: '千金散尽', desc: '累计花银 100 万', n: () => AQ.st('silverSpent'), need: 1000000, r: 'm' },
+  { id: 'pull20',  cat: 'grow', name: '求贤若渴', desc: '十连 20 次', n: () => AQ.st('pulls10'), need: 20, r: 's' },
+  { id: 'pull50',  cat: 'grow', name: '广纳英雄', desc: '十连 50 次', n: () => AQ.st('pulls10'), need: 50, r: 'm' },
+  { id: 'bond8',   cat: 'grow', name: '肝胆相照', desc: '一阵同时激活 8 条羁绊', n: () => AQ.st('maxBonds'), need: 8, r: 'm' },
+  // 打法
+  { id: 'wenonly', cat: 'play', name: '书生退敌', desc: '全文官阵容赢一场 Boss', n: () => AQ.st('wenOnlyBoss'), need: 1, r: 'm' },
+  { id: 'wuonly',  cat: 'play', name: '菜刀队',   desc: '全武将阵容赢一场谋臣关', n: () => AQ.st('wuOnlyWen'), need: 1, r: 'm' },
+  { id: 'dot50',   cat: 'play', name: '毒杀',     desc: '中毒或流血击杀 50 人', n: () => AQ.st('dotKills'), need: 50, r: 's' },
+  { id: 'dispel100', cat: 'play', name: '釜底抽薪', desc: '驱散 100 次', n: () => AQ.st('dispels'), need: 100, r: 's' },
+  { id: 'steal100', cat: 'play', name: '借刀',    desc: '夺取 100 次', n: () => AQ.st('steals'), need: 100, r: 's' },
+  { id: 'counter200', cat: 'play', name: '以牙还牙', desc: '反击 200 次', n: () => AQ.st('counters'), need: 200, r: 's' },
+  { id: 'chaosmode', cat: 'play', name: '乱拳',   desc: '混乱模式通关一周目', test: () => G.mode === 'chaos' && DB.stageIds().every(AQ.cleared), r: 'l', title: '乱拳' },
+  { id: 'nocure',  cat: 'play', name: '硬扛',     desc: '全程没治过伤打完一周目', test: () => DB.stageIds().every(AQ.cleared) && AQ.st('cureCount') === 0, r: 'l' },
+  // 隐藏
+  { id: 'h_songjiang', cat: 'hid', hidden: true, name: '反诗',       desc: '宋江单人上阵赢一场', n: () => AQ.st('h_songjiang'), need: 1, r: 'm', title: '呼保义' },
+  { id: 'h_luzhishen', cat: 'hid', hidden: true, name: '倒拔垂杨柳', desc: '鲁智深一回合杀三人', n: () => AQ.st('h_luzhishen'), need: 1, r: 'm', title: '花和尚' },
+  { id: 'h_wusong',    cat: 'hid', hidden: true, name: '三碗不过冈', desc: '武松单人赢一场刀山关', n: () => AQ.st('h_wusong'), need: 1, r: 'm', title: '行者' },
+  { id: 'h_ch27',      cat: 'hid', hidden: true, name: '误走妖魔',   desc: '通过第 27 章开篇', test: () => AQ.cleared('ch25_boss'), r: 'm', title: '洪太尉' },
+  { id: 'h_likui',     cat: 'hid', hidden: true, name: '黑旋风',     desc: '李逵一场误伤友方 3 次以上还赢了', n: () => AQ.st('h_likui'), need: 1, r: 'm', title: '黑旋风' },
+  { id: 'h_jishiyu',   cat: 'hid', hidden: true, name: '及时雨',     desc: '宋江一场治疗量超过我方总血量', n: () => AQ.st('h_jishiyu'), need: 1, r: 'm', title: '及时雨' },
+  { id: 'h_jinpai',    cat: 'hid', hidden: true, name: '十二道金牌', desc: '在风波亭输 12 次', n: () => AQ.st('h_jinpai'), need: 12, r: 'm', title: '莫须有' },
+  { id: 'h_chaogai',   cat: 'hid', hidden: true, name: '不听劝',     desc: '晁盖在曾头市阵亡', n: () => AQ.st('h_chaogai'), need: 1, r: 'm', title: '托塔天王' },
+];
+
+const Achv = {
+  list() { return ACHV; },
+  cat: ACHV_CAT,
+  add(k, v) { G.stats = G.stats || {}; G.stats[k] = (G.stats[k] || 0) + (v == null ? 1 : v); },
+  addTheme(t) { G.stats = G.stats || {}; G.stats.themeWins = G.stats.themeWins || {}; G.stats.themeWins[t] = (G.stats.themeWins[t] || 0) + 1; },
+  need(a) { return typeof a.need === 'function' ? a.need() : a.need; },
+  /** 进度 { cur, need, done } */
+  prog(a) {
+    if (G.achv && G.achv[a.id]) return { cur: 1, need: 1, done: true };
+    if (a.test) return { cur: a.test() ? 1 : 0, need: 1, done: false };
+    return { cur: Math.min(a.n(), this.need(a)), need: this.need(a), done: false };
+  },
+  reward(a) { return ACHV_REWARD[a.r] || {}; },
+  rewardTxt(a) {
+    const r = this.reward(a), p = [];
+    if (r.gold) p.push(`黄金 ${r.gold}`); if (r.token) p.push(`兵符 ${r.token}`); if (r.silver) p.push(`银两 ${r.silver}`);
+    if (a.title) p.push(`称号「${a.title}」`);
+    return p.join('、');
+  },
+  /** 一场仗打完记账。b 是战斗，kind 是关卡类型，first 是不是首通 */
+  onBattle(b, sid, kind, first) {
+    const st = DB.stage(sid) || {};
+    this.add('battles', 1);
+    const allies = b.allies, live = allies.filter(u => u.alive);
+    if (!b.win) {
+      G.stats.loseAt = G.stats.loseAt || {};
+      G.stats.loseAt[sid] = (G.stats.loseAt[sid] || 0) + 1;
+      if (sid === 'ch23_boss') this.add('h_jinpai', 1);
+      if (sid === 'ch7_boss' && Lap.now() === 1 && allies.some(u => u.hid === 'chao_gai' && !u.alive)) this.add('h_chaogai', 1);
+      return;
+    }
+    this.add('wins', 1);
+    if (kind === 'boss') this.add('bossWins', 1); else if (kind === 'side') this.add('sideWins', 1); else if (kind === 'hidden') this.add('hiddenWins', 1);
+    if (first) this.add('firstClears', 1);
+    const bossLike = kind === 'boss' || kind === 'side' || kind === 'hidden';
+    if (bossLike && st.theme) this.addTheme(st.theme);
+    if (kind === 'boss' && b.round <= 1) this.add('oneRoundBoss', 1);
+    if (kind === 'boss' && live.length === allies.length) this.add('noDownBoss', 1);
+    const roles = allies.map(u => roleOf(DB.hero(u.hid)));
+    if (kind === 'boss' && roles.every(r => r === 'wen')) this.add('wenOnlyBoss', 1);
+    if (bossLike && st.theme === 'wen' && roles.every(r => r === 'wu')) this.add('wuOnlyWen', 1);
+    if (b.ach) { this.add('dotKills', b.ach.dotKills); this.add('dispels', b.ach.dispels); this.add('steals', b.ach.steals); this.add('counters', b.ach.counters); }
+    const nb = AQ.bonds(); if (nb > (G.stats.maxBonds || 0)) G.stats.maxBonds = nb;
+    // 隐藏
+    if (allies.length === 1 && allies[0].hid === 'song_jiang') this.add('h_songjiang', 1);
+    if (allies.length === 1 && allies[0].hid === 'wu_song' && st.theme === 'blade' && bossLike) this.add('h_wusong', 1);
+    for (const u of allies) {
+      if (u.hid === 'lu_zhishen' && Object.values(u.killsRound || {}).some(n => n >= 3)) this.add('h_luzhishen', 1);
+      if (u.hid === 'li_kui' && u.ff >= 3) this.add('h_likui', 1);
+      if (u.hid === 'song_jiang' && u.tally && u.tally.healed > allies.reduce((a, x) => a + x.maxHp, 0)) this.add('h_jishiyu', 1);
+    }
+  },
+  /** 补判 + 发奖。返回这次新达成的 */
+  check() {
+    G.stats = G.stats || {}; G.achv = G.achv || {}; G.achvNew = G.achvNew || [];
+    const got = [];
+    for (const a of ACHV) {
+      if (G.achv[a.id]) continue;
+      let ok = false;
+      try { ok = a.test ? !!a.test() : a.n() >= this.need(a); } catch (e) { ok = false; }
+      if (!ok) continue;
+      G.achv[a.id] = Lap.now();
+      const r = this.reward(a);
+      G.res.gold += r.gold || 0; G.res.token += r.token || 0; G.res.silver += r.silver || 0;
+      if (a.title && !G.title) G.title = a.id;
+      G.achvNew.push(a.id);
+      got.push(a);
+    }
+    return got;
+  },
+  titleOf(id) { const a = ACHV.find(x => x.id === id); return a && a.title ? a.title : ''; },
+  titles() { return ACHV.filter(a => a.title && G.achv && G.achv[a.id]); },
+  setTitle(id) { if (id === null || (G.achv && G.achv[id] && this.titleOf(id))) { G.title = id; Save.write(); return true; } return false; },
+  seen() { G.achvNew = []; },
+  doneCount() { return Object.keys(G.achv || {}).length; },
 };
