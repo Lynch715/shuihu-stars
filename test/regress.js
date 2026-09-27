@@ -616,17 +616,20 @@ check('功名补判与不重复发放', async b => {
     // 模拟老存档：清掉已达成，再补判一次 —— 麾下 36 人该直接给「三十六天罡」，且只给一次
     W.G.achv = {}; W.G.achvNew = []; const t0 = W.G.res.token;
     const first = W.Achv.check().map(a => a.id);
-    const t1 = W.G.res.token;
+    const tNoClaim = W.G.res.token;   // V10.8.2 起补判只记达成，不入账
     const again = W.Achv.check().length;
+    const claimed = W.Achv.claimAll ? W.Achv.claimAll().length : first.length;
+    const t1 = W.G.res.token;
+    const reclaim = W.Achv.claimAll ? W.Achv.claimAll().length : 0;
     const has36 = first.includes('own36') && first.includes('own9');
     // 隐藏功名达成前进度不显示
     const hid = W.Achv.list().find(a => a.hidden);
-    return { first: first.length, again, has36, tokenGain: t1 - t0, hidden: !!hid && !W.G.achv[hid.id] };
+    return { first: first.length, again, has36, tokenGain: t1 - t0, early: W.Achv.claimAll ? tNoClaim - t0 : 0, claimed, reclaim, hidden: !!hid && !W.G.achv[hid.id] };
   });
   await ctx.close();
   if (r.skip) return [null, '这一版没有功名'];
-  const ok = r.has36 && r.again === 0 && r.tokenGain >= 4;
-  return [ok, `补判达成 ${r.first} 条（含初上梁山、三十六天罡 ${r.has36 ? '是' : '否'}），再判重复发放 ${r.again} 条，兵符 +${r.tokenGain}`];
+  const ok = r.has36 && r.again === 0 && r.tokenGain >= 4 && r.early === 0 && r.claimed === r.first && r.reclaim === 0;
+  return [ok, `补判达成 ${r.first} 条（含初上梁山、三十六天罡 ${r.has36 ? '是' : '否'}），再判重复 ${r.again} 条；未领时入账 ${r.early}，领取 ${r.claimed} 条后兵符 +${r.tokenGain}，再领 ${r.reclaim} 条`];
 });
 
 check('无定时器强制重绘', async b => {

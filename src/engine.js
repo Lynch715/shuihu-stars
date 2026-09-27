@@ -537,7 +537,7 @@ const Save = {
         seenIntro: G.seenIntro, seenCh: G.seenCh, fold: G.fold, seenEpi: G.seenEpi,
         lap: G.lap, fates: G.fates, everCleared: G.everCleared,
         mode: G.mode, startGift: G.startGift, giftShown: G.giftShown,
-        stats: G.stats, achv: G.achv, title: G.title, achvNew: G.achvNew,   // V10.8 功名
+        stats: G.stats, achv: G.achv, title: G.title, achvNew: G.achvNew, achvClaimed: G.achvClaimed,   // V10.8 功名
       }));
       return true;
     } catch (e) { return false; }
@@ -735,6 +735,7 @@ const G = {
   lap: 1, fates: [], everCleared: {},
   /* V10.8 功名：计数器、已达成 { id: 周目 }、戴着的称号、新达成未看的 */
   stats: {}, achv: {}, title: null, achvNew: [],
+  achvClaimed: {},   // V10.8.2 已领奖的功名 { id: 1 }。达成和领奖分开，领了才入账
   /* V10.3 模式：classic 传统（技能按图鉴）/ chaos 混乱（每人入手时随机四个技能，记在 h.sk）。
      老存档没这个字段，按传统读。 */
   mode: 'classic',
@@ -804,7 +805,7 @@ function initGame(mode) {
   G.log = []; G.clearCount = 0; G.pity = { ten: 0, fifty: 0, forge: 0 }; G.speed = G.speed || 'normal';
   G.seenIntro = false; G.seenCh = {}; G.fold = G.fold || {}; G.seenEpi = false;
   G.lap = 1; G.fates = []; G.everCleared = {};
-  G.stats = {}; G.achv = {}; G.title = null; G.achvNew = [];
+  G.stats = {}; G.achv = {}; G.title = null; G.achvNew = []; G.achvClaimed = {};
   G.startGift = rollStartGift(); G.giftShown = false;
   for (const hid of G.startGift) {
     const h = makeHero(hid);
@@ -1475,7 +1476,8 @@ const Battle = {
   },
 
   /** V10.6 开战前的「整备」段：每名我方武将装备前后的属性、每件装备的加成、专属与套装、羁绊。
-   *  战斗中被动触发时再写「来源」，两头对得上。 */
+   *  战斗中被动触发时再写「来源」，两头对得上。
+   *  V10.8.3 只写已经生效的：没穿装备、专属穿在别人身上、擅长兵器不符、套装没凑齐，这些一律不写（Lynch 定） */
   gearLog(b) {
     if (!b.allies.length) return;
     const K = ['atk', 'int', 'def', 'agi', 'hp'];
@@ -1491,32 +1493,28 @@ const Battle = {
       const m = s1.meta;
       const diff = K.map(k => { const a = k === 'hp' ? s0.maxHp : s0[k], c = k === 'hp' ? s1.maxHp : s1[k];
         return c !== a ? `${NM(k)} ${num(a)}→${num(c)}（${c > a ? '+' : '−'}${num(Math.abs(c - a))}）` : null; }).filter(Boolean);
-      if (!m.gear.length) { b.log.push({ c: 'ps', s: `${u.ln} 未穿戴装备` }); }
-      else b.log.push({ c: 'ps', s: `${u.ln} 装备前→装备后：${diff.join('；') || '无变化'}` });
+      const bl = Stats.bondList(u.hid, G.team);
+      if (!m.gear.length) {
+        if (bl.length) b.log.push({ c: 'ps', s: `${u.ln} 羁绊：${bl.map(x => `${x.name}（在阵 ${x.have}/${x.total} 人，${NM(x.attr)} +${P(x.pct)}）`).join('；')}` });
+        continue;
+      }
+      b.log.push({ c: 'ps', s: `${u.ln} 装备前→装备后：${diff.join('；') || '无变化'}` });
       for (const e of m.gear) {
         const parts = [];
         for (const k of K) if (e.flat[k]) parts.push(`${NM(k)} +${num(e.flat[k])}`);
         for (const k of ['atk', 'int', 'def', 'hp']) if (e.pct[k]) parts.push(`${NM(k)} +${P(e.pct[k])}`);
         let line = `　${SLOT_NAME[e.slot] || ''}·${e.name}：${parts.join('、') || '无属性'}`;
-        if (e.exclusive) {
-          if (e.exclusive === u.hid) {
-            line += `；专属（本人穿戴）：${ob(e.ownerBonus).join('、')}`;
-            if (e.fx && e.fx.length) line += `；特效：${e.fx.map(f => SkillText.fx(f)).join('；')}`;
-          } else line += `；专属归属 ${(DB.hero(e.exclusive) || {}).name || e.exclusive}，本人穿戴无专属加成与特效`;
+        if (e.exclusive && e.exclusive === u.hid) {
+          line += `；专属（本人穿戴）：${ob(e.ownerBonus).join('、')}`;
+          if (e.fx && e.fx.length) line += `；特效：${e.fx.map(f => SkillText.fx(f)).join('；')}`;
         }
         if (e.slot === 'weapon' && e.weaponType) line += `；兵器类型：${e.weaponType}`;
         b.log.push({ c: 'ps', s: line });
       }
       if (m.apt) b.log.push({ c: 'ps', s: `　擅长兵器（${m.fav}）：武 +${pc(CFG.favBonus)}${roleOf(t) !== 'wu' ? `，智 +${pc(CFG.favBonus)}` : ''}` });
-      else if (m.fav && m.gear.some(e => e.slot === 'weapon')) b.log.push({ c: 'ps', s: `　擅长兵器为「${m.fav}」，当前兵器不符，无加成` });
       const pp = ['atk', 'int', 'def', 'agi', 'hp'].filter(k => m.pct[k]).map(k => `${NM(k)} +${P(m.pct[k])}`);
       if (pp.length) b.log.push({ c: 'ps', s: `　装备百分比合计：${pp.join('、')}` });
-      if (m.set) {
-        const need = m.set.items.length;
-        b.log.push({ c: 'ps', s: m.setOn ? `　套装·${m.set.name} ${m.setHave}/${need} 已生效：${m.set.fx.map(f => SkillText.fx(f)).join('；')}`
-                                         : `　套装·${m.set.name} ${m.setHave}/${need} 未生效（需 ${need} 件专属全部穿戴）` });
-      }
-      const bl = Stats.bondList(u.hid, G.team);
+      if (m.set && m.setOn) b.log.push({ c: 'ps', s: `　套装·${m.set.name} 已生效：${m.set.fx.map(f => SkillText.fx(f)).join('；')}` });
       if (bl.length) b.log.push({ c: 'ps', s: `　羁绊：${bl.map(x => `${x.name}（在阵 ${x.have}/${x.total} 人，${NM(x.attr)} +${P(x.pct)}）`).join('；')}` });
     }
   },
@@ -3162,7 +3160,7 @@ const Stages = {
       if (ls > 0) { G.res.silver += ls; out.push({ icon: '银', text: `收拢残局 +${ls}`, c: '' }); }
       this.woundReport(b, out);   // 输了更该挂彩
       Achv.onBattle(b, sid, this.kindOf(sid), false);   // V10.8
-      for (const a of Achv.check()) out.push({ icon: '功', text: `功名「${a.name}」达成，奖 ${Achv.rewardTxt(a)}`, c: 'sk' });
+      for (const a of Achv.check()) out.push({ icon: '功', text: `功名「${a.name}」达成`, c: 'sk', ach: a.id });
       Save.write();
       return out;
     }
@@ -3261,8 +3259,8 @@ const Stages = {
       }
     }
     this.woundReport(b, out);
-    Achv.onBattle(b, sid, kind, first);   // V10.8 功名计数与发奖
-    for (const a of Achv.check()) out.push({ icon: '功', text: `功名「${a.name}」达成，奖 ${Achv.rewardTxt(a)}`, c: 'sk' });
+    Achv.onBattle(b, sid, kind, first);   // V10.8 功名计数；V10.8.2 起奖励要玩家自己点领取
+    for (const a of Achv.check()) out.push({ icon: '功', text: `功名「${a.name}」达成`, c: 'sk', ach: a.id });
     G.log = [...out.slice(0, 3).map(o => o.text), ...G.log].slice(0, 20);
     Save.write();
     return out;
@@ -3434,7 +3432,7 @@ const Achv = {
       if (u.hid === 'song_jiang' && u.tally && u.tally.healed > allies.reduce((a, x) => a + x.maxHp, 0)) this.add('h_jishiyu', 1);
     }
   },
-  /** 补判 + 发奖。返回这次新达成的 */
+  /** 补判。只记达成，不发奖（V10.8.2 起奖励由玩家点领取）。返回这次新达成的 */
   check() {
     G.stats = G.stats || {}; G.achv = G.achv || {}; G.achvNew = G.achvNew || [];
     const got = [];
@@ -3444,17 +3442,40 @@ const Achv = {
       try { ok = a.test ? !!a.test() : a.n() >= this.need(a); } catch (e) { ok = false; }
       if (!ok) continue;
       G.achv[a.id] = Lap.now();
-      const r = this.reward(a);
-      G.res.gold += r.gold || 0; G.res.token += r.token || 0; G.res.silver += r.silver || 0;
-      if (a.title && !G.title) G.title = a.id;
       G.achvNew.push(a.id);
       got.push(a);
     }
     return got;
   },
   titleOf(id) { const a = ACHV.find(x => x.id === id); return a && a.title ? a.title : ''; },
-  titles() { return ACHV.filter(a => a.title && G.achv && G.achv[a.id]); },
-  setTitle(id) { if (id === null || (G.achv && G.achv[id] && this.titleOf(id))) { G.title = id; Save.write(); return true; } return false; },
+  titles() { return ACHV.filter(a => a.title && this.claimed(a.id)); },
+  setTitle(id) { if (id === null || (this.claimed(id) && this.titleOf(id))) { G.title = id; Save.write(); return true; } return false; },
   seen() { G.achvNew = []; },
   doneCount() { return Object.keys(G.achv || {}).length; },
+
+  /* ── V10.8.2 领奖 ── */
+  claimed(id) { return !!(G.achvClaimed && G.achvClaimed[id]); },
+  /** 已达成、还没领的 */
+  pending() { return ACHV.filter(a => G.achv && G.achv[a.id] && !this.claimed(a.id)); },
+  /** 领一条：奖励入账，返回 { a, r, before, after, wore } 或 { err } */
+  claim(id) {
+    const a = ACHV.find(x => x.id === id);
+    if (!a || !G.achv || !G.achv[id]) return { err: '这条功名还没达成' };
+    if (this.claimed(id)) return { err: '这条已经领过了' };
+    G.achvClaimed = G.achvClaimed || {};
+    const r = this.reward(a);
+    const before = { gold: G.res.gold, token: G.res.token, silver: G.res.silver };
+    G.res.gold += r.gold || 0; G.res.token += r.token || 0; G.res.silver += r.silver || 0;
+    G.achvClaimed[id] = 1;
+    let wore = false;
+    if (a.title && !G.title) { G.title = id; wore = true; }
+    G.achvNew = (G.achvNew || []).filter(x => x !== id);
+    Save.write();
+    return { a, r, before, after: { gold: G.res.gold, token: G.res.token, silver: G.res.silver }, wore };
+  },
+  claimAll() {
+    const out = [];
+    for (const a of this.pending()) { const x = this.claim(a.id); if (!x.err) out.push(x); }
+    return out;
+  },
 };

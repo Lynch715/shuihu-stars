@@ -307,8 +307,8 @@ VIEWS.main = () => {
     <div class="bs">九人对阵 · 星宿聚义 · ${G.mode === 'chaos' ? '混乱' : '传统'}</div>
     ${G.title && Achv.titleOf(G.title) ? `<div class="btitle">「${esc(Achv.titleOf(G.title))}」</div>` : ''}
   </div>
-  ${(G.achvNew || []).length ? `<div class="achvnew" data-action="go" data-id="codex"><b>功名 +${G.achvNew.length}</b>
-    ${esc(G.achvNew.slice(0, 3).map(id => (Achv.list().find(a => a.id === id) || {}).name).filter(Boolean).join('、'))}${G.achvNew.length > 3 ? ' 等' : ''}，奖励已入账，点开功名簿看</div>` : ''}
+  ${(() => { const pd = Achv.pending(); return pd.length ? `<div class="achvnew" data-action="achv-jump"><b>功名待领 ${pd.length}</b>
+    ${esc(pd.slice(0, 3).map(a => a.name).join('、'))}${pd.length > 3 ? ' 等' : ''}，点这里去功名簿领奖</div>` : ''; })()}
   <div class="stat3">
     <div><b>${Object.keys(G.heroes).length}</b><i>已收将</i></div>
     <div><b>${G.team.length}/${CFG.teamSize}</b><i>出战</i></div>
@@ -1103,8 +1103,10 @@ function achvHtml() {
   const all = Achv.list(), done = Achv.doneCount();
   const cats = Object.entries(Achv.cat);
   const titleNow = G.title && Achv.titleOf(G.title);
+  const pend = Achv.pending().length;
   let body = `<div class="achvbar"><span>已成 <b>${done}</b> / ${all.length}</span>
-    <span>称号：${titleNow ? `「${esc(titleNow)}」` : '无'}${titleNow ? ` <i data-action="achv-title" data-id="">摘下</i>` : ''}</span></div>`;
+    <span>称号：${titleNow ? `「${esc(titleNow)}」` : '无'}${titleNow ? ` <i data-action="achv-title" data-id="">摘下</i>` : ''}</span></div>
+    ${pend > 1 ? `<div class="btns achvall"><div class="btn main" data-action="achv-claim-all">全部领取（${pend}）</div></div>` : ''}`;
   for (const [cat, cn] of cats) {
     const rows = all.filter(a => a.cat === cat);
     const n = rows.filter(a => G.achv[a.id]).length;
@@ -1114,15 +1116,39 @@ function achvHtml() {
       if (a.hidden && !got) { body += `<div class="achv hid"><div class="an">？</div><div class="ad">隐藏功名</div></div>`; continue; }
       const bar = a.test || p.need <= 1 ? '' : `<div class="ap"><s style="width:${Math.round(100 * p.cur / p.need)}%"></s></div>`;
       const cnt = a.test || p.need <= 1 ? '' : `<i>${num(p.cur)} / ${num(p.need)}</i>`;
-      const tt = a.title ? (got ? `<em class="at${G.title === a.id ? ' on' : ''}" data-action="achv-title" data-id="${a.id}">${G.title === a.id ? '戴着' : '戴上'}「${esc(a.title)}」</em>` : `<em class="at off">称号「${esc(a.title)}」</em>`) : '';
-      body += `<div class="achv${got ? ' got' : ''}${fresh ? ' fresh' : ''}">
-        <div class="an">${esc(a.name)}${got ? `<b>${G.achv[a.id] > 1 ? `${G.achv[a.id]} 周目` : '已成'}</b>` : ''}</div>
+      const todo = got && !Achv.claimed(a.id);
+      const tt = a.title ? (got && !todo ? `<em class="at${G.title === a.id ? ' on' : ''}" data-action="achv-title" data-id="${a.id}">${G.title === a.id ? '戴着' : '戴上'}「${esc(a.title)}」</em>` : `<em class="at off">称号「${esc(a.title)}」</em>`) : '';
+      body += `<div class="achv${got ? ' got' : ''}${fresh ? ' fresh' : ''}${todo ? ' todo' : ''}">
+        <div class="an">${esc(a.name)}${todo ? '<b>待领</b>' : got ? `<b>${G.achv[a.id] > 1 ? `${G.achv[a.id]} 周目` : '已成'}</b>` : ''}</div>
         <div class="ad">${esc(a.desc)}${cnt}</div>${bar}
-        <div class="ar">奖 ${esc(Achv.rewardTxt(a).replace(/、称号.*$/, ''))} ${tt}</div>
+        <div class="ar">奖 ${esc(Achv.rewardTxt(a).replace(/、称号.*$/, ''))} ${tt}${todo ? `<em class="aclaim" data-action="achv-claim" data-id="${a.id}">领　取</em>` : ''}</div>
       </div>`;
     }
   }
   return section('achv', `功名簿 ${done}/${all.length}`, `<div class="achvbox">${body}</div>`);
+}
+
+/* V10.8.2 领奖弹窗：入账已经做完，这里只写清楚进了多少、从几到几 */
+function openAchvClaim(list) {
+  if (!list.length) return;
+  const f = list[0], l = list[list.length - 1];
+  const sum = k => list.reduce((s, x) => s + (x.r[k] || 0), 0);
+  const line = (nm, k) => sum(k) ? `<div class="clrow"><span>${nm}</span><b>+${num(sum(k))}</b><i>${num(f.before[k])} → ${num(l.after[k])}</i></div>` : '';
+  const titles = list.filter(x => x.a.title);
+  const head = list.length === 1
+    ? `<div class="cl-n">「${esc(f.a.name)}」</div><div class="cl-d">${esc(f.a.desc)}</div>`
+    : `<div class="cl-list">${list.map(x => `<div><b>${esc(x.a.name)}</b><span>${esc(Achv.rewardTxt(x.a))}</span></div>`).join('')}</div>
+       <div class="cl-sum">合　计</div>`;
+  $('modal').innerHTML = `<div class="sheet achvclaim">
+    <div class="shead">功名 · 领奖${list.length > 1 ? ` ${list.length} 条` : ''}</div>
+    <div class="scroll">
+      ${head}
+      ${line('黄金', 'gold')}${line('兵符', 'token')}${line('银两', 'silver')}
+      ${titles.map(x => `<div class="clrow"><span>称号</span><b>「${esc(x.a.title)}」</b><i>${x.wore ? '已戴上' : '功名簿里可戴'}</i></div>`).join('')}
+    </div>
+    <div class="btns"><div class="btn main" data-action="modal-close">收　下</div></div>
+  </div>`;
+  $('modal').classList.add('on');
 }
 
 /* V10.5 专属神兵图鉴：按主人分行，件名做成小牌，拿到的上色、没拿到的灰。点一件看面板与效果。 */
@@ -1280,6 +1306,13 @@ function openBattleLog() {
   const m = $('mlog'); if (m) m.scrollTop = 0;
 }
 
+/* 结算单一行。功名那几行挂「领取」，领过写「已领」 */
+function ritemHtml(o) {
+  const tail = !o.ach ? '' : Achv.claimed(o.ach) ? '<em class="adone">已领</em>'
+    : `<em class="aclaim" data-action="achv-claim" data-id="${o.ach}">领　取</em>`;
+  return `<div class="ritem"><i>${o.icon}</i><span class="${o.c}">${esc(o.text)}</span>${tail}</div>`;
+}
+
 VIEWS.result = () => {
   const b = UI.battle, r = UI.rewards || [];
   const dlg = DB.dialog(b.sid);
@@ -1289,9 +1322,9 @@ VIEWS.result = () => {
     <div class="rsub">${esc(stName(b.stage.name))} · 共 ${b.round} 回合${
       b.result === 'timeout' ? '（三十回合没分出胜负，按伤亡算）' : ''}</div>
     ${dlg ? `<div class="rdlg">${esc(win ? (dlg.after_win || '') : (dlg.after_lose || ''))}</div>` : ''}
-    ${win ? `<div class="rlist">${r.map(o =>
-      `<div class="ritem"><i>${o.icon}</i><span class="${o.c}">${esc(o.text)}</span></div>`).join('')}</div>`
-      : '<div class="rdlg">整顿人马，练几级、换身装备，再来一趟。</div>'}
+    ${win ? `<div class="rlist">${r.map(ritemHtml).join('')}</div>`
+      : '<div class="rdlg">整顿人马，练几级、换身装备，再来一趟。</div>' +
+        (r.some(o => o.ach) ? `<div class="rlist">${r.filter(o => o.ach).map(ritemHtml).join('')}</div>` : '')}
     <div class="btns">
       ${win && !G.seenEpi && DB.story.epilogue && Lap.done()
         ? '<div class="btn main" data-action="epilogue">尾　声</div>'
@@ -1678,6 +1711,23 @@ document.addEventListener('click', ev => {
   switch (a) {
     case 'go': go(id); break;
     case 'achv-title': Achv.setTitle(id || null); render(); break;
+    case 'achv-claim': {
+      const r = Achv.claim(id);
+      if (r.err) { toast(r.err); break; }
+      render(); openAchvClaim([r]); break;
+    }
+    case 'achv-claim-all': {
+      const list = Achv.claimAll();
+      if (!list.length) { toast('没有待领的功名'); break; }
+      render(); openAchvClaim(list); break;
+    }
+    case 'achv-jump': {
+      // 聚义页的「功名待领」：跳图鉴、展开功名簿、滚过去
+      delete G.fold.achv; go('codex');
+      const sec = document.querySelector('.sec[data-id="achv"]');
+      if (sec) sec.scrollIntoView({ block: 'start' });
+      break;
+    }
     case 'hero': openHero(id); break;
     case 'hero-step': stepHero(+id); break;
     case 'stage': {
@@ -1951,6 +2001,8 @@ function boot() {
       mode: s.mode === 'chaos' ? 'chaos' : 'classic', startGift: s.startGift || null, giftShown: !!(s.giftShown || !s.startGift),
       // V10.8 功名：老存档补零；读进来之后 Save.write 会补判一次，该有的直接给
       stats: s.stats || {}, achv: s.achv || {}, title: s.title || null, achvNew: s.achvNew || [],
+      // V10.8.2：V10.8 的存档达成即发奖，读进来已达成的一律算已领，不重复发
+      achvClaimed: s.achvClaimed || Object.fromEntries(Object.keys(s.achv || {}).map(k => [k, 1])),
     });
     for (const h of Object.values(G.heroes)) {
       const t = DB.hero(h.hid) || {};
