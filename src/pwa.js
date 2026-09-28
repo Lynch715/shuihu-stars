@@ -94,6 +94,9 @@ const Pwa = (() => {
       navigator.serviceWorker.register('./sw.js').then(reg => {
         const ask = w => {
           if (!w || !navigator.serviceWorker.controller) return;   // 首次安装不算更新
+          // 别顶掉正开着的弹窗（存档卡、导入确认、领奖），也别在打仗时弹：过一会儿再问
+          if ($('modal').classList.contains('on') || (typeof UI !== 'undefined' && UI.view === 'battle'))
+            return setTimeout(() => ask(w), 5000);
           sheet('有新版本', '刷新一下就是新版，存档不受影响。',
             '<div class="btn" data-action="modal-close">等会儿</div>'
             + '<div class="btn main" data-action="pwa-reload">刷　新</div>');

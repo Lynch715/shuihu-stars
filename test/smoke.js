@@ -1,5 +1,10 @@
 const { chromium } = require('playwright');
 const path = require('path');
+const fs = require('fs');
+if (!process.argv[2] || !fs.existsSync(process.argv[2])) {
+  console.error('用法: node smoke.js <游戏html路径> [classic|chaos]');
+  process.exit(2);
+}
 (async () => {
   const br = await chromium.launch();
   const pg = await br.newPage();
@@ -27,7 +32,8 @@ const path = require('path');
     out.cats = {};
     for (const u of [...b.allies, ...b.foes]) for (const s of u.skills) out.cats[s.cat] = (out.cats[s.cat] || 0) + 1;
     // 描述抽样
-    out.descs = ['lc1','lc2','lzs1','lzs3','lzs4','wy1','wy3','sj2'].map(id => id + ' ' + DB.skill(id).name + ' ' + SkillText.full(DB.skill(id)));
+    out.descs = ['lc1','lc2','lzs1','lzs3','lzs4','wy1','wy3', ...(DB.hero('song_jiang') || {}).sk || []]
+      .filter(id => DB.skill(id)).map(id => id + ' ' + DB.skill(id).name + ' ' + SkillText.full(DB.skill(id)));
     // 详情页渲染
     UI.sel = G.team[0]; UI.view = 'hero'; render();
     out.detail = document.querySelector('.dsk').innerText.slice(0, 300);
@@ -38,4 +44,5 @@ const path = require('path');
   console.log(JSON.stringify(r, null, 1));
   console.log('errors:', errs);
   await br.close();
-})();
+  if (errs.length) process.exit(1);
+})().catch(e => { console.error(e); process.exit(1); });

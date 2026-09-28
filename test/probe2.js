@@ -16,6 +16,6 @@ const { chromium } = require('playwright');
       out[`${sid} ${st.name} lv${t.lv} ★${t.star} mul${t.mul.toFixed(2)} gear${t.gear.toFixed(2)} n${st.enemies.length}`] = `${Math.round(w / N * 100)}% ${(rounds / N).toFixed(1)}回合 我方战力${Stats.teamPower()} 敌${Stats.stagePower(sid)}`;
     }
     return out;
-  }, [JSON.parse(process.argv[4] || '["ch22_boss","ch23_1","ch25_1","ch25_boss","ch27_boss","ch30_boss","ch31_boss","ch30_f1"]'), JSON.parse(process.argv[3] || '{}')]);
+  }, [JSON.parse(process.argv[4] || '["ch22_boss","ch23_1","ch25_1","ch25_boss","ch27_f2","ch30_f2","ch31_f1","ch30_f1"]'), JSON.parse(process.argv[3] || '{}')]);
   console.log(r); await br.close();
 })();

@@ -26,8 +26,8 @@ import hashlib, json, os, sys, glob, re
 ROOT = os.path.dirname(os.path.abspath(__file__))
 def p(*a): return os.path.join(ROOT, *a)
 
-OUT = p('水浒群星录_V10.8.4.html')
-VERSION = 'V10.8.4'
+VERSION = 'V10.8.5'
+OUT = p(f'水浒群星录_{VERSION}.html')
 # --noassets：不带图构建（模拟与回归在没有 assets/ 的机器上跑时用），产物只用于测试
 NOASSETS = '--noassets' in sys.argv
 
@@ -129,6 +129,21 @@ html = f'''<!DOCTYPE html>
 
 with open(OUT, 'w', encoding='utf-8') as f:
     f.write(html)
+
+# 线上入口 index.html 与 service worker 的缓存版本跟着一起出，不再手工拷、手工改。
+# --noassets 的产物只给测试用，不碰这两个。
+if not NOASSETS:
+    with open(p('index.html'), 'w', encoding='utf-8') as f:
+        f.write(html)
+    sw = read(p('sw.js'))
+    ver = f"qxl-{VERSION}-{hashlib.md5(html.encode('utf-8')).hexdigest()[:8]}"
+    sw2, n = re.subn(r"^const VER = '[^']*';", f"const VER = '{ver}';", sw, count=1, flags=re.M)
+    if n != 1:
+        print('!! sw.js 里找不到 const VER 那一行'); sys.exit(1)
+    if sw2 != sw:
+        with open(p('sw.js'), 'w', encoding='utf-8') as f:
+            f.write(sw2)
+    print(f'  index.html 已同步　sw 缓存版本 {ver}')
 
 size = os.path.getsize(OUT)
 lines = html.count('\n') + 1

@@ -266,6 +266,12 @@ const rnd = () => Math.random();
 const rndInt = (a, b) => a + Math.floor(rnd() * (b - a + 1));
 const chance = p => rnd() < p;
 const pick = a => a[Math.floor(rnd() * a.length)];
+/** 洗牌（Fisher–Yates），返回新数组。sort(() => random - 0.5) 洗出来是偏的 */
+const shuffled = a => {
+  const r = a.slice();
+  for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; }
+  return r;
+};
 const clamp = (v, lo, hi) => v < lo ? lo : v > hi ? hi : v;
 const esc = s => String(s == null ? '' : s)
   .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -483,15 +489,17 @@ const DB = (() => {
   const poolByQ = {};
   recruitPool.forEach(k => (poolByQ[heroes[k].q] ||= []).push(k));
 
+  // 只认自己的键：存档里的 id 是外来的，'__proto__'、'constructor' 这种不能从原型链上查出东西来
+  const own = (o, k) => (o && Object.prototype.hasOwnProperty.call(o, k)) ? o[k] || null : null;
   return {
-    hero: id => heroes[id] || null,
+    hero: id => own(heroes, id),
     /** V10.6 敌方口径：升过品阶的文官当敌将时仍用改版前的品阶与五维（数据里的 foe 快照），关卡难度不跟着变 */
-    foeHero: id => { const t = heroes[id]; return t ? (t.foe ? Object.assign({}, t, t.foe) : t) : null; },
-    skill: id => skills[id] || null,
-    equip: id => equip[id] || null,
-    stage: id => stages[id] || null,
-    item: id => items[id] || null,
-    dialog: id => dialogs[id] || null,
+    foeHero: id => { const t = own(heroes, id); return t ? (t.foe ? Object.assign({}, t, t.foe) : t) : null; },
+    skill: id => own(skills, id),
+    equip: id => own(equip, id),
+    stage: id => own(stages, id),
+    item: id => own(items, id),
+    dialog: id => own(dialogs, id),
     story, chapterCard: ch => story.chapters[String(ch)] || null,
     heroIds: () => Object.keys(heroes),
     equipIds: () => Object.keys(equip),
@@ -504,7 +512,7 @@ const DB = (() => {
     /** V10.4 同一人拆成两个的并掉了（贺统军 → 贺重宝、于玉珏 → 于玉麟）。读旧存档时用 */
     heroRemap: RAW.hero_remap || {},
     /** V10.4 绝世三件套：hid → { name, items:[兵,甲,骑], fx } */
-    excSet: hid => (RAW.exc_sets || {})[hid] || null,
+    excSet: hid => own(RAW.exc_sets, hid),
   };
 })();
 
@@ -535,19 +543,31 @@ const Save = {
         cleared: G.cleared, team: G.team, res: G.res,
         log: G.log, clearCount: G.clearCount, pity: G.pity, speed: G.speed,
         seenIntro: G.seenIntro, seenCh: G.seenCh, fold: G.fold, seenEpi: G.seenEpi,
-        lap: G.lap, fates: G.fates, everCleared: G.everCleared,
+        lap: G.lap, fates: G.fates, everCleared: G.everCleared, fateRerolled: G.fateRerolled || {},
         mode: G.mode, startGift: G.startGift, giftShown: G.giftShown,
         stats: G.stats, achv: G.achv, title: G.title, achvNew: G.achvNew, achvClaimed: G.achvClaimed,   // V10.8 功名
       }));
       return true;
-    } catch (e) { return false; }
+    } catch (e) {
+      // 空间满、无痕模式：进度其实没存上，得让玩家知道。一分钟最多提一次
+      const now = Date.now();
+      if (typeof toast === 'function' && !(now - (Save._warned || 0) < 60000)) {
+        Save._warned = now;
+        toast('存档写不进本地存储（可能空间满了或是无痕模式），这之后的进度可能保不住');
+      }
+      return false;
+    }
   },
   read() {
     try {
       const raw = localStorage.getItem(CFG.saveKey);
       if (!raw) return null;
       const d = JSON.parse(raw);
-      return (d && d.v === CFG.saveVersion) ? d : null;
+      if (!d || d.v !== CFG.saveVersion) return null;
+      // 本地这份也可能是早先导入的坏档：整理一遍。整理不了的另存一份再当没有存档，
+      // 不然一开游戏就白屏，连「换回导入前的存档」都点不到
+      if (Save.sanitize(d)) { try { localStorage.setItem(CFG.saveKey + '_bad', raw); } catch (e) {} return null; }
+      return d;
     } catch (e) { return null; }
   },
   wipe() { try { localStorage.removeItem(CFG.saveKey); } catch (e) {} },
@@ -582,6 +602,92 @@ const Save = {
     return Save.codeHead + 'p:' + b64enc(bytes);
   },
 
+  /** 外来的存档（导入的存档码、本地存储里读出来的）逐项整理，原地改 d。
+   *  结构对不上的拒收，返回一句原因；数值不像样的夹回合法范围或换成默认值，返回 null。
+   *  存档里的数字会原样拼进页面，这里不把关，一份手改的存档码就能往页面里塞脚本。 */
+  sanitize(d) {
+    if (!d || typeof d !== 'object' || Array.isArray(d)) return '存档内容损坏，读不出来';
+    const isObj = o => !!o && typeof o === 'object' && !Array.isArray(o);
+    const has = (o, k) => isObj(o) && Object.prototype.hasOwnProperty.call(o, k);
+    // 数量类只夹范围不取整（正常存档一个字都不改）；等级、星级这种档位才取整
+    const nm = (v, lo, hi, dflt) => { v = typeof v === 'number' || typeof v === 'string' ? Number(v) : NaN; return Number.isFinite(v) ? clamp(v, lo, hi) : dflt; };
+    const int = (v, lo, hi, dflt) => { v = nm(v, lo, hi, NaN); return Number.isFinite(v) ? Math.floor(v) : dflt; };
+    const keys = o => isObj(o) ? Object.keys(o).filter(k => k !== '__proto__') : [];
+    const strs = a => Array.isArray(a) ? a.filter(x => typeof x === 'string' && x !== '__proto__') : [];
+    const counts = o => { const r = {}; for (const k of keys(o)) { const n = nm(o[k], 0, 1e12, 0); if (n > 0) r[k] = n; } return r; };
+    const flags = (o, v) => { const r = {}; for (const k of keys(o)) if (o[k]) r[k] = v; return r; };
+    const statOk = o => isObj(o) && GROW_KEYS.every(k => typeof o[k] === 'number' && Number.isFinite(o[k]));
+
+    if (!isObj(d.heroes)) return '存档里一个将也没有';
+    const heroes = {};
+    for (const hid of keys(d.heroes)) {
+      const h = d.heroes[hid];
+      if (!isObj(h)) continue;
+      const to = has(DB.heroRemap, hid) ? DB.heroRemap[hid] : null;
+      if (!DB.hero(hid) && !(typeof to === 'string' && DB.hero(to))) continue;   // 这个版本不认识的人不要
+      h.hid = hid;
+      h.lv = int(h.lv, 1, CFG.lapLvMax, 1);
+      h.exp = nm(h.exp, 0, 1e12, 0);
+      h.star = int(h.star, 1, CFG.lapStarMax, 1);
+      if (!statOk(h.base)) { const g = DB.hero(hid) && grownBase(hid, h.lv); if (g) h.base = Object.assign({}, g); else delete h.base; }
+      if (!statOk(h.base0)) delete h.base0;                // 启动时按模板补
+      const eq = isObj(h.equipment) ? h.equipment : {};
+      h.equipment = {};
+      for (const sl of SLOTS) h.equipment[sl] = typeof eq[sl] === 'string' ? eq[sl] : null;
+      if (Array.isArray(h.owned)) h.owned = strs(h.owned); else delete h.owned;
+      if ('sk' in h) { const sk = strs(h.sk); if (sk.length) h.sk = sk; else delete h.sk; }
+      const hu = isObj(h.hurt) ? h.hurt : {};
+      const hl = int(hu.lv, 0, 2, 0);
+      h.hurt = { lv: hl, rest: hl ? int(hu.rest, 1, 99, 1) : 0 };
+      heroes[hid] = h;
+    }
+    if (!Object.keys(heroes).length) return '存档里的人这个版本一个都不认识';
+    d.heroes = heroes;
+    if (!Array.isArray(d.team)) return '存档缺少阵容，读不出来';
+    d.team = [...new Set(strs(d.team).filter(h => heroes[h]))].slice(0, CFG.teamSize);
+
+    // 下面这些只整理存档里有的项；没有的留着没有，老存档缺字段时的默认值归启动时那一套管
+    const fix = (k, f) => { if (k in d) d[k] = f(d[k]); };
+    fix('res', r => {
+      const o = {};
+      if (isObj(r)) for (const k of ['silver', 'gold', 'token']) if (k in r) o[k] = nm(r[k], 0, 1e15, 0);
+      return o;
+    });
+    fix('items', counts); fix('frags', counts);
+    fix('cleared', o => flags(o, true)); fix('everCleared', o => flags(o, 1));
+    fix('seenCh', o => flags(o, true)); fix('fold', o => flags(o, true));
+    fix('fateRerolled', o => flags(o, 1));
+    fix('achvClaimed', o => flags(o, 1));
+    fix('achv', o => {          // 已达成的功名记的是达成时的周目
+      const r = {};
+      for (const k of keys(o)) if (o[k]) r[k] = int(o[k], 1, 1e6, 1);
+      return r;
+    });
+    fix('stats', o => {
+      const r = {};
+      for (const k of keys(o)) {
+        if (isObj(o[k])) r[k] = counts(o[k]);
+        else { const n = Number(o[k]); if (Number.isFinite(n)) r[k] = n; }
+      }
+      return r;
+    });
+    fix('pity', o => {          // 保底计数缺哪项补 0，不然 ++ 出 NaN
+      const r = {};
+      for (const k of ['ten', 'fifty', 'forge']) r[k] = nm(isObj(o) ? o[k] : 0, 0, 1e6, 0);
+      return r;
+    });
+    fix('log', a => strs(a).slice(0, 20));
+    fix('fates', a => strs(a).slice(0, 3));
+    fix('achvNew', strs);
+    fix('startGift', a => Array.isArray(a) ? strs(a) : null);
+    fix('title', t => typeof t === 'string' ? t : null);
+    fix('lap', v => int(v, 1, 1e6, 1));
+    fix('clearCount', v => nm(v, 0, 1e12, 0));
+    fix('speed', v => has(CFG.speeds, v) ? v : 'normal');
+    fix('mode', v => v === 'chaos' ? 'chaos' : 'classic');
+    return null;
+  },
+
   /** 解析存档码或 JSON 原文。成功 { raw, d }，失败 { err } */
   async parseCode(text) {
     let t = String(text || '').trim();
@@ -609,9 +715,9 @@ const Save = {
     if (!d || typeof d !== 'object') return { err: '存档内容损坏，读不出来' };
     if (d.v !== CFG.saveVersion) return { err: `存档版本对不上（存档 ${d.v}，游戏要 ${CFG.saveVersion}）` };
     if (!d.heroes || typeof d.heroes !== 'object' || !Object.keys(d.heroes).length) return { err: '存档里一个将也没有' };
-    if (!Array.isArray(d.team)) return { err: '存档缺少阵容，读不出来' };
-    if (!Object.keys(d.heroes).some(h => DB.hero(h) || DB.heroRemap[h])) return { err: '存档里的人这个版本一个都不认识' };
-    return { raw, d };
+    const bad = Save.sanitize(d);
+    if (bad) return { err: bad };
+    return { raw: JSON.stringify(d), d };    // 写进本地的是整理过的这份
   },
 
   /** 覆盖当前存档。调用方随后刷新页面 */
@@ -641,8 +747,14 @@ const Save = {
       if (!b || !b.raw) return '没有可撤回的存档';
       const cur = localStorage.getItem(CFG.saveKey);
       localStorage.setItem(CFG.saveKey, b.raw);
-      if (cur) localStorage.setItem(Save.bakKey, JSON.stringify({ t: Date.now(), raw: cur }));
-      else localStorage.removeItem(Save.bakKey);
+      try {
+        if (cur) localStorage.setItem(Save.bakKey, JSON.stringify({ t: Date.now(), raw: cur }));
+        else localStorage.removeItem(Save.bakKey);
+      } catch (e) {
+        // 备份没写进去：把主存档放回原样，两份都不丢
+        if (cur) localStorage.setItem(CFG.saveKey, cur);
+        throw e;
+      }
     } catch (e) { return '写不进本地存储'; }
     Save.locked = true;
     return null;
@@ -1580,7 +1692,7 @@ const Battle = {
     const armor = Math.max(defV * CFG.armorK, 1);
     let d = base * (atkV / (atkV + armor)) * mod * CFG.dmgK;
     if (src) d *= troopOf(src);          // V10.6 兵力：残兵打不出满编的伤害
-    d *= 1 + (Math.random() * 2 - 1) * CFG.dmgVar;
+    d *= 1 + (rnd() * 2 - 1) * CFG.dmgVar;
     if (src && src.pas.dmg) d *= 1 + src.pas.dmg;
     let crit = false;
     if (chance(critRate == null ? CFG.critRate : critRate)) { d *= CFG.critMul + (src ? src.pas.critDmg : 0); crit = true; }
@@ -1713,8 +1825,8 @@ const Battle = {
    *  一道断崖，中间那段「险胜」不存在。让集火带点偏差，战局才有分叉。*/
   focus(pool) {
     const s = pool.slice().sort((a, c) => a.hp - c.hp);
-    if (s.length < 2 || Math.random() < 0.62) return s[0];
-    return s[1 + Math.floor(Math.random() * (s.length - 1))];
+    if (s.length < 2 || rnd() < 0.62) return s[0];
+    return s[1 + Math.floor(rnd() * (s.length - 1))];
   },
 
   /** 单体攻击的落点：嘲讽者优先；否则前排里正对面的那一列 */
@@ -1732,7 +1844,7 @@ const Battle = {
   targets(b, u, tg) {
     const foes = this.living(this.other(b, u));
     const mates = this.living(this.side(b, u));
-    const shuffle = a => a.slice().sort(() => Math.random() - 0.5);
+    const shuffle = shuffled;
     switch (tg) {
       case 'single':  return this.single(b, u);
       case 'all':     return foes;
@@ -1826,6 +1938,7 @@ const Battle = {
         const gap = f.src === 'gap';
         const atkV = (f.src === 'int' || gap) ? this.magic(u) : this.eff(u, 'atk');
         for (const t of tgts) {
+          if (!u.alive) break;              // 打第一个人时被反击打死了，后面的人不再挨打
           if (!t.alive) continue;
           if ((f.tg === 'single' || f.tg === 'weakest' || f.tg === 'strongest' || f.tg === 'smartest') && this.dodged(b, t)) continue;
           // V10.6 智力差伤害：（施术者智×法术系数 − 目标智）× 倍率，无视防御；打文官几乎没伤害
@@ -1958,9 +2071,12 @@ const Battle = {
     let hit = [], src = null;
     u.castName = sk.name;   // V10.7 增益按来源分格：格子用技能名标
     for (const f of sk.fx || []) {
-      if (b.over) break;
+      if (b.over || !u.alive) break;      // 施术者半道倒下，后面的增益、治疗、状态都不再生效
       const r = this.applyFx(b, u, f, hit, mod, src);
       if (f.k === 'dmg') { hit = r.filter(t => t.alive); src = f.src === 'int' ? 'int' : 'atk'; }
+      // 「驱散单体，再对其造成伤害」：驱散选中的人就是后面 hit 打的人。
+      // 原来只有 dmg 记 hit，先驱散的六个技能（慧眼识破、借刀杀人、希真幻术等）后半截一下都没打出去
+      else if (f.k === 'dispel') hit = (r || []).filter(t => t.alive);
     }
   },
 
@@ -2110,7 +2226,7 @@ const Battle = {
     // V10.6 迷阵：开阵时我方随机三人六成几率混乱一回合
     if (b.theme === 'chaos' && b.round === 1) {
       const src = this.living(b.foes)[0];
-      const live = this.living(b.allies).slice().sort(() => Math.random() - 0.5).slice(0, 3);
+      const live = shuffled(this.living(b.allies)).slice(0, 3);
       if (src && live.length) b.log.push({ c: 'st', s: `阵势·迷阵：${live.map(t => t.ln).join('、')} 各有 60% 几率陷入【混乱】1 回合（命中几率另受智力比影响）` });
       if (src) for (const t of live) this.putStatus(b, src, t, { st: 'chaos', chance: 0.6, dur: 1 }, false, '阵势·迷阵');
     }
@@ -2123,7 +2239,7 @@ const Battle = {
 
     // 出手顺序同样带抖动：捷高的仍然多半先动，但不再是铁打的名次。首回合先手的被动排最前。
     const order = [...b.allies, ...b.foes].filter(u => u.alive)
-      .map(u => ({ u, k: this.eff(u, 'agi') * (1 + (Math.random() * 2 - 1) * CFG.agiVar) + (b.round === 1 && u.pas.first ? 1e6 : 0) }))
+      .map(u => ({ u, k: this.eff(u, 'agi') * (1 + (rnd() * 2 - 1) * CFG.agiVar) + (b.round === 1 && u.pas.first ? 1e6 : 0) }))
       .sort((a, c) => c.k - a.k).map(x => x.u);
     if (b.round === 1) for (const u of order) if (u.pas.first)
       b.log.push({ c: 'ps', s: `${u.ln} 触发【先手】：第 1 回合优先行动（来源：${u.pas.firstFrom || '被动'}）` });
@@ -2874,9 +2990,11 @@ const Hurt = {
     // 但手上人数还不够摆一阵时根本换不下来 —— 那样伤只会越积越死，
     // 开局两个人打十场，朱武会一直挂着轻伤好不了。这种时候人人都算休养。
     const noBench = Object.keys(G.heroes).length <= CFG.teamSize;
+    const fresh = new Set(out.map(o => o.hid));
     for (const hid of Object.keys(G.heroes)) {
       if (!noBench && onField.has(hid)) continue;
       if (fieldHealed.has(hid)) continue;   // 场上已经算过这一场了
+      if (fresh.has(hid)) continue;         // 这一场刚挂的伤，下一场才开始养，不然结算单写休养 2 场、实际只剩 1 场
       const h = G.heroes[hid];
       if (!h.hurt || !h.hurt.lv) continue;
       h.hurt.rest--;
@@ -3004,7 +3122,7 @@ const Guide = {
       return { txt: '银两够十连了', sub: '去酒肆招兵买马', act: 'go', id: 'tavern' };
 
     if (st) return { txt: `下一关：${stName(st.name)}`,
-      sub: `第${st.ch}章 · 推荐 ${Lap.recLv(st.rec_lv || [1, 5])[1]} 级 · 敌 ${Battle.roster(sid).length} 人`,
+      sub: `第${st.ch}章 · 推荐 ${Lap.recLv(st.rec_lv || [1, 5])[1]} 级 · 敌 ${Battle.roster(nextStage).length} 人`,
       act: 'stage', id: nextStage };
     return { txt: '关隘已经打通了', sub: '石碣上的名字，还差几个', act: 'go', id: 'codex' };
   },

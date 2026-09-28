@@ -388,10 +388,12 @@ check('护盾能抵挡伤害', async b => {
     const a = s.foes.reduce((x, u) => x + u.hp, 0);
     // V10.6 起流血、中毒是真实伤害（穿盾），驱散会拿掉护盾：这两样单独记账，不算「漏扣」
     let dot = 0; const B = window.Battle, H0 = B && B.hurt;
-    if (H0) B.hurt = function (b, t, am, src, tag) { const hp = t.hp; const r = H0.call(this, b, t, am, src, tag); if (!t.ally && (tag === 'bleed' || tag === 'poison')) dot += hp - t.hp; return r; };
+    // 参数原样传下去（少传 kind，流血中毒就被当成普通伤害去扣盾了）；持续伤害按 kind 认
+    if (H0) B.hurt = function (b, t, am, src, tag, kind, from) { const hp = t.hp; const r = H0.call(this, b, t, am, src, tag, kind, from); const k = kind || tag; if (!t.ally && (k === 'bleed' || k === 'poison')) dot += hp - t.hp; return r; };
     for (let g = 0; g < 4 && !bt.over; g++) __api.round(bt);
     if (H0) B.hurt = H0;
-    const dispelled = (bt.log || []).some(l => /护盾.*被驱散/.test(l.s || ''));
+    // 驱散的战报是「某某 增益状态被驱散：…、护盾 N」，护盾在后头
+    const dispelled = (bt.log || []).some(l => /被驱散.*护盾|护盾.*被驱散/.test(l.s || ''));
     return dispelled ? -1 : a - s.foes.reduce((x, u) => x + u.hp, 0) - dot;
   });
   await ctx.close();

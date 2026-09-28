@@ -158,9 +158,9 @@ const NAV_OF = { hero: null, stage: 'stages', chapcard: 'stages', recruitResult:
 
 function renderTop() {
   $('res').innerHTML = `
-    <span><i>银</i><b>${G.res.silver.toLocaleString()}</b></span><span class="sep"></span>
-    <span><i>金</i><b>${G.res.gold}</b></span><span class="sep"></span>
-    <span><i>符</i><b>${G.res.token || 0}</b></span><span class="sep"></span>
+    <span><i>银</i><b>${(+G.res.silver || 0).toLocaleString()}</b></span><span class="sep"></span>
+    <span><i>金</i><b>${+G.res.gold || 0}</b></span><span class="sep"></span>
+    <span><i>符</i><b>${+G.res.token || 0}</b></span><span class="sep"></span>
     <span><i>将</i><b>${Object.keys(G.heroes).length}</b></span>
     ${Lap.now() > 1 ? `<span class="sep"></span><span><i>周目</i><b>${Lap.now()}</b></span>` : ''}`;
   const cur = UI.view === 'hero' ? UI.hfrom
@@ -372,6 +372,12 @@ const SORTS = {
   int:   ['智力', (a, b) => Stats.calc(b).int - Stats.calc(a).int],
   star:  ['星数', (a, b) => (G.heroes[b].star - G.heroes[a].star) || (DB.hero(b).q - DB.hero(a).q)],
 };
+/** 要现算属性的几种排法：取值函数，排序前每人只算一次（和上面的比较函数同一口径） */
+const SORT_KEY = {
+  power: h => Stats.heroPower(h),
+  atk:   h => Stats.calc(h).atk,
+  int:   h => Stats.calc(h).int,
+};
 const FILTS = {
   all:   ['全部',  () => true],
   team:  ['在阵',  h => G.team.includes(h)],
@@ -389,7 +395,12 @@ const FILT_ROWS = [['all', 'team', 'idle', 'wu', 'wen'], ['hurt', 'up', 'own']];
 function heroesShown() {
   const sk = SORTS[UI.hsort] ? UI.hsort : 'q';
   const fk = FILTS[UI.hfilt] ? UI.hfilt : 'all';
-  return Object.keys(G.heroes).filter(FILTS[fk][1]).sort(SORTS[sk][1]);
+  const list = Object.keys(G.heroes).filter(FILTS[fk][1]);
+  // 按战力、武、智排：每比一次都现算一遍属性，两百多人一次要算几千回，手机上卡一下。先每人算一次
+  const key = SORT_KEY[sk];
+  if (!key) return list.sort(SORTS[sk][1]);
+  const v = new Map(list.map(h => [h, key(h)]));
+  return list.sort((a, b) => v.get(b) - v.get(a));
 }
 
 /** 图鉴里已收的人，按图鉴的排法 */
@@ -1377,7 +1388,23 @@ function beatWeight(bt) {
 
 const Play = {
   tok: 0,
+  timer: 0,   // 回合链只许有一条：下一回合（或收尾）的定时器只存这一个，排新的之前先撤旧的
+
+  /** 排下一步。拍子动画用 tok 作废，回合链用这个 —— 两个分开，互不干扰 */
+  next(fn, ms) { clearTimeout(this.timer); this.timer = setTimeout(() => { this.timer = 0; fn(); }, ms); },
+
+  /** 上一仗还在后台演着（打到一半切去了别处）就开新仗：旧的一口气打完、照常结算，
+   *  不然旧链会接着推新仗，旧仗永远不结算 —— 奖励没有，伤也不记 */
+  flush() {
+    clearTimeout(this.timer); this.timer = 0;
+    const b = UI.battle;
+    if (!b || b.settled) return;
+    Battle.runAll(b);
+    this.finish();
+  },
+
   start(sid) {
+    this.flush();
     const b = Battle.create(sid);
     if (!b || !b.allies.length) { toast('先去布阵'); return; }
     UI.battle = b; UI.view = 'battle'; UI.playing = true; UI.logFull = false; this.tok++;
@@ -1400,8 +1427,8 @@ const Play = {
     if (!b) return;
     for (const u of [...b.allies, ...b.foes]) this.sync(u, u.hp);
     this.log(b);
-    if (b.over) { setTimeout(() => this.finish(), 240); return; }
-    setTimeout(() => this.step(), 120);
+    if (b.over) { this.next(() => this.finish(), 240); return; }
+    this.next(() => this.step(), 120);
   },
 
   step() {
@@ -1409,8 +1436,8 @@ const Play = {
     if (!b || b.over) return this.finish();
     const ev = Battle.runRound(b);
     const span = this.paint(b, ev);
-    if (b.over) { setTimeout(() => this.finish(), span); return; }
-    setTimeout(() => this.step(), span);
+    if (b.over) { this.next(() => this.finish(), span); return; }
+    this.next(() => this.step(), span);
   },
 
   paint(b, ev) {
@@ -1521,6 +1548,7 @@ const Play = {
   finish() {
     const b = UI.battle;
     if (!b || b.settled) return;
+    clearTimeout(this.timer); this.timer = 0;
     this.tok++;
     UI.playing = false;
     UI.rewards = Stages.settle(b);
@@ -1754,6 +1782,7 @@ document.addEventListener('click', ev => {
     // 通过的关卡回头再刷时不必再看一遍演出
     case 'sweep': {
       closeModal();
+      Play.flush();
       const b = Battle.create(id);
       if (!b || !b.allies.length) { toast('先去布阵'); break; }
       Battle.runAll(b);
@@ -1985,7 +2014,25 @@ document.addEventListener('keydown', ev => {
 
 /* ── 启动 ─────────────────────────────────────────────────────────────── */
 
+/** 读档出错时不能留一张白屏：锁住存档（别拿读了一半的局面盖掉原档），
+ *  有导入前的备份就给一个换回去的按钮 */
+function bootFail(e) {
+  console.error(e);
+  Save.locked = true;
+  const b = Save.backup();
+  $('modal').innerHTML = `<div class="sheet">
+    <div class="shead">读档出了岔子</div>
+    <div class="sbody">本地存档没能读进来，原档没有动过。${b ? `可以换回导入前的那一份（${esc(Save.brief(b.d))}）。` : '刷新再试一次；还不行的话把游戏版本和出错情形告诉作者。'}</div>
+    <div class="btns">${b ? '<div class="btn main" data-action="sio-undo">换回导入前的存档</div>' : ''}</div>
+  </div>`;
+  $('modal').classList.add('on');
+}
+
 function boot() {
+  try { bootGame(); } catch (e) { bootFail(e); }
+}
+
+function bootGame() {
   const s = Save.read();
   if (s) {
     Object.assign(G, {
@@ -1997,6 +2044,7 @@ function boot() {
       speed: s.speed || 'normal', seenIntro: !!s.seenIntro, seenCh: s.seenCh || {}, seenEpi: !!s.seenEpi,
       // 老存档没有这三个字段，按一周目读，一切照旧
       lap: s.lap || 1, fates: s.fates || [], everCleared: s.everCleared || {},
+      fateRerolled: s.fateRerolled || {},   // 宿星每颗只许换一次：记进存档，刷新页面不能重来
       // V10.3：模式与开局赠将。老存档按传统读，没有入伙卡可看
       mode: s.mode === 'chaos' ? 'chaos' : 'classic', startGift: s.startGift || null, giftShown: !!(s.giftShown || !s.startGift),
       // V10.8 功名：老存档补零；读进来之后 Save.write 会补判一次，该有的直接给
@@ -2006,7 +2054,7 @@ function boot() {
     });
     for (const h of Object.values(G.heroes)) {
       const t = DB.hero(h.hid) || {};
-      h.base0 ||= { atk: t.atk, def: t.def, int: t.int, agi: t.agi, hp: t.hp };
+      h.base0 ||= { atk: t.atk, def: t.def, int: t.int, agi: t.agi, hp: baseHp(t) };   // 和 makeHero 同一口径（血下限 100）
       h.equipment ||= { weapon: null, armor: null, helmet: null, mount: null, special: null };
       h.owned ||= skillIdsOf(h.hid, h).slice(0, 1);
     }
@@ -2019,6 +2067,9 @@ function boot() {
     UI.view = 'mode'; render();
   }
   window.addEventListener('beforeunload', () => Save.write());
+  // iOS Safari 和装到桌面的 PWA 基本不发 beforeunload，切走、锁屏时补存一次
+  window.addEventListener('pagehide', () => Save.write());
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') Save.write(); });
 }
 
 /* 供回归测试调用 */
