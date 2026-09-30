@@ -631,9 +631,10 @@ function excDropHtml(sid) {
   return `<div class="excdrop${x.mode === 'done' ? ' off' : ''}"><b>掉落 · 专属装备${x.mode === 'done' ? '' : ` · ${pct}% 几率`}</b><span>${body}</span></div>`;
 }
 
+/* V10.8.5 关隘倒叙：最新一章在顶，章内最新一关在顶，往下是打过的；没解锁的不列 */
 VIEWS.stages = () => {
   let html = '';
-  for (const ch of DB.chapters) {
+  for (const ch of DB.chapters.slice().reverse()) {
     const list = DB.byChapter[ch];
     if (!list || !list.length) continue;
     const anyOpen = list.some(s => Stages.unlocked(s));
@@ -646,11 +647,14 @@ VIEWS.stages = () => {
     html += sectionTitle(`第${ch}章${chName ? ' · ' + chName : ''}`, null, fk);
     if (G.fold[fk]) continue;
     html += '<div class="frame tight">';
-    let ord = 0;                       // 本章内普通关的序号，给左边那方小印用
-    for (const sid of list) {
+    let ord = 0;                       // 本章内普通关的序号，给左边那方小印用（按原顺序数）
+    const seq = list.map(sid => {
       const st = DB.stage(sid);
       const plain = !st.is_boss && !st.hidden && !/_f\d/.test(sid);
-      const k = plain ? ord++ : -1;
+      return [sid, plain ? ord++ : -1];
+    }).filter(([sid]) => G.cleared[sid] || Stages.unlocked(sid)).reverse();
+    for (const [sid, k] of seq) {
+      const st = DB.stage(sid);
       const open = Stages.unlocked(sid), done = !!G.cleared[sid];
       const n = Battle.roster(sid).length;
       html += `<div class="stage${done ? ' done' : ''}${open ? '' : ' lock'}"
