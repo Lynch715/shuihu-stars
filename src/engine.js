@@ -262,7 +262,13 @@ const STAT_NAME = { atk: '武', def: '防', int: '智', agi: '捷', hp: '血' };
 
 /* ── 2  工具 ─────────────────────────────────────────────────────────── */
 
-const rnd = () => Math.random();
+const rnd = () => {
+  const b = Battle.context;
+  if (!b || b.kind !== 'pvp') return Math.random();
+  let t = b.seed += 0x6D2B79F5;
+  t = Math.imul(t ^ t >>> 15, t | 1); t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+  return ((t ^ t >>> 14) >>> 0) / 4294967296;
+};
 const rndInt = (a, b) => a + Math.floor(rnd() * (b - a + 1));
 const chance = p => rnd() < p;
 const pick = a => a[Math.floor(rnd() * a.length)];
@@ -537,7 +543,7 @@ const Save = {
         seenIntro: G.seenIntro, seenCh: G.seenCh, fold: G.fold, seenEpi: G.seenEpi,
         lap: G.lap, fates: G.fates, everCleared: G.everCleared,
         mode: G.mode, startGift: G.startGift, giftShown: G.giftShown,
-        stats: G.stats, achv: G.achv, title: G.title, achvNew: G.achvNew, achvClaimed: G.achvClaimed,   // V10.8 功名
+        pvp: G.pvp, stats: G.stats, achv: G.achv, title: G.title, achvNew: G.achvNew, achvClaimed: G.achvClaimed,   // V10.8 功名
       }));
       return true;
     } catch (e) { return false; }
@@ -725,7 +731,7 @@ const Save = {
 /* ── 4  状态 ─────────────────────────────────────────────────────────── */
 
 const G = {
-  heroes: {}, items: {}, frags: {}, cleared: {}, team: [],
+  heroes: {}, items: {}, frags: {}, cleared: {}, team: [], pvp: null,
   res: { silver: 0, gold: 0, token: 0 }, log: [], clearCount: 0, pity: { ten: 0, fifty: 0 },
   speed: 'normal', seenIntro: false, seenCh: {}, fold: {},
   seenEpi: false,   // 尾声只在头一回打完一周目时自动出，之后从主界面重看
@@ -799,6 +805,7 @@ function rollStartGift() {
 }
 
 function initGame(mode) {
+  G.pvp = null;
   G.mode = mode === 'chaos' ? 'chaos' : 'classic';
   G.heroes = {}; G.items = {}; G.frags = {}; G.cleared = {}; G.team = [];
   G.res = { silver: CFG.startSilver, gold: 0, token: 0 };
@@ -906,7 +913,7 @@ const FATES = [
 const Fate = {
   all() { return FATES; },
   of(id) { return FATES.find(x => x.id === id) || null; },
-  on()  { return (G.fates || []).map(id => this.of(id)).filter(Boolean); },
+  on()  { if (Battle.context && Battle.context.kind === 'pvp') return []; return (G.fates || []).map(id => this.of(id)).filter(Boolean); },
 
   /** 某一条修正当下的值。没抽到这条宿星就返回兜底值。 */
   v(key, dflt) {
@@ -1193,9 +1200,9 @@ const Stats = {
     const team = (opt && opt.team) || G.team;
     // 敌人走 calcEnemy（noBond），宿星只作用在自己人身上
     const mine = !(opt && opt.noBond);
-    const bd = (!mine || Fate.has('noBond')) ? { atk: 0, def: 0, int: 0, agi: 0, hp: 0 }
+    const bd = (!mine || (!(opt && opt.neutral) && Fate.has('noBond'))) ? { atk: 0, def: 0, int: 0, agi: 0, hp: 0 }
                                              : this.bond(hid, team);
-    if (mine) {
+    if (mine && !(opt && opt.neutral)) {
       const all = Fate.v('myAll', 1);
       const fm = { atk: Fate.v('myAtk', 1) * all, def: Fate.v('myDef', 1) * all,
                    int: all, agi: Fate.v('myAgi', 1) * all, hp: Fate.v('myHp', 1) * all };
@@ -1371,14 +1378,14 @@ const Battle = {
     return out;
   },
 
-  unit(hid, stats, ally, idx) {
+  unit(hid, stats, ally, idx, hero) {
     const t = DB.hero(hid);
-    const h = ally ? G.heroes[hid] : null;
+    const h = hero || (ally ? G.heroes[hid] : null);
     // V10.6 敌将用 foe 快照里的技能（升档改过技能的老角色，当 Boss 时还是 V10.5 那一套）
-    const ids = ally ? (h.owned || []) : ((DB.foeHero(hid) || t).sk || []).slice(0, Math.min(stats.star, 4));
+    const ids = h ? (h.owned || []) : ((DB.foeHero(hid) || t).sk || []).slice(0, Math.min(stats.star, 4));
     const skills = ids.map((id, i) => {
       const s = DB.skill(id);
-      return s ? { id, slot: i, name: s.name, cat: s.cat, rate: s.rate, cd: s.cd || 0, fx: s.fx, cur: 0, last: -99 } : null;
+      return s ? { id, slot: i, name: s.name, cat: s.cat, rate: s.rate, cd: s.cd || 0, fx: s.fx, from: hero ? s.from : undefined, every: hero ? s.every : undefined, cur: 0, last: -99 } : null;
     }).filter(Boolean);
     const pas = stats.pas || passivesOf(ids);
     const u = {
@@ -1580,7 +1587,7 @@ const Battle = {
     const armor = Math.max(defV * CFG.armorK, 1);
     let d = base * (atkV / (atkV + armor)) * mod * CFG.dmgK;
     if (src) d *= troopOf(src);          // V10.6 兵力：残兵打不出满编的伤害
-    d *= 1 + (Math.random() * 2 - 1) * CFG.dmgVar;
+    d *= 1 + (rnd() * 2 - 1) * CFG.dmgVar;
     if (src && src.pas.dmg) d *= 1 + src.pas.dmg;
     let crit = false;
     if (chance(critRate == null ? CFG.critRate : critRate)) { d *= CFG.critMul + (src ? src.pas.critDmg : 0); crit = true; }
@@ -1713,8 +1720,8 @@ const Battle = {
    *  一道断崖，中间那段「险胜」不存在。让集火带点偏差，战局才有分叉。*/
   focus(pool) {
     const s = pool.slice().sort((a, c) => a.hp - c.hp);
-    if (s.length < 2 || Math.random() < 0.62) return s[0];
-    return s[1 + Math.floor(Math.random() * (s.length - 1))];
+    if (s.length < 2 || rnd() < 0.62) return s[0];
+    return s[1 + Math.floor(rnd() * (s.length - 1))];
   },
 
   /** 单体攻击的落点：嘲讽者优先；否则前排里正对面的那一列 */
@@ -1732,7 +1739,7 @@ const Battle = {
   targets(b, u, tg) {
     const foes = this.living(this.other(b, u));
     const mates = this.living(this.side(b, u));
-    const shuffle = a => a.slice().sort(() => Math.random() - 0.5);
+    const shuffle = a => a.slice().sort(() => rnd() - 0.5);
     switch (tg) {
       case 'single':  return this.single(b, u);
       case 'all':     return foes;
@@ -2093,6 +2100,8 @@ const Battle = {
   /** 跑一个回合，返回本回合的事件序列供演出 */
   runRound(b) {
     if (b.over) return null;
+    const previous = this.context; this.context = b;
+    try {
     b.events = [];
     if (b.round === 0) this.prelude(b);
     b.round++;
@@ -2110,7 +2119,7 @@ const Battle = {
     // V10.6 迷阵：开阵时我方随机三人六成几率混乱一回合
     if (b.theme === 'chaos' && b.round === 1) {
       const src = this.living(b.foes)[0];
-      const live = this.living(b.allies).slice().sort(() => Math.random() - 0.5).slice(0, 3);
+      const live = this.living(b.allies).slice().sort(() => rnd() - 0.5).slice(0, 3);
       if (src && live.length) b.log.push({ c: 'st', s: `阵势·迷阵：${live.map(t => t.ln).join('、')} 各有 60% 几率陷入【混乱】1 回合（命中几率另受智力比影响）` });
       if (src) for (const t of live) this.putStatus(b, src, t, { st: 'chaos', chance: 0.6, dur: 1 }, false, '阵势·迷阵');
     }
@@ -2123,7 +2132,7 @@ const Battle = {
 
     // 出手顺序同样带抖动：捷高的仍然多半先动，但不再是铁打的名次。首回合先手的被动排最前。
     const order = [...b.allies, ...b.foes].filter(u => u.alive)
-      .map(u => ({ u, k: this.eff(u, 'agi') * (1 + (Math.random() * 2 - 1) * CFG.agiVar) + (b.round === 1 && u.pas.first ? 1e6 : 0) }))
+      .map(u => ({ u, k: this.eff(u, 'agi') * (1 + (rnd() * 2 - 1) * CFG.agiVar) + (b.round === 1 && u.pas.first ? 1e6 : 0) }))
       .sort((a, c) => c.k - a.k).map(x => x.u);
     if (b.round === 1) for (const u of order) if (u.pas.first)
       b.log.push({ c: 'ps', s: `${u.ln} 触发【先手】：第 1 回合优先行动（来源：${u.pas.firstFrom || '被动'}）` });
@@ -2165,12 +2174,14 @@ const Battle = {
           return mx ? hp / mx : 0;
         };
         b.over = true; b.result = 'timeout';
-        b.win = frac(b.allies) > frac(b.foes);
-        b.log.push({ c: 'r', s: b.win ? '三十回合没分出胜负，鸣金收兵 —— 我方伤亡较轻，算赢'
+        b.win = b.kind === 'pvp' ? null : frac(b.allies) > frac(b.foes);
+        if (b.kind === 'pvp') b.result = 'draw';
+        b.log.push({ c: 'r', s: b.kind === 'pvp' ? '三十回合未分胜负，此战平局。' : b.win ? '三十回合没分出胜负，鸣金收兵 —— 我方伤亡较轻，算赢'
                                       : '三十回合没分出胜负，鸣金收兵 —— 我方折损更重，算输' });
       }
     }
     return b.events;
+    } finally { this.context = previous; }
   },
 
   checkEnd(b) {

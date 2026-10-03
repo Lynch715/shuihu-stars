@@ -341,6 +341,7 @@ VIEWS.main = () => {
     <div class="btn" data-action="save-io">存档导入导出</div>
     <div class="btn warn" data-action="reset">重开一局</div>
   </div>
+  <div class="btns"><div class="btn main" data-action="pvp-enter">PVP 对战</div></div>
   <div class="contact" data-action="copy-wx">有 bug、有想法，加微信说一声：<b>lynchrrr</b><i>点一下复制</i></div>`;
 };
 
@@ -1260,7 +1261,7 @@ VIEWS.battle = () => {
     <div class="side-label">我　方</div>
     <div class="grid" id="gally">${b.allies.map(u => cellHtml(u, n)).join('')}</div>
     ${done ? `<div class="bend">
-      <div class="bend-t ${b.win ? 'win' : 'lose'}">${b.win ? '得　胜' : '败　绩'}</div>
+      <div class="bend-t ${b.win ? 'win' : 'lose'}">${b.result === 'draw' ? '平　局' : b.win ? '得　胜' : '败　绩'}</div>
       <div class="bend-s">共 ${b.round} 回合${b.result === 'timeout' ? ' · 三十回合没分出胜负，按伤亡算' : ''}</div>
       <div class="btns">
         <div class="btn" data-action="blog-full">${UI.logFull ? '收起战报' : '看战报'}</div>
@@ -1319,6 +1320,7 @@ function ritemHtml(o) {
 
 VIEWS.result = () => {
   const b = UI.battle, r = UI.rewards || [];
+  if (b.kind === 'pvp') return PVPView.result(b, r);
   const dlg = DB.dialog(b.sid);
   const win = b.win;
   return `<div class="frame result">
@@ -1527,7 +1529,7 @@ const Play = {
     if (!b || b.settled) return;
     this.tok++;
     UI.playing = false;
-    UI.rewards = Stages.settle(b);
+    UI.rewards = b.kind === 'pvp' ? PVP.settle(b) : Stages.settle(b);
     b.settled = true;
     if (UI.view !== 'battle') { toast(b.win ? '刚才那一仗打赢了，东西已入囊' : '刚才那一仗输了'); return; }
     render();
@@ -1712,6 +1714,7 @@ document.addEventListener('click', ev => {
   const a = el.dataset.action, id = el.dataset.id, slot = el.dataset.slot;
   ev.stopPropagation();
 
+  if (a.startsWith('pvp-')) { PVPView.action(a, el); return; }
   switch (a) {
     case 'go': go(id); break;
     case 'achv-title': Achv.setTitle(id || null); render(); break;
@@ -2004,7 +2007,7 @@ function boot() {
       // V10.3：模式与开局赠将。老存档按传统读，没有入伙卡可看
       mode: s.mode === 'chaos' ? 'chaos' : 'classic', startGift: s.startGift || null, giftShown: !!(s.giftShown || !s.startGift),
       // V10.8 功名：老存档补零；读进来之后 Save.write 会补判一次，该有的直接给
-      stats: s.stats || {}, achv: s.achv || {}, title: s.title || null, achvNew: s.achvNew || [],
+      pvp: s.pvp || null, stats: s.stats || {}, achv: s.achv || {}, title: s.title || null, achvNew: s.achvNew || [],
       // V10.8.2：V10.8 的存档达成即发奖，读进来已达成的一律算已领，不重复发
       achvClaimed: s.achvClaimed || Object.fromEntries(Object.keys(s.achv || {}).map(k => [k, 1])),
     });

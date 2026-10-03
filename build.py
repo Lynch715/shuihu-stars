@@ -26,8 +26,8 @@ import hashlib, json, os, sys, glob, re
 ROOT = os.path.dirname(os.path.abspath(__file__))
 def p(*a): return os.path.join(ROOT, *a)
 
-OUT = p('水浒群星录_V10.8.5.html')
-VERSION = 'V10.8.5'
+OUT = p('水浒群星录_V10.9.1.html')
+VERSION = 'V10.9.1'
 # --noassets：不带图构建（模拟与回归在没有 assets/ 的机器上跑时用），产物只用于测试
 NOASSETS = '--noassets' in sys.argv
 
@@ -44,8 +44,8 @@ def ref(f):
 
 # ── 素材 ─────────────────────────────────────────────────────────────
 css = read(p('src', 'style.css'))
-engine = read(p('src', 'engine.js'))
-view = read(p('src', 'view.js'))
+engine = read(p('src', 'engine.js')) + '\n' + read(p('src', 'pvp_catalog.js')) + '\n' + read(p('src', 'engine_pvp.js'))
+view = read(p('src', 'view.js')) + '\n' + read(p('src', 'view_pvp.js'))
 pwa = read(p('src', 'pwa.js'))
 data = read(p('data', 'gameData_v10.json'))
 
@@ -128,6 +128,10 @@ html = f'''<!DOCTYPE html>
 '''
 
 with open(OUT, 'w', encoding='utf-8') as f:
+    f.write(html)
+
+# 默认入口与版本文件保持同一构建。
+with open(p('index.html'), 'w', encoding='utf-8') as f:
     f.write(html)
 
 size = os.path.getsize(OUT)
