@@ -26,8 +26,8 @@ import hashlib, json, os, sys, glob, re
 ROOT = os.path.dirname(os.path.abspath(__file__))
 def p(*a): return os.path.join(ROOT, *a)
 
-OUT = p('水浒群星录_V10.9.1.html')
-VERSION = 'V10.9.1'
+OUT = p('水浒群星录_V10.9.2.html')
+VERSION = 'V10.9.2'
 # --noassets：不带图构建（模拟与回归在没有 assets/ 的机器上跑时用），产物只用于测试
 NOASSETS = '--noassets' in sys.argv
 
@@ -48,6 +48,7 @@ engine = read(p('src', 'engine.js')) + '\n' + read(p('src', 'pvp_catalog.js')) +
 view = read(p('src', 'view.js')) + '\n' + read(p('src', 'view_pvp.js'))
 pwa = read(p('src', 'pwa.js'))
 data = read(p('data', 'gameData_v10.json'))
+head_icon = ref(p('assets', 'ui', 'pvp_head.png'))
 
 # 范式立绘：十二张兜底图，多人共用（见 data/assign_archetype.py）
 arch = {}
@@ -113,7 +114,7 @@ html = f'''<!DOCTYPE html>
 <div id="toast"></div>
 
 <script type="application/json" id="gameData">{data}</script>
-<script>window.PORTRAITS={json.dumps(portraits)};window.ARCHETYPES={json.dumps(arch)};window.SCENES={json.dumps(scenes)};</script>
+<script>window.PVP_HEAD_ICON={json.dumps(head_icon)};window.PORTRAITS={json.dumps(portraits)};window.ARCHETYPES={json.dumps(arch)};window.SCENES={json.dumps(scenes)};</script>
 <script>
 {engine}
 </script>

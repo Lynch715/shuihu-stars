@@ -18,12 +18,13 @@ let b=await P.create(foe),b2=await P.create(foe);Battle.runAll(b);Battle.runAll(
 ok(b.win===true,'真实九对九战斗获胜');ok(JSON.stringify(b.log)===JSON.stringify(b2.log),'相同阵容固定战斗种子');ok(Battle.context===undefined,'战斗上下文及时恢复');
 let r=P.settle(b);ok(r[0].text.includes('对手甲的头颅')&&G.pvp.heads.length===1,'首次胜利获得头颅');
 ok(P.settle(b).length===0&&G.pvp.records.length===1,'重复结算不重复写记录');
-P.settle(b2);ok(G.pvp.heads.length===1&&G.pvp.records.length===2,'再次胜利只有战绩');
+P.settle(b2);ok(G.pvp.heads.length===1&&G.pvp.records.length===1,'再次胜利更新唯一战绩');
 ok(state===JSON.stringify({heroes:G.heroes,res:G.res,items:G.items,cleared:G.cleared,team:G.team,stats:G.stats,fates:G.fates}),'闯关培养资源伤病宿星均保持');
-let loss=await P.create(foe);loss.over=true;loss.win=false;loss.result='lose';P.settle(loss);let draw=await P.create(foe);draw.over=true;draw.win=null;draw.result='draw';P.settle(draw);ok(G.pvp.records[0].result==='平'&&G.pvp.records[1].result==='败'&&G.pvp.heads.length===1,'败平记录无头颅');
+let loss=await P.create(foe);loss.over=true;loss.win=false;loss.result='lose';P.settle(loss);let draw=await P.create(foe);draw.over=true;draw.win=null;draw.result='draw';P.settle(draw);ok(G.pvp.records.length===1&&G.pvp.records[0].result==='平'&&G.pvp.heads.length===1,'败平记录无头颅');
 let timed=await P.create(foe);timed.round=29;for(const u of [...timed.allies,...timed.foes]){u.maxHp=u.hp=1e15;u.skills=[];u.actives=[];u.cmds=[];}Battle.runRound(timed);ok(timed.result==='draw'&&timed.win===null,'真实三十回合超时平局');
 const e=DB.equipIds().find(id=>DB.equip(id).slot==='weapon');G.items['eq_'+e]=1;P.equip(G.team[0],'weapon',e);assert.throws(()=>P.equip(G.team[1],'weapon',e));checks++;P.equip(G.team[0],'weapon',null);P.equip(G.team[1],'weapon',e);ok(G.items['eq_'+e]===1&&G.heroes[G.team[1]].equipment.weapon===null,'PVP 配装数量与闯关独立');delete G.items['eq_'+e];P.clean();ok(!G.pvp.gear[G.team[1]].weapon,'卖出装备后清理不可用 PVP 配装');
-for(let i=0;i<102;i++){let x=await P.create(foe);x.over=true;x.win=false;P.settle(x);}ok(G.pvp.records.length===100&&G.pvp.heads.length===1,'百场记录上限与收藏长期保留');
+for(let i=0;i<102;i++){const unique=copy(foe);unique.owner='unique-opponent-'+String(i).padStart(16,'0');let x=await P.create(unique);x.over=true;x.win=false;P.settle(x);}ok(G.pvp.records.length===100&&G.pvp.heads.length===1,'百场记录上限与收藏长期保留');
+const latest=copy(G.pvp.records[0]);latest.time+=100;latest.opponent.name='改名';G.pvp.records.push(latest);P.init();ok(G.pvp.records.length===100&&G.pvp.records[0].opponent.name==='改名','旧存档重复记录自动合并，改名不产生重复');
 const code=await Save.exportCode();const parsed=await Save.parseCode(code);ok(!parsed.err&&parsed.d.pvp.heads.length===1&&parsed.d.pvp.records.length===100,'PVP 存档码导出与导入往返');
 setup('chaos');mine=P.snapshot();foe=copy(mine);foe.owner='opponent-000000000002';foe.name='混乱对手';let cb=await P.create(foe);ok(JSON.stringify(cb.foes[0].skills.map(s=>s.id))===JSON.stringify(mine.team[0].skills),'混乱对手使用快照随机技能');
 ok(cb.allies[0].atk===cb.foes[0].atk&&cb.allies[0].maxHp===cb.foes[0].maxHp,'双方同属性计算口径');Battle.runAll(cb);ok(cb.over&&cb.round<=30,'混乱对混乱真实对战完成');

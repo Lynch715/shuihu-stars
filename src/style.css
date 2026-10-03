@@ -882,3 +882,11 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .pvp-grid .hc{position:relative;background:rgba(255,255,255,.2);border:1px solid var(--ink-4,#b4a78e);padding:4px;border-radius:3px}.pvp-grid .hc .seal{position:absolute;left:6px;top:6px;z-index:1}.pvp-grid .por{display:block}.pvp-grid .nm{padding:4px 0}
 
 .pvp-modal-close{position:sticky;top:0;z-index:5;display:flex;justify-content:flex-end;background:var(--paper,#e9e2d0);padding:4px 0}
+
+/* V10.9.2 五列头颅战利品格子 */
+.pvp-loot-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;margin:12px 0 18px}
+.pvp-trophy{min-width:0;width:100%;padding:5px 2px;background:rgba(255,255,255,.2);border:1px solid var(--ink-4,#b4a78e);border-radius:3px;color:var(--ink,#2a251f);font:inherit;cursor:pointer}
+.pvp-trophy img{display:block;width:100%;aspect-ratio:1;object-fit:contain}
+.pvp-trophy span{display:block;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:center;margin-top:3px}
+.pvp-trophy:focus-visible{outline:2px solid var(--zhu,#9d3d2b);outline-offset:2px}
+@media(max-width:420px){.pvp-loot-grid{gap:5px}.pvp-trophy{padding:3px 1px}}

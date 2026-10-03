@@ -14,6 +14,7 @@ const PVP = {
   clean() {
     const p = G.pvp; if (!p) return;
     p.owner ||= crypto.randomUUID(); p.gear ||= {}; p.claimed ||= {}; p.heads ||= []; p.records ||= [];
+    p.records = this.uniqueRecords(p.records);
     const seen = new Set(), used = {}, stock = this.stock();
     p.cells = Array.from({length: 9}, (_, i) => { const id = (p.cells || [])[i]; if (!G.heroes[id] || seen.has(id)) return null; seen.add(id); return id; });
     for (const id of Object.keys(p.gear)) if (!seen.has(id)) delete p.gear[id];
@@ -22,6 +23,16 @@ const PVP = {
       if (!data || data.slot !== sl || (used[e] || 0) >= (stock[e] || 0)) gear[sl] = null;
       else used[e] = (used[e] || 0) + 1;
     }
+  },
+  recordKey(r) {
+    const s = r.opponent;
+    return JSON.stringify({v:s.v,owner:s.owner,mode:s.mode,team:s.team.map(h=>({id:h.id,lv:h.lv,star:h.star,base:SH_PVP_CATALOG.keys.map(k=>h.base[k]),eq:h.eq,skills:h.skills}))});
+  },
+  uniqueRecords(records) {
+    const seen = new Set();
+    return records.slice().sort((a,b)=>b.time-a.time).filter(r=>{
+      const key=this.recordKey(r);if(seen.has(key))return false;seen.add(key);return true;
+    }).slice(0,100);
   },
   validate(raw) {
     const fail = m => { throw Error(m); }, int = (x,a,b) => Number.isInteger(x) && x>=a && x<=b;
@@ -164,7 +175,7 @@ const PVP = {
     if (b.win && !Object.hasOwn(p.claimed,b.key)) {
       p.claimed[b.key]=true; reward=b.opponent.name+'的头颅'; p.heads.unshift({name:reward,time,key:b.key,opponent:b.opponent});
     }
-    p.records.unshift({time,result,rounds:b.round,mine:b.mine,opponent:b.opponent,reward}); p.records=p.records.slice(0,100);
+    p.records.unshift({time,result,rounds:b.round,mine:b.mine,opponent:b.opponent,reward}); p.records=this.uniqueRecords(p.records);
     b.settled=true; Save.write();
     return [{icon:reward?'首':'战',text:reward?'获得 '+reward:b.win?'这个阵容的头颅已领取':result==='平'?'三十回合未决，平局':'此战败退，再整阵容',c:''}];
   },
