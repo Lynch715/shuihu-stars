@@ -179,6 +179,15 @@ const PVP = {
     b.settled=true; Save.write();
     return [{icon:reward?'首':'战',text:reward?'获得 '+reward:b.win?'这个阵容的头颅已领取':result==='平'?'三十回合未决，平局':'此战败退，再整阵容',c:''}];
   },
+  autoEquip() {
+    this.init(); const p = G.pvp, team = p.cells.filter(Boolean);
+    if (!team.length) return { err: 'PVP 阵上没有人' };
+    const before = JSON.stringify(p.gear);
+    const { gear } = AutoGear.plan(team, this.stock(), { neutral: true });
+    p.gear = gear;
+    Save.write();
+    return { changed: before !== JSON.stringify(gear), put: Object.values(gear).reduce((n, g) => n + SLOTS.filter(sl => g[sl]).length, 0) };
+  },
   equip(id,sl,eid) {
     this.clean(); const p=G.pvp;
     if (!p.cells.includes(id) || !SLOTS.includes(sl)) throw Error('请先选择阵上将领');

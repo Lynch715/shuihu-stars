@@ -2222,6 +2222,106 @@ const Stats = {
 
 /* ── 6  战斗 ─────────────────────────────────────────────────────────── */
 
+/* 三种模式共用配装：本人专属先锁定，其余按实际能力与已解锁技能分配。
+   评分只用于挑装备，面板与战斗属性仍全部来自 Stats.calc。 */
+const AutoGear = {
+  profile(hid, opt = {}) {
+    const h = opt.hero || G.heroes[hid];
+    const naked = { ...h, equipment: {} };
+    const s = Stats.calc(hid, { ...opt, hero: naked });
+    let atk = s.atk >= s.int * CFG.intK ? 1 : 0.2;
+    let intel = s.atk >= s.int * CFG.intK ? 0.2 : 1;
+    const use = { active: false, cmd: false, heal: false, buff: false, ctrl: false, dot: false };
+    for (const id of opt.skills || h.owned || []) {
+      const sk = DB.skill(id); if (!sk || sk.cat === 'passive') continue;
+      use.active ||= sk.cat === 'active'; use.cmd ||= sk.cat === 'cmd';
+      const rate = sk.cat === 'sure' ? 1 / Math.max(1, sk.cd) : sk.cat === 'cmd' ? 0.25 : sk.rate;
+      let source = 'atk';
+      for (const f of sk.fx) {
+        const area = ['all', 'mates'].includes(f.tg) ? 3 : ['row', 'col', 'frontm', 'colm', 'rand3'].includes(f.tg) ? 2 : f.tg === 'rand2' ? 1.5 : 1;
+        if (f.k === 'dmg') {
+          source = f.src === 'int' || f.src === 'gap' ? 'int' : 'atk';
+          if (source === 'int') intel += f.mult * rate * area; else atk += f.mult * rate * area;
+        }
+        if (f.k === 'heal') { use.heal = true; if (!f.pct) intel += f.mult * rate * area; }
+        if (f.k === 'buff' || f.k === 'shield') use.buff = true;
+        if (f.k === 'status') {
+          if (['stun', 'silence', 'chaos'].includes(f.st)) use.ctrl = true;
+          if (f.st === 'chaos') intel += rate * area;
+          if (['bleed', 'poison'].includes(f.st)) use.dot = true;
+          if (f.st === 'burn') { if (source === 'int') intel += rate; else atk += rate; }
+        }
+      }
+    }
+    use.ctrl ||= s.pas.onhit.some(f => ['stun', 'silence', 'chaos'].includes(f.st));
+    use.dot ||= s.pas.onhit.some(f => ['bleed', 'poison'].includes(f.st));
+    const total = atk + intel;
+    return { atk: 0.3 + 2 * atk / total, int: 0.3 + 2 * intel / total, use };
+  },
+  value(s, profile) {
+    const p = s.pas, u = profile.use;
+    const offence = s.atk * profile.atk + s.int * CFG.intK * profile.int;
+    const defence = s.def * 1.5 + s.maxHp * 0.05;
+    // 纳入生效被动，已到上限的特殊属性不会再虚增适配评分。
+    const special = offence * (p.dmg + p.crit * 0.5 + p.critDmg * 0.15 + p.pierce * 0.4
+      + (u.active ? p.skrate * 0.5 : 0) + (u.cmd ? p.cmd * 0.25 : 0)
+      + (u.heal ? p.heal * 0.25 : 0) + (u.buff ? p.buff * 0.25 : 0)
+      + (u.ctrl || p.onhit.some(f => ['stun', 'silence', 'chaos'].includes(f.st)) ? p.ctrl * 0.3 : 0)
+      + (u.dot || p.onhit.some(f => ['bleed', 'poison'].includes(f.st)) ? p.dot * 0.25 : 0)
+      + p.onhit.reduce((n, f) => n + (f.chance || 0) * 0.1, 0)
+      + (p.first ? 0.05 : 0))
+      + defence * (p.cut + p.dodge * 0.6 + p.regen * 2 + p.shield * 0.4 + (p.tough ? 0.05 : 0) + new Set(p.immune).size * 0.02)
+      + p.low.reduce((n, f) => n + (f.stat === 'atk' ? s.atk * profile.atk : f.stat === 'int' ? s.int * CFG.intK * profile.int : f.stat === 'def' ? s.def * 1.5 : f.stat === 'agi' ? s.agi : s.maxHp * 0.05) * f.pct * f.at, 0)
+      + s.atk * (p.counter ? p.counter.chance * p.counter.mult : 0)
+      + Math.max(s.atk, s.int * CFG.intK * CFG.intBasic) * (p.follow ? p.follow.chance * p.follow.mult : 0);
+    return offence + defence + s.agi + special;
+  },
+  score(hid, e, opt = {}, profile) {
+    const h = opt.hero || G.heroes[hid]; if (!h || !e) return -Infinity;
+    profile ||= this.profile(hid, opt);
+    const hero = { ...h, equipment: { ...h.equipment, [e.slot]: null } };
+    const without = this.value(Stats.calc(hid, { ...opt, hero }), profile);
+    hero.equipment[e.slot] = e.id;
+    return this.value(Stats.calc(hid, { ...opt, hero }), profile) - without;
+  },
+  ranked(hid, list, opt = {}) {
+    const profile = this.profile(hid, opt);
+    return list.map(e => ({ e, own: e.exclusive === hid ? 1 : 0, score: this.score(hid, e, opt, profile) }))
+      .sort((a, b) => b.own - a.own || b.score - a.score || b.e.q - a.e.q || a.e.id.localeCompare(b.e.id))
+      .map(x => x.e);
+  },
+  plan(team, stock, opt = {}) {
+    const ids = [...new Set(team.filter(id => id && G.heroes[id]))];
+    const remaining = { ...stock }, gear = {}, heroes = {}, profiles = {};
+    for (const id of ids) {
+      gear[id] = Object.fromEntries(SLOTS.map(sl => [sl, null]));
+      heroes[id] = { ...G.heroes[id], equipment: gear[id], ...(opt.neutral ? { hurt: { lv: 0, rest: 0 } } : {}) };
+      profiles[id] = this.profile(id, { ...opt, team: ids, hero: heroes[id] });
+    }
+    const available = DB.equipIds().map(DB.equip).filter(e => (remaining[e.id] || 0) > 0);
+    const take = (id, e) => { gear[id][e.slot] = e.id; remaining[e.id]--; };
+    // 全队的本人专属先分完，别人不能抢走随后才轮到主人的装备。
+    for (const id of ids) for (const sl of SLOTS) {
+      const mine = available.filter(e => e.exclusive === id && e.slot === sl && remaining[e.id] > 0);
+      if (mine.length) take(id, this.ranked(id, mine, { ...opt, team: ids, hero: heroes[id] })[0]);
+    }
+    for (const sl of SLOTS) {
+      const open = ids.filter(id => !gear[id][sl]);
+      while (open.length) {
+        let best = null;
+        for (const id of open) for (const e of available) {
+          if (e.slot !== sl || remaining[e.id] <= 0) continue;
+          const score = this.score(id, e, { ...opt, team: ids, hero: heroes[id] }, profiles[id]);
+          if (!best || score > best.score || (score === best.score && (e.q > best.e.q || (e.q === best.e.q && e.id.localeCompare(best.e.id) < 0)))) best = { id, e, score };
+        }
+        if (!best) break;
+        take(best.id, best.e); open.splice(open.indexOf(best.id), 1);
+      }
+    }
+    return { gear, remaining };
+  },
+};
+
 const Battle = {
   /** 关卡敌方等级 / 星级 / 强度系数：优先读数据字段，没有则由推荐等级推导 */
   enemyTier(sid) {
@@ -3646,68 +3746,35 @@ const Grow = {
 
   /* ── V10.5 布阵页一键装备 / 一键卸装 ─────────────────────────── */
 
-  /** V10.7 一件装备对这个人值多少：真穿上算一遍战力，看涨多少。
-   *  装备百分比改成一主一副之后（兵器有武%也有智%，宝物四样都有），按品阶或按「有没有武%」都挑不准；
-   *  直接用 Stats.calc 走一遍，擅长、专属本人加成、套装、上限全都在里面。同分取品阶高的。 */
-  gearScore(hid, e) {
-    const h = G.heroes[hid];
-    if (!h) return 0;
-    const eq = Object.assign({}, h.equipment, { [e.slot]: e.id });
-    const eq0 = Object.assign({}, h.equipment, { [e.slot]: null });
-    const with_ = Stats.power(Stats.calc(hid, { hero: Object.assign({}, h, { equipment: eq }) }));
-    const without = Stats.power(Stats.calc(hid, { hero: Object.assign({}, h, { equipment: eq0 }) }));
-    return (with_ - without) * 100 + e.q + (e.exclusive === hid ? 1e6 : 0);
-  },
-  /** V10.6.1b 只管阵上九人，要把最好的给他们：
-   *  阵上的人身上的先全收回来重排；板凳上的人身上的也拿来挑，
-   *  被挑走的那格就空着，没被挑中的原样穿回去。板凳上的人不另发装备。
-   *  专属先给本人（本人得在阵上），其余按战力从高往低轮，每格挑评分最高的。 */
+  /** 兼容旧调用，按当前人物及已解锁技能评价装备。 */
+  gearScore(hid, e, opt = {}) { return AutoGear.score(hid, e, opt); },
+  /** 阵上专属优先；其他装备按全队适配增益分配，余下归还板凳。 */
   autoEquip() {
-    const team = G.team.filter(h => h && G.heroes[h]);
+    const team = [...new Set(G.team.filter(id => id && G.heroes[id]))];
     if (!team.length) return { err: '阵上没有人' };
-    const bench = Object.keys(G.heroes).filter(h => !team.includes(h));
-    const before = {};
-    for (const hid of team) before[hid] = Object.assign({}, G.heroes[hid].equipment);
-    const benchWore = {};
-    for (const hid of [...team, ...bench]) for (const slot of SLOTS) {
-      const eid = G.heroes[hid].equipment[slot];
-      if (!eid) continue;
-      if (bench.includes(hid)) (benchWore[hid] ||= {})[slot] = eid;
-      // 直接挪回行囊，中途不存档
-      G.items['eq_' + eid] = (G.items['eq_' + eid] || 0) + 1;
-      G.heroes[hid].equipment[slot] = null;
+    const before = {}, stock = {}, benchWore = {};
+    for (const [key, n] of Object.entries(G.items)) if (key.startsWith('eq_') && DB.equip(key.slice(3))) stock[key.slice(3)] = n;
+    for (const [id, h] of Object.entries(G.heroes)) {
+      if (team.includes(id)) before[id] = { ...h.equipment };
+      else benchWore[id] = { ...h.equipment };
+      for (const sl of SLOTS) { const eid = h.equipment[sl]; if (eid && DB.equip(eid)) stock[eid] = (stock[eid] || 0) + 1; }
     }
-    // 按裸身战力排座次：带着装备排的话，配完一轮次序就变了，再点一次又会换
-    const order = team.slice().sort((a, b) => Stats.heroPower(b) - Stats.heroPower(a));
-    const take = (hid, slot, eid) => {
-      G.heroes[hid].equipment[slot] = eid;
-      if (--G.items['eq_' + eid] <= 0) delete G.items['eq_' + eid];
-    };
-    for (const e of this.bagEquips(null)) {
-      const hid = e.exclusive;
-      if (hid && team.includes(hid) && !G.heroes[hid].equipment[e.slot]) take(hid, e.slot, e.id);
-    }
-    for (const hid of order) for (const slot of SLOTS) {
-      if (G.heroes[hid].equipment[slot]) continue;
-      const bag = this.bagEquips(slot);
-      if (!bag.length) continue;
-      let best = null, bs = -Infinity;
-      for (const e of bag) { const sc = this.gearScore(hid, e); if (sc > bs) { bs = sc; best = e; } }   // 每件只算一次
-      take(hid, slot, best.id);
-    }
-    // 板凳上的人：没被挑走的原样穿回去
+    const { gear, remaining } = AutoGear.plan(team, stock, { team });
     let fromBench = 0;
-    for (const hid of bench) for (const [slot, eid] of Object.entries(benchWore[hid] || {})) {
-      if ((G.items['eq_' + eid] || 0) > 0) take(hid, slot, eid); else fromBench++;
+    for (const [id, wore] of Object.entries(benchWore)) for (const sl of SLOTS) {
+      const eid = wore[sl];
+      if (eid && remaining[eid] > 0) { remaining[eid]--; G.heroes[id].equipment[sl] = eid; }
+      else { G.heroes[id].equipment[sl] = null; if (eid) fromBench++; }
     }
+    for (const key of Object.keys(G.items)) if (key.startsWith('eq_') && DB.equip(key.slice(3))) delete G.items[key];
+    for (const [eid, n] of Object.entries(remaining)) if (n > 0) G.items['eq_' + eid] = n;
     let put = 0, changed = 0;
-    for (const hid of team) for (const slot of SLOTS) {
-      const now = G.heroes[hid].equipment[slot];
-      if (now) put++;
-      if (now !== before[hid][slot]) changed++;
+    for (const id of team) for (const sl of SLOTS) {
+      G.heroes[id].equipment[sl] = gear[id][sl];
+      if (gear[id][sl]) put++;
+      if (gear[id][sl] !== before[id][sl]) changed++;
     }
-    Save.write();
-    return { put, changed, fromBench };
+    Save.write(); return { put, changed, fromBench };
   },
   /** 全体身上一共几人穿着、几件。卸装前的确认框用 */
   wornCount() {
@@ -4603,6 +4670,15 @@ const PVP = {
     b.settled=true; Save.write();
     return [{icon:reward?'首':'战',text:reward?'获得 '+reward:b.win?'这个阵容的头颅已领取':result==='平'?'三十回合未决，平局':'此战败退，再整阵容',c:''}];
   },
+  autoEquip() {
+    this.init(); const p = G.pvp, team = p.cells.filter(Boolean);
+    if (!team.length) return { err: 'PVP 阵上没有人' };
+    const before = JSON.stringify(p.gear);
+    const { gear } = AutoGear.plan(team, this.stock(), { neutral: true });
+    p.gear = gear;
+    Save.write();
+    return { changed: before !== JSON.stringify(gear), put: Object.values(gear).reduce((n, g) => n + SLOTS.filter(sl => g[sl]).length, 0) };
+  },
   equip(id,sl,eid) {
     this.clean(); const p=G.pvp;
     if (!p.cells.includes(id) || !SLOTS.includes(sl)) throw Error('请先选择阵上将领');
@@ -5373,7 +5449,7 @@ VIEWS.team = () => {
        <div class="btn" data-action="strip-team">一键卸装</div>
        <div class="btn" data-action="go" data-id="heroes">去挑人</div>
      </div>
-     <div class="tip">按住格子拖动可以换位。前三个站第一排，单挑先打前排。血量就是兵力：血越少，伤害、治疗、护盾越弱（半血只剩六成半）。一键装备只配阵上九人：行囊里的和板凳上的人身上的一起挑，最好的给阵上，被拿走的那格空着。一键卸装卸所有人。</div>` +
+     <div class="tip">按住格子拖动可以换位。前三个站第一排，单挑先打前排。血量就是兵力：血越少，伤害、治疗、护盾越弱（半血只剩六成半）。一键装备只配阵上九人：行囊里的和板凳上的人身上的一起挑，先配本人专属，再按能力和已解锁技能分配，被拿走的那格空着。一键卸装卸所有人。</div>` +
     section('teambond', `已激活羁绊（${bonds.length}）`,
     (bonds.length ? `<div class="frame tight">${bonds.map(({ b, have, tier }) =>
       `<div class="bondrow"><b>${esc(b.name)}</b>
@@ -6160,7 +6236,7 @@ const Play = {
 /* ── 装备选择弹层 ─────────────────────────────────────────────────────── */
 
 function openEquipPick(hid, slot) {
-  const list = Grow.bagEquips(slot);
+  const list = AutoGear.ranked(hid, Grow.bagEquips(slot));
   $('modal').innerHTML = `<div class="sheet">
     <div class="shead">选一件${SLOT_NAME[slot]}</div>
     <div class="scroll">
@@ -6489,7 +6565,7 @@ document.addEventListener('click', ev => {
     }
     case 'auto-equip': {
       const r = Grow.autoEquip();
-      toast(r.err ? r.err : !r.changed ? '阵上九人已经是最好的配法'
+      toast(r.err ? r.err : !r.changed ? '阵上装备已按专属优先与技能适配分配'
         : `阵上九人换了 ${r.changed} 格，共穿 ${r.put} 件${r.fromBench ? `，${r.fromBench} 件取自板凳上的人` : ''}`);
       render(); break;
     }
@@ -6677,7 +6753,7 @@ const PVPView = {
     this.modal(this.title(DB.hero(id).name)+`<div class="btns"><div class="btn" data-action="pvp-change" data-i="${i}">换人／换位</div><div class="btn" data-action="pvp-remove" data-i="${i}">下阵</div></div>`+SLOTS.map(sl=>{const e=DB.equip((G.pvp.gear[id]||{})[sl]);return `<div class="card small" data-action="pvp-gear" data-id="${id}" data-slot="${sl}">${SLOT_NAME[sl]}：${e?esc(e.name):'空'}　<span class="muted">点击配装</span></div>`;}).join(''));
   },
   select(i) {this.modal(this.title('选择将领')+'<div class="small muted">选择已上阵将领可交换位置</div><div class="pvp-grid">'+Object.keys(G.heroes).filter(id=>DB.recruitPool.includes(id)).sort((a,b)=>Stats.heroPower(b)-Stats.heroPower(a)).map(id=>`<div class="card small" data-action="pvp-pick" data-id="${id}" data-i="${i}">${esc(DB.hero(id).name)}<div>Lv.${G.heroes[id].lv} · ${G.heroes[id].star}★ ${G.pvp.cells.includes(id)?'阵上':''}</div></div>`).join('')+'</div>');},
-  gear(id,sl) {const stock=PVP.stock();this.modal(this.title(DB.hero(id).name+' · '+SLOT_NAME[sl])+`<div class="btns"><div class="btn" data-action="pvp-wear" data-id="${id}" data-slot="${sl}" data-eid="">卸下</div></div>`+Object.keys(stock).filter(e=>stock[e]>0&&DB.equip(e).slot===sl).map(e=>`<div class="card small" data-action="pvp-wear" data-id="${id}" data-slot="${sl}" data-eid="${e}">${seal(DB.equip(e).q)} ${esc(DB.equip(e).name)}<div class="tiny muted">拥有 ${stock[e]} 件 · PVP 已用 ${G.pvp.cells.filter(Boolean).filter(n=>(G.pvp.gear[n]||{})[sl]===e).length} 件</div></div>`).join(''));},
+  gear(id,sl) {const stock=PVP.stock();this.modal(this.title(DB.hero(id).name+' · '+SLOT_NAME[sl])+`<div class="btns"><div class="btn" data-action="pvp-wear" data-id="${id}" data-slot="${sl}" data-eid="">卸下</div></div>`+AutoGear.ranked(id,Object.keys(stock).filter(e=>stock[e]>0&&DB.equip(e).slot===sl).map(DB.equip),{neutral:true,team:G.pvp.cells.filter(Boolean),hero:{...G.heroes[id],hurt:{lv:0,rest:0},equipment:G.pvp.gear[id]||{}}}).map(eq=>{const e=eq.id;return `<div class="card small" data-action="pvp-wear" data-id="${id}" data-slot="${sl}" data-eid="${e}">${seal(DB.equip(e).q)} ${esc(DB.equip(e).name)}${eq.exclusive===id?' · 本人专属':''}<div class="tiny muted">拥有 ${stock[e]} 件 · PVP 已用 ${G.pvp.cells.filter(Boolean).filter(n=>(G.pvp.gear[n]||{})[sl]===e).length} 件</div></div>`;}).join(''));},
   async action(a,el) {
     const id=el.dataset.id,i=+el.dataset.i,sl=el.dataset.slot;
     try {
@@ -6691,6 +6767,7 @@ const PVPView = {
       else if(a==='pvp-wear'){PVP.equip(id,sl,el.dataset.eid);Save.write();this.cell(G.pvp.cells.indexOf(id));render();}
       else if(a==='pvp-copy-team'){ask('复制闯关阵容','替换当前 PVP 站位和配装？','复制',()=>{G.pvp.cells=Array.from({length:9},(_,i)=>G.team[i]||null);G.pvp.gear=Object.fromEntries(G.pvp.cells.filter(Boolean).map(id=>[id,{...G.heroes[id].equipment}]));PVP.clean();Save.write();render();});}
       else if(a==='pvp-auto'){const p=G.pvp,ids=Object.keys(G.heroes).filter(id=>DB.recruitPool.includes(id)&&!p.cells.includes(id)).sort((a,b)=>Stats.heroPower(b)-Stats.heroPower(a));for(let j=0;j<9;j++)if(!p.cells[j])p.cells[j]=ids.shift()||null;PVP.clean();Save.write();render();if(p.cells.includes(null))toast('将领不足九人，先去招募');}
+      else if(a==='pvp-auto-equip'){const r=PVP.autoEquip();render();toast(r.err||`PVP 已优先配本人专属，再按能力与技能匹配，共 ${r.put} 件`);}
       else if(a==='pvp-code'){this.name();const code=await PVP.encode(PVP.snapshot());Save.write();this.modal(this.title('PVP 对战码')+`<div class="small muted">${esc(G.pvp.name)} · ${code.length} 字 · 固定阵容快照，培养或换装后请重新生成</div><textarea id="pvp-export" class="pvp-code" readonly>${esc(code)}</textarea><div class="btns"><div class="btn main" data-action="pvp-copy">复制对战码</div></div>`);}
       else if(a==='pvp-copy'){const e=$('pvp-export');e.select();try{await navigator.clipboard.writeText(e.value);toast('对战码已复制');}catch(x){toast(document.execCommand('copy')?'对战码已复制':'请长按文本框手动复制');}}
       else if(a==='pvp-challenge'){this.opponent=null;go('pvp-challenge');}
@@ -6705,7 +6782,7 @@ const PVPView = {
   },
 };
 VIEWS.pvp=()=>{const p=G.pvp;return PVPView.title('PVP 对战','九宫论兵')+'<div class="card small">九人阵容迎战朋友的离线快照。仅挑战方记录战果，胜利可收藏头颅。</div>'+`<div class="stat3"><div><b>${p.cells.filter(Boolean).length}/9</b><i>上阵</i></div><div><b>${p.records.filter(r=>r.result==='胜').length}</b><i>近百条胜绩</i></div><div><b>${p.heads.length}</b><i>头颅</i></div></div><div class="btns"><div class="btn main" data-action="go" data-id="pvp-form">创建／调整阵容</div><div class="btn" data-action="pvp-code">生成对战码</div></div><div class="btns"><div class="btn main" data-action="pvp-challenge">开始对战</div><div class="btn" data-action="go" data-id="pvp-records">战绩与战利品</div></div><div class="btns"><div class="btn" data-action="go" data-id="main">回大帐</div></div>`;};
-VIEWS['pvp-form']=()=>PVPView.title('PVP 阵容',G.mode==='chaos'?'混乱':'传统')+`<div class="card small"><label for="pvp-name">玩家姓名</label><input id="pvp-name" class="pvp-input" maxlength="32" value="${esc(G.pvp.name)}" placeholder="请输入姓名，最多 16 字"><div class="btns"><div class="btn sm" data-action="pvp-name">保存姓名</div></div><div class="tiny muted">站位与五槽配装独立，实际等级、星级、技能沿用培养结果。点击将领换人或配装。</div></div>`+PVPView.cards(PVPView.own(),true)+'<div class="btns"><div class="btn" data-action="pvp-copy-team">复制闯关阵容与配装</div><div class="btn" data-action="pvp-auto">补满阵容</div></div><div class="btns"><div class="btn main" data-action="pvp-code">生成对战码</div></div>'+PVPView.back;
+VIEWS['pvp-form']=()=>PVPView.title('PVP 阵容',G.mode==='chaos'?'混乱':'传统')+`<div class="card small"><label for="pvp-name">玩家姓名</label><input id="pvp-name" class="pvp-input" maxlength="32" value="${esc(G.pvp.name)}" placeholder="请输入姓名，最多 16 字"><div class="btns"><div class="btn sm" data-action="pvp-name">保存姓名</div></div><div class="tiny muted">站位与五槽配装独立，实际等级、星级、技能沿用培养结果。点击将领换人或配装；一键装备先配本人专属，再按能力与已解锁技能匹配。</div></div>`+PVPView.cards(PVPView.own(),true)+'<div class="btns"><div class="btn" data-action="pvp-copy-team">复制闯关阵容与配装</div><div class="btn" data-action="pvp-auto">补满阵容</div></div><div class="btns"><div class="btn" data-action="pvp-auto-equip">一键装备</div></div><div class="btns"><div class="btn main" data-action="pvp-code">生成对战码</div></div>'+PVPView.back;
 VIEWS['pvp-challenge']=()=>PVPView.title('开始对战')+'<div class="small muted">粘贴水浒 PVP 对战码，先查看对手再开战。</div><textarea id="pvp-import" class="pvp-code" placeholder="SHP2:… / SHU2:…"></textarea><div class="btns"><div class="btn main" data-action="pvp-preview">查看对手</div></div>'+PVPView.back;
 VIEWS['pvp-preview']=()=>PVPView.opponent?PVPView.title('对手阵容')+PVPView.details(PVPView.opponent)+'<div class="card small muted">使用你的当前 PVP 阵容。双方满血、无伤病，三十回合未决算平局。</div><div class="btns"><div class="btn main" data-action="pvp-fight">开战</div></div>'+PVPView.back:VIEWS['pvp-challenge']();
 VIEWS['pvp-records']=()=>{

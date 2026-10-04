@@ -1300,6 +1300,106 @@ const Stats = {
 
 /* ── 6  战斗 ─────────────────────────────────────────────────────────── */
 
+/* 三种模式共用配装：本人专属先锁定，其余按实际能力与已解锁技能分配。
+   评分只用于挑装备，面板与战斗属性仍全部来自 Stats.calc。 */
+const AutoGear = {
+  profile(hid, opt = {}) {
+    const h = opt.hero || G.heroes[hid];
+    const naked = { ...h, equipment: {} };
+    const s = Stats.calc(hid, { ...opt, hero: naked });
+    let atk = s.atk >= s.int * CFG.intK ? 1 : 0.2;
+    let intel = s.atk >= s.int * CFG.intK ? 0.2 : 1;
+    const use = { active: false, cmd: false, heal: false, buff: false, ctrl: false, dot: false };
+    for (const id of opt.skills || h.owned || []) {
+      const sk = DB.skill(id); if (!sk || sk.cat === 'passive') continue;
+      use.active ||= sk.cat === 'active'; use.cmd ||= sk.cat === 'cmd';
+      const rate = sk.cat === 'sure' ? 1 / Math.max(1, sk.cd) : sk.cat === 'cmd' ? 0.25 : sk.rate;
+      let source = 'atk';
+      for (const f of sk.fx) {
+        const area = ['all', 'mates'].includes(f.tg) ? 3 : ['row', 'col', 'frontm', 'colm', 'rand3'].includes(f.tg) ? 2 : f.tg === 'rand2' ? 1.5 : 1;
+        if (f.k === 'dmg') {
+          source = f.src === 'int' || f.src === 'gap' ? 'int' : 'atk';
+          if (source === 'int') intel += f.mult * rate * area; else atk += f.mult * rate * area;
+        }
+        if (f.k === 'heal') { use.heal = true; if (!f.pct) intel += f.mult * rate * area; }
+        if (f.k === 'buff' || f.k === 'shield') use.buff = true;
+        if (f.k === 'status') {
+          if (['stun', 'silence', 'chaos'].includes(f.st)) use.ctrl = true;
+          if (f.st === 'chaos') intel += rate * area;
+          if (['bleed', 'poison'].includes(f.st)) use.dot = true;
+          if (f.st === 'burn') { if (source === 'int') intel += rate; else atk += rate; }
+        }
+      }
+    }
+    use.ctrl ||= s.pas.onhit.some(f => ['stun', 'silence', 'chaos'].includes(f.st));
+    use.dot ||= s.pas.onhit.some(f => ['bleed', 'poison'].includes(f.st));
+    const total = atk + intel;
+    return { atk: 0.3 + 2 * atk / total, int: 0.3 + 2 * intel / total, use };
+  },
+  value(s, profile) {
+    const p = s.pas, u = profile.use;
+    const offence = s.atk * profile.atk + s.int * CFG.intK * profile.int;
+    const defence = s.def * 1.5 + s.maxHp * 0.05;
+    // 纳入生效被动，已到上限的特殊属性不会再虚增适配评分。
+    const special = offence * (p.dmg + p.crit * 0.5 + p.critDmg * 0.15 + p.pierce * 0.4
+      + (u.active ? p.skrate * 0.5 : 0) + (u.cmd ? p.cmd * 0.25 : 0)
+      + (u.heal ? p.heal * 0.25 : 0) + (u.buff ? p.buff * 0.25 : 0)
+      + (u.ctrl || p.onhit.some(f => ['stun', 'silence', 'chaos'].includes(f.st)) ? p.ctrl * 0.3 : 0)
+      + (u.dot || p.onhit.some(f => ['bleed', 'poison'].includes(f.st)) ? p.dot * 0.25 : 0)
+      + p.onhit.reduce((n, f) => n + (f.chance || 0) * 0.1, 0)
+      + (p.first ? 0.05 : 0))
+      + defence * (p.cut + p.dodge * 0.6 + p.regen * 2 + p.shield * 0.4 + (p.tough ? 0.05 : 0) + new Set(p.immune).size * 0.02)
+      + p.low.reduce((n, f) => n + (f.stat === 'atk' ? s.atk * profile.atk : f.stat === 'int' ? s.int * CFG.intK * profile.int : f.stat === 'def' ? s.def * 1.5 : f.stat === 'agi' ? s.agi : s.maxHp * 0.05) * f.pct * f.at, 0)
+      + s.atk * (p.counter ? p.counter.chance * p.counter.mult : 0)
+      + Math.max(s.atk, s.int * CFG.intK * CFG.intBasic) * (p.follow ? p.follow.chance * p.follow.mult : 0);
+    return offence + defence + s.agi + special;
+  },
+  score(hid, e, opt = {}, profile) {
+    const h = opt.hero || G.heroes[hid]; if (!h || !e) return -Infinity;
+    profile ||= this.profile(hid, opt);
+    const hero = { ...h, equipment: { ...h.equipment, [e.slot]: null } };
+    const without = this.value(Stats.calc(hid, { ...opt, hero }), profile);
+    hero.equipment[e.slot] = e.id;
+    return this.value(Stats.calc(hid, { ...opt, hero }), profile) - without;
+  },
+  ranked(hid, list, opt = {}) {
+    const profile = this.profile(hid, opt);
+    return list.map(e => ({ e, own: e.exclusive === hid ? 1 : 0, score: this.score(hid, e, opt, profile) }))
+      .sort((a, b) => b.own - a.own || b.score - a.score || b.e.q - a.e.q || a.e.id.localeCompare(b.e.id))
+      .map(x => x.e);
+  },
+  plan(team, stock, opt = {}) {
+    const ids = [...new Set(team.filter(id => id && G.heroes[id]))];
+    const remaining = { ...stock }, gear = {}, heroes = {}, profiles = {};
+    for (const id of ids) {
+      gear[id] = Object.fromEntries(SLOTS.map(sl => [sl, null]));
+      heroes[id] = { ...G.heroes[id], equipment: gear[id], ...(opt.neutral ? { hurt: { lv: 0, rest: 0 } } : {}) };
+      profiles[id] = this.profile(id, { ...opt, team: ids, hero: heroes[id] });
+    }
+    const available = DB.equipIds().map(DB.equip).filter(e => (remaining[e.id] || 0) > 0);
+    const take = (id, e) => { gear[id][e.slot] = e.id; remaining[e.id]--; };
+    // 全队的本人专属先分完，别人不能抢走随后才轮到主人的装备。
+    for (const id of ids) for (const sl of SLOTS) {
+      const mine = available.filter(e => e.exclusive === id && e.slot === sl && remaining[e.id] > 0);
+      if (mine.length) take(id, this.ranked(id, mine, { ...opt, team: ids, hero: heroes[id] })[0]);
+    }
+    for (const sl of SLOTS) {
+      const open = ids.filter(id => !gear[id][sl]);
+      while (open.length) {
+        let best = null;
+        for (const id of open) for (const e of available) {
+          if (e.slot !== sl || remaining[e.id] <= 0) continue;
+          const score = this.score(id, e, { ...opt, team: ids, hero: heroes[id] }, profiles[id]);
+          if (!best || score > best.score || (score === best.score && (e.q > best.e.q || (e.q === best.e.q && e.id.localeCompare(best.e.id) < 0)))) best = { id, e, score };
+        }
+        if (!best) break;
+        take(best.id, best.e); open.splice(open.indexOf(best.id), 1);
+      }
+    }
+    return { gear, remaining };
+  },
+};
+
 const Battle = {
   /** 关卡敌方等级 / 星级 / 强度系数：优先读数据字段，没有则由推荐等级推导 */
   enemyTier(sid) {
@@ -2724,68 +2824,35 @@ const Grow = {
 
   /* ── V10.5 布阵页一键装备 / 一键卸装 ─────────────────────────── */
 
-  /** V10.7 一件装备对这个人值多少：真穿上算一遍战力，看涨多少。
-   *  装备百分比改成一主一副之后（兵器有武%也有智%，宝物四样都有），按品阶或按「有没有武%」都挑不准；
-   *  直接用 Stats.calc 走一遍，擅长、专属本人加成、套装、上限全都在里面。同分取品阶高的。 */
-  gearScore(hid, e) {
-    const h = G.heroes[hid];
-    if (!h) return 0;
-    const eq = Object.assign({}, h.equipment, { [e.slot]: e.id });
-    const eq0 = Object.assign({}, h.equipment, { [e.slot]: null });
-    const with_ = Stats.power(Stats.calc(hid, { hero: Object.assign({}, h, { equipment: eq }) }));
-    const without = Stats.power(Stats.calc(hid, { hero: Object.assign({}, h, { equipment: eq0 }) }));
-    return (with_ - without) * 100 + e.q + (e.exclusive === hid ? 1e6 : 0);
-  },
-  /** V10.6.1b 只管阵上九人，要把最好的给他们：
-   *  阵上的人身上的先全收回来重排；板凳上的人身上的也拿来挑，
-   *  被挑走的那格就空着，没被挑中的原样穿回去。板凳上的人不另发装备。
-   *  专属先给本人（本人得在阵上），其余按战力从高往低轮，每格挑评分最高的。 */
+  /** 兼容旧调用，按当前人物及已解锁技能评价装备。 */
+  gearScore(hid, e, opt = {}) { return AutoGear.score(hid, e, opt); },
+  /** 阵上专属优先；其他装备按全队适配增益分配，余下归还板凳。 */
   autoEquip() {
-    const team = G.team.filter(h => h && G.heroes[h]);
+    const team = [...new Set(G.team.filter(id => id && G.heroes[id]))];
     if (!team.length) return { err: '阵上没有人' };
-    const bench = Object.keys(G.heroes).filter(h => !team.includes(h));
-    const before = {};
-    for (const hid of team) before[hid] = Object.assign({}, G.heroes[hid].equipment);
-    const benchWore = {};
-    for (const hid of [...team, ...bench]) for (const slot of SLOTS) {
-      const eid = G.heroes[hid].equipment[slot];
-      if (!eid) continue;
-      if (bench.includes(hid)) (benchWore[hid] ||= {})[slot] = eid;
-      // 直接挪回行囊，中途不存档
-      G.items['eq_' + eid] = (G.items['eq_' + eid] || 0) + 1;
-      G.heroes[hid].equipment[slot] = null;
+    const before = {}, stock = {}, benchWore = {};
+    for (const [key, n] of Object.entries(G.items)) if (key.startsWith('eq_') && DB.equip(key.slice(3))) stock[key.slice(3)] = n;
+    for (const [id, h] of Object.entries(G.heroes)) {
+      if (team.includes(id)) before[id] = { ...h.equipment };
+      else benchWore[id] = { ...h.equipment };
+      for (const sl of SLOTS) { const eid = h.equipment[sl]; if (eid && DB.equip(eid)) stock[eid] = (stock[eid] || 0) + 1; }
     }
-    // 按裸身战力排座次：带着装备排的话，配完一轮次序就变了，再点一次又会换
-    const order = team.slice().sort((a, b) => Stats.heroPower(b) - Stats.heroPower(a));
-    const take = (hid, slot, eid) => {
-      G.heroes[hid].equipment[slot] = eid;
-      if (--G.items['eq_' + eid] <= 0) delete G.items['eq_' + eid];
-    };
-    for (const e of this.bagEquips(null)) {
-      const hid = e.exclusive;
-      if (hid && team.includes(hid) && !G.heroes[hid].equipment[e.slot]) take(hid, e.slot, e.id);
-    }
-    for (const hid of order) for (const slot of SLOTS) {
-      if (G.heroes[hid].equipment[slot]) continue;
-      const bag = this.bagEquips(slot);
-      if (!bag.length) continue;
-      let best = null, bs = -Infinity;
-      for (const e of bag) { const sc = this.gearScore(hid, e); if (sc > bs) { bs = sc; best = e; } }   // 每件只算一次
-      take(hid, slot, best.id);
-    }
-    // 板凳上的人：没被挑走的原样穿回去
+    const { gear, remaining } = AutoGear.plan(team, stock, { team });
     let fromBench = 0;
-    for (const hid of bench) for (const [slot, eid] of Object.entries(benchWore[hid] || {})) {
-      if ((G.items['eq_' + eid] || 0) > 0) take(hid, slot, eid); else fromBench++;
+    for (const [id, wore] of Object.entries(benchWore)) for (const sl of SLOTS) {
+      const eid = wore[sl];
+      if (eid && remaining[eid] > 0) { remaining[eid]--; G.heroes[id].equipment[sl] = eid; }
+      else { G.heroes[id].equipment[sl] = null; if (eid) fromBench++; }
     }
+    for (const key of Object.keys(G.items)) if (key.startsWith('eq_') && DB.equip(key.slice(3))) delete G.items[key];
+    for (const [eid, n] of Object.entries(remaining)) if (n > 0) G.items['eq_' + eid] = n;
     let put = 0, changed = 0;
-    for (const hid of team) for (const slot of SLOTS) {
-      const now = G.heroes[hid].equipment[slot];
-      if (now) put++;
-      if (now !== before[hid][slot]) changed++;
+    for (const id of team) for (const sl of SLOTS) {
+      G.heroes[id].equipment[sl] = gear[id][sl];
+      if (gear[id][sl]) put++;
+      if (gear[id][sl] !== before[id][sl]) changed++;
     }
-    Save.write();
-    return { put, changed, fromBench };
+    Save.write(); return { put, changed, fromBench };
   },
   /** 全体身上一共几人穿着、几件。卸装前的确认框用 */
   wornCount() {
