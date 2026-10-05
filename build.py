@@ -26,8 +26,8 @@ import hashlib, json, os, sys, glob, re
 ROOT = os.path.dirname(os.path.abspath(__file__))
 def p(*a): return os.path.join(ROOT, *a)
 
-OUT = p('水浒群星录_V10.9.2.html')
-VERSION = 'V10.9.2'
+OUT = p('水浒群星录_V10.9.3.html')
+VERSION = 'V10.9.3'
 # --noassets：不带图构建（模拟与回归在没有 assets/ 的机器上跑时用），产物只用于测试
 NOASSETS = '--noassets' in sys.argv
 
@@ -74,8 +74,40 @@ for f in sorted(glob.glob(p('assets', 'scenes', 'web', '*.webp'))):
 if set(scenes) != SCENE_IDS and not NOASSETS:
     print('!! 场景图缺失：', '、'.join(sorted(SCENE_IDS - set(scenes)))); sys.exit(1)
 
+# PVP 短码字典守门（V10.9.3）：字典只许追加；可招募武将、全部装备、混乱技能池里每个 id 都得在字典里，
+# 各列表不许超过 bits 位宽容量；前缀必须与冻结的 v1 副本逐项相等，防止误重排
+GD = json.loads(data)
+cat_src = read(p('src', 'pvp_catalog.js'))
+CAT = json.loads(cat_src[cat_src.index('{'):cat_src.rindex('}') + 1])
+V1 = json.loads(read(p('test', 'fixtures', 'pvp_catalog_v1.json')))
+def catalog_check():
+    bad = []
+    recruit = [k for k, h in GD['heroes'].items() if h.get('src') != '杂兵']
+    SLOT_ORDER = ['weapon', 'armor', 'helmet', 'mount', 'special']
+    bad += ['将领 ' + k for k in recruit if k not in CAT['heroes']]
+    for eid, e in GD['equipment'].items():
+        si = SLOT_ORDER.index(e['slot'])
+        if eid not in CAT['gear'][si]: bad.append('装备 ' + eid)
+    chaos = {sid for k in recruit for sid in GD['heroes'][k].get('sk', []) if sid in GD['skills']}
+    bad += ['技能 ' + k for k in sorted(chaos) if k not in CAT['skills']]
+    if len(CAT['heroes']) >= 2 ** CAT['bits']['hero']: bad.append('将领列表超位宽')
+    for i, g in enumerate(CAT['gear']):
+        if len(g) + 1 > 2 ** CAT['bits']['gear'][i]: bad.append(f'装备槽 {i} 超位宽')
+    if len(CAT['skills']) > 2 ** CAT['bits']['skill']: bad.append('技能列表超位宽')
+    if len(CAT['growth']) != len(CAT['heroes']): bad.append('成长模板数与将领数不一致')
+    for key in ('heroes', 'skills'):
+        if CAT[key][:len(V1[key])] != V1[key]: bad.append(f'{key} 前缀与 v1 不符（重排或删除了）')
+    for i, g in enumerate(V1['gear']):
+        if CAT['gear'][i][:len(g)] != g: bad.append(f'装备槽 {i} 前缀与 v1 不符')
+    if CAT['growth'][:len(V1['growth'])] != V1['growth']: bad.append('成长模板前缀与 v1 不符')
+    if CAT['v'] != 2: bad.append('字典版本应为 2；升版须同时保留旧版解码')
+    return bad
+cat_bad = catalog_check()
+if cat_bad:
+    print('!! PVP 字典不合格：'); [print('   ', b) for b in cat_bad]; sys.exit(1)
+
 # 校验：立绘的 hid 必须在数据里
-ids = set(json.loads(data)['heroes'])
+ids = set(GD['heroes'])
 orphan = [k for k in portraits if k not in ids]
 if orphan:
     print('!! 这些立绘对不上角色 ID：', '、'.join(orphan)); sys.exit(1)
@@ -162,3 +194,4 @@ inline = len(re.findall(r'onclick\s*=', probe))
 print(f'  内联 onclick {inline}' + (' ✓' if inline == 0 else ' !!'))
 iv = len(re.findall(r'setInterval', probe))
 print(f'  setInterval {iv}' + (' ✓' if iv == 0 else ' !!'))
+print(f'  PVP 字典 v{CAT["v"]}：将领 {len(CAT["heroes"])}/{2**CAT["bits"]["hero"]}　装备 ' + '/'.join(f'{len(g)}:{2**b-1}' for g, b in zip(CAT['gear'], CAT['bits']['gear'])) + f'　技能 {len(CAT["skills"])}/{2**CAT["bits"]["skill"]} ✓')

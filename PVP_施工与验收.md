@@ -71,3 +71,27 @@
 - Codex In-app Browser 本地 HTTP 验收：旧三条重复记录合并为一条；独立测试存档七颗头颅按五加二两行排列、全部图片加载；五条含重复记录合并为两条。
 - 390×844 手机视口，五列均约 64.6px，无横向溢出；姓名和时间详情、折叠展开、刷新保留折叠状态均通过。error/warn 日志为空。
 - 截图 test/artifacts/pvp_grid_mobile.jpg。源文件备份 backups/pvp_grid_20261004/。
+
+
+## V10.9.3 · 对战码加固与存档瘦身（2026-10-05）
+
+审计 V10.9.2 发现三处：位宽按字典长度现场算、兵器槽正好 127 件再加一件旧码全废；战绩和头颅存展开快照、百场战绩存档 473KB；SHP2/SHU2 双格式。
+
+- src/pvp_catalog.js：v2，加 `bits:{hero:9,gear:[8,7,6,7,6],skill:11}`，删冗余 `classic`（validate 本就按 DB.hero.sk 校验）。列表内容与 v1 相同。冻结 v1 副本在 test/fixtures/pvp_catalog_v1.json。
+- src/engine_pvp.js：位宽读 `cat.bits`；`expand` 按首字节分 v1/v2 两套位宽；新档身份 `crypto.getRandomValues` 8 字节十六进制（标志 8），旧档 UUID 原样 16 字节（标志 4）；培养差异 v2 写 zigzag 差值（2 位档位 6/10/14 位，超出回落 20 位绝对值）；只生成 Base64URL，`MAX` 360；SHU2 只解不生成。`identity` 未动。
+- 战绩结构：`records[]` 的 mine/opponent 为对战码字符串，附 `key`（奖励身份）与 `oname`；`heads[]` 的 opponent 为码，附 `oname`。`uniqueRecords` 按 key 去重。`create` 时顺手把双方码算好挂在战斗对象上，`settle` 直接存。`pending()`/`migrate()` 在进 PVP 时一次性转换旧档，转不了的原样保留。
+- src/view_pvp.js：列表用 `PVP.oname()`，详情 `await PVP.foe()` 解码；`pvp-enter` 先迁移。
+- build.py：V10.9.3；字典守门（可招募武将、全部装备、混乱技能池 ⊆ 字典；位宽容量；与 v1 前缀逐项相等；v 必须为 2）。sw.js 缓存 qxl-v10.9.3-1。
+
+### 验收
+
+- `node test/pvp.js`：80 项通过。新增：v1 码在 v2 下解出；SHU2 旧码带空白解出；v1/v2 奖励身份一致；UUID 16 字节与新档 8 字节；字典追加后旧码照常；位宽超容报错；旧战绩/头颅迁移（条数、头颅数、已领取不变）；重平衡旧档差值；百场战绩存档 40,889 字节。
+- 长度样本（Base64URL）：传统 72/115/128/171/149/192，混乱 137/181/193/237/215/259；重平衡旧档 + 16 字名 + 混乱满装 336。
+- `node test/pvp_e2e.js`（Playwright，390×844）：15 项通过。旧档三条重复战绩进 PVP 合并为一条并转码、头颅与已领取不变；生成码 91 字；v1 / SHU2 / v2 三种码带换行粘贴均可预览；真实开战、结算提示「头颅已领取」、战绩详情从码解出双方九人、头颅详情、无横向溢出、存档码往返。页面 error/warn 为空（立绘 404 为未带 assets）。
+- 守门自检：篡改字典（重排兵器、删将领）构建即失败。
+- 备份：backups/pvp_v2_20261005/。产物 index.html 与 水浒群星录_V10.9.3.html 一致，未发布线上。
+
+### 没做的
+
+- 头颅颗粒度（对手每升一级即新身份）待定。
+- 数据重平衡时旧档 `base` 不会跟着重算，码里只能逐项写差值；若以后在存档迁移里按 grownBase 重算 base，差值这段就用不上了，但那会改玩家面板，另议。

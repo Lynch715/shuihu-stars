@@ -1,4 +1,4 @@
-/* PVP 视图只读取状态，操作统一接入原事件委托。 */
+/* PVP 视图只读取状态，操作统一接入原事件委托。战绩里的快照是对战码，看详情时才解码。 */
 const PVPView = {
   opponent:null, busy:false,
   title(t,sub='') { return sectionTitle(t,`<span class="tp">${esc(sub)}</span>`); },
@@ -21,7 +21,7 @@ const PVPView = {
   async action(a,el) {
     const id=el.dataset.id,i=+el.dataset.i,sl=el.dataset.slot;
     try {
-      if(a==='pvp-enter'){PVP.init();Save.write();go('pvp');}
+      if(a==='pvp-enter'){PVP.init();if(PVP.pending()){toast('整理旧战绩…');await PVP.migrate();}Save.write();go('pvp');}
       else if(a==='pvp-name'){this.name();toast('姓名已保存');}
       else if(a==='pvp-cell')this.cell(i);
       else if(a==='pvp-change')this.select(i);
@@ -40,8 +40,8 @@ const PVPView = {
         if(this.busy||UI.playing)return;this.busy=true;
         try{const b=await PVP.create(this.opponent);UI.battle=b;UI.view='battle';UI.playing=true;UI.logFull=false;Play.tok++;Play.shown=0;render();Play.step();}finally{this.busy=false;}
       }
-      else if(a==='pvp-record'){const r=G.pvp.records[i];this.modal(this.title('对战详情',r.result+' · '+r.rounds+' 回合')+`<div class="small muted">${esc(this.date(r.time))}${r.reward?' · '+esc(r.reward):''}</div>`+this.title('我方')+this.details(r.mine)+this.title('对方')+this.details(r.opponent));}
-      else if(a==='pvp-head'){const h=G.pvp.heads[i];this.modal(this.title(h.name)+`<div class="card small"><div>姓名：${esc(h.opponent.name)}</div><div>对战时间：${esc(this.date(h.time))}</div></div>`+this.details(h.opponent));}
+      else if(a==='pvp-record'){const r=G.pvp.records[i];this.modal(this.title('对战详情',r.result+' · '+r.rounds+' 回合')+`<div class="small muted">${esc(this.date(r.time))}${r.reward?' · '+esc(r.reward):''}</div>`+this.title('我方')+this.details(await PVP.foe(r.mine))+this.title('对方')+this.details(await PVP.foe(r.opponent)));}
+      else if(a==='pvp-head'){const h=G.pvp.heads[i];this.modal(this.title(h.name)+`<div class="card small"><div>姓名：${esc(PVP.oname(h))}</div><div>对战时间：${esc(this.date(h.time))}</div></div>`+this.details(await PVP.foe(h.opponent)));}
     }catch(e){toast(e.message);}
   },
 };
@@ -51,10 +51,10 @@ VIEWS['pvp-challenge']=()=>PVPView.title('开始对战')+'<div class="small mute
 VIEWS['pvp-preview']=()=>PVPView.opponent?PVPView.title('对手阵容')+PVPView.details(PVPView.opponent)+'<div class="card small muted">使用你的当前 PVP 阵容。双方满血、无伤病，三十回合未决算平局。</div><div class="btns"><div class="btn main" data-action="pvp-fight">开战</div></div>'+PVPView.back:VIEWS['pvp-challenge']();
 VIEWS['pvp-records']=()=>{
   const p=G.pvp;
-  const loot='<div class="pvp-loot-grid">'+p.heads.map((h,i)=>`<button type="button" class="pvp-trophy" data-action="pvp-head" data-i="${i}" aria-label="查看${esc(h.name)}"><img src="${esc(window.PVP_HEAD_ICON)}" alt="头颅" loading="lazy" decoding="async"><span>${esc(h.opponent.name)}</span></button>`).join('')+'</div>';
+  const loot='<div class="pvp-loot-grid">'+p.heads.map((h,i)=>`<button type="button" class="pvp-trophy" data-action="pvp-head" data-i="${i}" aria-label="查看${esc(h.name)}"><img src="${esc(window.PVP_HEAD_ICON)}" alt="头颅" loading="lazy" decoding="async"><span>${esc(PVP.oname(h))}</span></button>`).join('')+'</div>';
   return section('pvp-loot','战利品',p.heads.length?loot:'<div class="empty">尚未收获头颅</div>',`<span class="tp">${p.heads.length} 颗头颅 · ${G.fold['pvp-loot']?'展开':'收起'}</span>`)
     +PVPView.title('对战记录','最近 100 条 · 同阵容保留最新')
-    +(p.records.map((r,i)=>`<div class="card small" data-action="pvp-record" data-i="${i}"><b>${esc(r.opponent.name)}</b>　${r.result} · ${r.rounds} 回合<div class="tiny muted">${esc(PVPView.date(r.time))}${r.reward?' · '+esc(r.reward):''} · 点击查看双方阵容</div></div>`).join('')||'<div class="empty">尚无对战记录</div>')+PVPView.back;
+    +(p.records.map((r,i)=>`<div class="card small" data-action="pvp-record" data-i="${i}"><b>${esc(PVP.oname(r))}</b>　${r.result} · ${r.rounds} 回合<div class="tiny muted">${esc(PVPView.date(r.time))}${r.reward?' · '+esc(r.reward):''} · 点击查看双方阵容</div></div>`).join('')||'<div class="empty">尚无对战记录</div>')+PVPView.back;
 };
 document.addEventListener('change',e=>{if(e.target.id==='pvp-name'){try{PVPView.name();}catch(x){toast(x.message);}}});
 window.PVPView=PVPView;
