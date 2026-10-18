@@ -173,6 +173,13 @@ function renderTop() {
 
 const VIEWS = {};
 
+function creatorFooter() {
+  return `<footer class="creator-footer">
+    <div>制作人：大老师 · 微信 <button type="button" data-action="copy-wx" aria-label="复制制作人微信号 lynchrrr">lynchrrr</button></div>
+    <div>发现更多游戏，请在小红书、闲鱼搜索<br>原创作者「模拟游戏大全」</div>
+  </footer>`;
+}
+
 function sceneOf(ch) {
   const card = DB.chapterCard(ch);
   return card && card.scene && window.SCENES ? window.SCENES[card.scene] || '' : '';
@@ -241,6 +248,7 @@ VIEWS.mode = () => `<div class="modepick">
       <span>每个人入伙那一刻随机摇四招，谁也不知道自己会什么。开局送的两个也一样。</span>
     </div>
     <div class="mp-imp" data-action="save-io">已有存档？<b>导入</b></div>
+    ${creatorFooter()}
   </div>`;
 
 /* 入伙卡：开篇字幕走完，把开局随机送的两个人亮出来 —— 不然玩家不知道自己多了谁 */
@@ -342,7 +350,7 @@ VIEWS.main = () => {
     <div class="btn warn" data-action="reset">重开一局</div>
   </div>
   <div class="btns"><div class="btn main" data-action="pvp-enter">PVP 对战</div></div>
-  <div class="contact" data-action="copy-wx">有 bug、有想法，加微信说一声：<b>lynchrrr</b><i>点一下复制</i></div>`;
+  ${creatorFooter()}`;
 };
 
 /* 宿星条。二周目才有，三颗一直摆在主界面上 —— 这一周目是什么手感，

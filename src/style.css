@@ -364,9 +364,10 @@ body{
 .tslot.over{box-shadow:0 0 0 2px var(--gold) inset}
 .btns.tight2{margin-top:9px;gap:7px}
 .tip{font-size:.7em;color:var(--ink-3);line-height:1.9;margin-top:7px}
-.contact{margin:26px 0 8px;text-align:center;font-size:.76em;color:var(--ink-3);line-height:1.8;cursor:pointer}
-.contact b{font-family:var(--f-title);font-weight:400;color:var(--ink-2);letter-spacing:.06em;border-bottom:1px dashed var(--ink-4);padding:0 2px}
-.contact i{display:block;font-style:normal;font-size:.86em;color:var(--ink-4)}
+.creator-footer{margin:26px 0 8px;text-align:center;font-size:12px;color:var(--ink-2);line-height:1.8}
+.creator-footer button{font:inherit;color:inherit;background:none;border:0;border-bottom:1px dashed var(--ink-3);padding:0 2px;cursor:pointer}
+.creator-footer button:focus-visible{outline:1px solid var(--ink-2);outline-offset:3px}
+.creator-footer>div+div{margin-top:4px}
 
 /* 行囊里在用的那一行 */
 .itrow .who{font-size:.76em;color:var(--indigo);margin-left:auto;padding-right:8px}
@@ -645,9 +646,12 @@ img[data-v="6"],img[data-v="7"]{filter:brightness(.96) sepia(.1) saturate(.96)}
 .log .ps{color:var(--ink-3);font-style:italic}
 .float.miss{color:var(--indigo);font-size:.8em}
 
-.modepick{position:fixed;inset:0;z-index:60;background:var(--paper);overflow:hidden;
-  display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 28px;animation:cardin .5s ease-out}
+.modepick{position:fixed;inset:0;z-index:60;background:var(--paper);overflow-y:auto;
+  display:flex;flex-direction:column;align-items:center;padding:28px 28px max(16px,env(safe-area-inset-bottom));animation:cardin .5s ease-out}
 .modepick>*:not(.scene-full){position:relative;z-index:1}
+.modepick>*{flex-shrink:0}
+.modepick .mp-t{margin-top:auto}
+.modepick .creator-footer{width:100%;max-width:380px;margin:auto 0 0;padding-top:24px}
 .mp-t{font-family:var(--f-title);font-size:2.1em;letter-spacing:.3em;color:var(--ink-1)}
 .mp-s{font-size:.8em;color:var(--ink-3);letter-spacing:.14em;margin:6px 0 26px}
 .mp-card{width:100%;max-width:340px;border:1px solid var(--ink-3);background:var(--paper);padding:14px 16px;
